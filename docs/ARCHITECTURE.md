@@ -117,6 +117,16 @@ Rule.done(state) -> boolean
 
 The `wrong` flag of a catch never leaves the server.
 
+Added in Core M3 and M4 (11/26/2026):
+
+- `EntityMoved` (rule, position data): an entity changed place (the Neighbor drifting, the Watcher stepping).
+- `EntityCue.data.warn`: seconds until the counter is enforced.
+- `EntityFail.data.effects`: what the fail does (hold lost, lantern out, flood, take player), for the shell to present.
+- `Callout` with `data.fake = true` and `player = data.as`: the Neighbor speaking as a crewmate. The shell shows it exactly like a real callout and never reveals it is fake.
+- `PlayerDied.data.text` uses ids of the form `Death.<Rule>.<Cause>` for the death card.
+- `NightFailed.data.reason` can be `Sunk`. `Flooding.data.leak` says whether water is still coming in.
+- `NightResult.tallies`: per-player stats for the end-of-night card (see `PlayerTally` in Types).
+
 ### Other Core modules
 
 `NightClock`, `Quota`, `LakeMap` (zone at a point, inside lake, distance to shore, nearest shore point, safe zone), `FishTable` (pick species by zone and hour), `Fishing` (cast, bite, reel bar), `WrongCatch` (mutate one trait by tier), `BoatModel` (pure kinematics for sims and for the server's target velocity), `Lantern`, `Attention`, `Fakeouts`, `Rulebook` (rule text ids, amendments from the seed, death card text ids), `Ghost`, `Supplies`, `SoundMix` (what the ambience layers and ducking should be, from a NightView), `RateLimit` (token bucket), `Validate` (payload checks), `Profile` (save schema, defaults, migration, cosmetic unlock rules), `Leaderboard` (ordered best-night logic).
