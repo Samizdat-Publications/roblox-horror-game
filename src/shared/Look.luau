@@ -48,20 +48,22 @@ Look.Lighting = {
 	ClockTime = 0,
 	-- Tuned in Studio 11/26/2026: the first values rendered near pure black. These keep the
 	-- shore silhouettes and the fog band readable while the lantern stays the brightest thing.
-	Brightness = 1.2,
-	Ambient = Color3.fromRGB(38, 52, 58),
-	OutdoorAmbient = Color3.fromRGB(62, 82, 88),
+	-- Second pass (after Neon's look review scored phone readability 2/10): a lighter gray-green
+	-- fog band that lifts the shore silhouettes, still dark enough to read as night.
+	Brightness = 1.3,
+	Ambient = Color3.fromRGB(40, 54, 56),
+	OutdoorAmbient = Color3.fromRGB(64, 80, 80),
 	EnvironmentDiffuseScale = 0.2,
 	EnvironmentSpecularScale = 0.3,
 	GlobalShadows = true,
-	ExposureCompensation = 0.35,
+	ExposureCompensation = 0.3,
 	atmosphere = {
-		Density = 0.42,
-		Offset = 0.05,
-		Haze = 1.6,
+		Density = 0.46,
+		Offset = 0.12,
+		Haze = 2,
 		Glare = 0,
-		Color = Color3.fromRGB(43, 64, 69),
-		Decay = Color3.fromRGB(30, 46, 52),
+		Color = Color3.fromRGB(58, 72, 70),
+		Decay = Color3.fromRGB(34, 44, 46),
 	},
 	colorCorrection = {
 		Brightness = 0.03,
@@ -82,9 +84,9 @@ Look.Lighting = {
 
 -- The boat's lantern. The client flickers it between flickerLow and 1 times Brightness.
 Look.Lantern = {
-	Range = 40,
-	Brightness = 2.6,
-	Color = Color3.fromRGB(255, 176, 96),
+	Range = 60,
+	Brightness = 3.6,
+	Color = Color3.fromRGB(255, 150, 60),
 	Shadows = true,
 	flickerLow = 0.88,
 	flickerSpeed = 7, -- noise steps per second
@@ -92,9 +94,9 @@ Look.Lantern = {
 
 -- The dock beacon: a steady warm light that blinks off twice every `period` seconds.
 Look.Beacon = {
-	Range = 60,
-	Brightness = 4,
-	Color = Color3.fromRGB(255, 226, 168),
+	Range = 62,
+	Brightness = 6,
+	Color = Color3.fromRGB(255, 186, 104),
 	Shadows = false,
 	period = 6,
 	blinkOn = 0.45, -- each dark blink lasts this long

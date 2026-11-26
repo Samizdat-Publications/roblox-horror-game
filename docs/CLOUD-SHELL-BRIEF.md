@@ -46,6 +46,18 @@ One branch per chunk: `claude/shell-s1`, `claude/shell-s2` and so on, each cut f
 
 The local session may have built some of this already. Before each chunk, pull `main`. If a module on your list already exists there, review it against the brief, fix gaps, and move on. Do not rewrite working code.
 
+## Changes decided on 11/26/2026 (after a design review; these override older text above and in DESIGN.md)
+
+- **Every sound cue also has a visual tell**, because many players are muted on phones. Fireflies (small Neon parts with a slow drift) hover near the shore and around the boat at chorus bands 2 and 3; they thin with the chorus and freeze in place, then fade, at band 0. During the Hum the lantern flame shivers fast and the floorboards visibly buzz (a small rapid offset on the boat's interior parts, client side). Knocks shake the boat slightly. The Watcher's tone comes with a faint vignette that darkens while you stare.
+- **The Field Guide opens as a half-screen card beside the held fish** during the keep or throw back choice, not a full-screen book. The rulebook can still cover the view.
+- **Wrong fish tells are visible at a glance:** glow, a third eye, wrong tail, an extra back fin, blinking eyelids, an eye looking the wrong way, a fin on the wrong side. Build these visually from the traits.
+- **The Neighbor hunts lantern light** and can send fake callouts that look exactly like a crewmate's (`Callout` events with `data.fake = true` and `data.as = <PlayerId>`). Show them like real callouts. Never reveal they are fake.
+- **Deaths you can see:** when a player is taken, their hat (or a stand-in cap part if they have none) floats on the water where they were and slowly sinks, and a rod part clatters into the bottom of the boat.
+- **End-of-night tally card:** short dry per-player stats from `NightResult` ("Broke the silence twice", "Kept 2 fish that were not in the book", "Bailed for 40 seconds").
+- **Free head-look while seated**, and each player's head turn is replicated so crewmates see each other look around.
+- **The between-night supply pick is cut.** Do not build it.
+- **Nights are 6 minutes** (Config.Night.realSeconds = 360).
+
 ## The work, in order
 
 **S1 The lake you can row.** `WorldBuilder` and `world/*`, `LightingController`, `BoatService`, `Net` with `Remotes` (validation through `Core.Validate` and `Core.RateLimit` when they exist, local checks until then), client `Input`, `Camera`, `AudioDirector` (ambience layers driven by a `NightView`-shaped table; use `Core.SoundMix` when it exists), a minimal `HUD`. `DebugDriver` scenarios `row_to_steeple` and `tour` (teleports the boat to each point of interest in turn) and a Studio-only client `DebugBot` that can sit in a seat and send helm input through the real remotes.
