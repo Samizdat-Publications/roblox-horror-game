@@ -46,24 +46,26 @@ Look.Palette = {
 -- Lighting, Atmosphere and post effects. LightingController applies these at server start.
 Look.Lighting = {
 	ClockTime = 0,
-	Brightness = 0.4,
-	Ambient = Color3.fromRGB(10, 16, 19),
-	OutdoorAmbient = Color3.fromRGB(10, 16, 19),
+	-- Tuned in Studio 11/26/2026: the first values rendered near pure black. These keep the
+	-- shore silhouettes and the fog band readable while the lantern stays the brightest thing.
+	Brightness = 1.2,
+	Ambient = Color3.fromRGB(38, 52, 58),
+	OutdoorAmbient = Color3.fromRGB(62, 82, 88),
 	EnvironmentDiffuseScale = 0.2,
 	EnvironmentSpecularScale = 0.3,
 	GlobalShadows = true,
-	ExposureCompensation = 0,
+	ExposureCompensation = 0.35,
 	atmosphere = {
-		Density = 0.6,
-		Offset = 0.1,
-		Haze = 2.4,
+		Density = 0.42,
+		Offset = 0.05,
+		Haze = 1.6,
 		Glare = 0,
-		Color = Color3.fromRGB(27, 42, 46),
-		Decay = Color3.fromRGB(24, 36, 40),
+		Color = Color3.fromRGB(43, 64, 69),
+		Decay = Color3.fromRGB(30, 46, 52),
 	},
 	colorCorrection = {
-		Brightness = 0,
-		Contrast = 0.05,
+		Brightness = 0.03,
+		Contrast = 0.1,
 		Saturation = -0.1,
 		TintColor = Color3.fromRGB(226, 242, 240), -- a faint pull toward teal
 	},
@@ -80,9 +82,9 @@ Look.Lighting = {
 
 -- The boat's lantern. The client flickers it between flickerLow and 1 times Brightness.
 Look.Lantern = {
-	Range = 34,
-	Brightness = 1.6,
-	Color = Color3.fromRGB(255, 180, 90),
+	Range = 40,
+	Brightness = 2.6,
+	Color = Color3.fromRGB(255, 176, 96),
 	Shadows = true,
 	flickerLow = 0.88,
 	flickerSpeed = 7, -- noise steps per second

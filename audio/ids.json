@@ -1,1 +1,5 @@
-{ "assets": [] }
+{
+  "assets": [
+    { "name": "bed-hull-lap", "id": 82149066729139, "source": "upload audio/final/bed-hull-lap.mp3 via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026)", "operation": "2f03fad9-0ea5-44e8-a1df-1251dc33b48e", "moderation": "Reviewing" }
+  ]
+}

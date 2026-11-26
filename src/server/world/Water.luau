@@ -23,9 +23,11 @@ function Water.build(ctx: any)
 		"Water",
 		Vector3.new(sx, 1, sz),
 		CFrame.new(0, y - 0.5, 0),
-		look.Palette.water,
+		-- The design palette's water (#0B1418) rendered pure black in Studio on 11/26/2026.
+		-- The surface is lifted to this and lets the lighting do the darkening.
+		Color3.fromRGB(26, 46, 52),
 		Enum.Material.SmoothPlastic,
-		{ collide = false, shadow = false, reflectance = 0.12 }
+		{ collide = false, shadow = false, reflectance = 0.2 }
 	)
 	water:SetAttribute("WaterY", y)
 	ctx.anchors.water = water

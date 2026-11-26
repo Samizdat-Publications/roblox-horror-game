@@ -31,7 +31,15 @@ local function seatWhenReady(player: Player, character: Model)
 		warn("[DeadCalm] could not seat " .. player.Name .. ": character has no Humanoid or root")
 		return
 	end
-	for _ = 1, 8 do
+	-- Seen in Studio on 11/26/2026: a Sit right after CharacterAdded takes, then the character is
+	-- pulled back to the spawn while its appearance finishes loading. So wait for the appearance,
+	-- then only count it as seated once the seat has held for two seconds.
+	local waited = 0
+	while not player:HasAppearanceLoaded() and waited < 10 do
+		waited += task.wait(0.25)
+	end
+	task.wait(0.5)
+	for _ = 1, 10 do
 		if player.Character ~= character or character.Parent == nil then
 			return
 		end
@@ -42,10 +50,14 @@ local function seatWhenReady(player: Player, character: Model)
 			warn("[DeadCalm] " .. msg)
 			return
 		end
-		task.wait(0.5)
-		if humanoid.SeatPart ~= nil and humanoid.SeatPart.Name == seatName then
+		local held = 0
+		while held < 2 and humanoid.SeatPart ~= nil and humanoid.SeatPart.Name == seatName do
+			held += task.wait(0.25)
+		end
+		if held >= 2 then
 			return
 		end
+		task.wait(0.5)
 	end
 	local msg = "Seat:Sit never took for " .. player.Name
 	table.insert(startupWarnings, msg)
