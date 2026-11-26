@@ -1,0 +1,110 @@
+<title>Making Don't Wave Back</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Special+Elite&family=Inter:wght@400;600&display=swap">
+<style>
+/* Layout: a single column logbook. Each milestone is a dated entry with a short story and a strip of stills;
+   the newest entry is on top. Single night look on purpose. */
+:root {
+  color-scheme: dark;
+  --water: #0b1418;
+  --fog: #16232a;
+  --fog-2: #213239;
+  --paper: #e9dfc3;
+  --ink-soft: #b4c3c1;
+  --lantern: #ffb45a;
+  --amend: #d9694f;
+  --hand: "Kalam", "Comic Sans MS", cursive;
+  --type: "Special Elite", "Courier New", monospace;
+  --body: "Inter", system-ui, sans-serif;
+}
+body {
+  background: var(--water); color: var(--ink-soft); font-family: var(--body); font-size: 16px; line-height: 1.6;
+  padding-block: 28px 80px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 40px; }
+header h1 { font-family: var(--hand); color: var(--paper); font-size: clamp(2.1rem, 7vw, 3.6rem); line-height: 1.05; margin: 0 0 12px; text-wrap: balance; }
+header p { margin: 0; max-width: 64ch; }
+.kicker { font-family: var(--type); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.78rem; color: var(--lantern); margin: 0 0 8px; }
+.now { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.now div { background: var(--fog); border-radius: 6px; padding: 12px 14px; min-width: 0; }
+.now b { display: block; font-family: var(--type); color: var(--paper); font-weight: 400; font-size: 0.82rem; letter-spacing: 0.05em; text-transform: uppercase; }
+.now span { font-size: 0.95rem; }
+.entry { display: flex; flex-direction: column; gap: 14px; border-top: 1px solid var(--fog-2); padding-top: 22px; }
+.meta { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; font-family: var(--type); font-size: 0.82rem; }
+.meta .ms { color: var(--lantern); text-transform: uppercase; letter-spacing: 0.06em; }
+.entry h2 { font-family: var(--hand); color: var(--paper); font-size: 1.9rem; margin: 0; line-height: 1.15; text-wrap: balance; }
+.entry p { margin: 0; max-width: 70ch; }
+.strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+figure { margin: 0; min-width: 0; }
+figure button { display: block; padding: 0; border: 0; background: var(--fog-2); width: 100%; cursor: zoom-in; border-radius: 4px; overflow: hidden; }
+figure img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
+figure button:focus-visible { outline: 3px solid var(--lantern); outline-offset: 2px; }
+figcaption { font-size: 0.86rem; margin-top: 6px; }
+.empty { font-family: var(--type); font-size: 0.82rem; color: var(--ink-soft); opacity: 0.8; }
+.lightbox { position: fixed; inset: 0; background: rgba(4, 8, 10, 0.94); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px)); z-index: 20; }
+.lightbox img { max-width: 100%; max-height: 80vh; border-radius: 4px; }
+.lightbox p { color: var(--paper); margin: 0; max-width: 70ch; text-align: center; }
+.lightbox button { font-family: var(--type); background: var(--paper); color: var(--water); border: 0; border-radius: 4px; padding: 8px 16px; cursor: pointer; }
+footer { font-size: 0.85rem; }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="kicker">Don't Wave Back, a co-op Roblox horror game</p>
+    <h1>How the lake was made</h1>
+    <p>Night shift on Blackwater Lake: fill the bait shop's quota before dawn and follow the Lake Rules. This is the build log, one entry per milestone, newest first, with the screenshots taken along the way. Every picture is from the game in Roblox Studio unless it says concept art.</p>
+  </header>
+
+  <section class="now" aria-label="Where it stands">
+    <div><b>Plays now</b><span>A full quiet night: fish, bank, clear at dawn.</span></div>
+    <div><b>Built, not on screen yet</b><span>The five Lake Rules and the scare director.</span></div>
+    <div><b>Next</b><span>The scares on screen, then the five-night run.</span></div>
+  </section>
+
+  <div id="log"><p class="empty">Loading the log.</p></div>
+
+  <footer>Built by Claude (Fable 5.2 designed it, Opus 5.5 is building it) for Stewart and his son. Sound by ElevenLabs, critiques and concept art by Gemini. Source: github.com/Samizdat-Publications/roblox-horror-game</footer>
+</div>
+
+<div class="lightbox" id="lb" hidden>
+  <img id="lb-img" alt="">
+  <p id="lb-cap"></p>
+  <button type="button" id="lb-close">Close</button>
+</div>
+
+<script>
+(function () {
+  var log = document.getElementById("log");
+  var lb = document.getElementById("lb"), lbImg = document.getElementById("lb-img"), lbCap = document.getElementById("lb-cap");
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function open(src, cap) { lbImg.src = src; lbImg.alt = cap; lbCap.textContent = cap; lb.hidden = false; document.getElementById("lb-close").focus(); }
+  function close() { lb.hidden = true; lbImg.removeAttribute("src"); }
+  document.getElementById("lb-close").addEventListener("click", close);
+  lb.addEventListener("click", function (e) { if (e.target === lb) close(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !lb.hidden) close(); });
+  fetch("log.json").then(function (r) { return r.json(); }).then(function (entries) {
+    log.textContent = "";
+    entries.slice().reverse().forEach(function (en) {
+      var s = el("article", "entry");
+      var m = el("div", "meta"); m.appendChild(el("span", "ms", en.milestone)); m.appendChild(el("span", null, en.date)); s.appendChild(m);
+      s.appendChild(el("h2", null, en.title));
+      s.appendChild(el("p", null, en.text));
+      if (en.stills && en.stills.length) {
+        var strip = el("div", "strip");
+        en.stills.forEach(function (st) {
+          var f = el("figure"); var b = el("button"); b.type = "button"; b.setAttribute("aria-label", "Enlarge: " + st.caption);
+          var img = el("img"); img.src = st.file; img.alt = st.caption; img.loading = "lazy";
+          b.appendChild(img); b.addEventListener("click", function () { open(st.file, st.caption); });
+          f.appendChild(b); f.appendChild(el("figcaption", null, st.caption)); strip.appendChild(f);
+        });
+        s.appendChild(strip);
+      } else {
+        s.appendChild(el("p", "empty", "No pictures for this one: it happened in sound or in tests."));
+      }
+      log.appendChild(s);
+    });
+  }).catch(function () { log.textContent = "The log could not be loaded."; });
+})();
+</script>
