@@ -96,7 +96,9 @@ function BoatHull.build(ctx: any, at: CFrame): Built
 		"LanternGlow",
 		Vector3.new(0.75, 0.75, 0.75),
 		p(0, 3.85, -8.55),
-		look.Lantern.Color,
+		-- A deeper orange than the light itself: Neon plus bloom washes a lantern-colored ball to
+		-- lemon yellow (seen in Studio 11/26/2026).
+		Color3.fromRGB(255, 118, 36),
 		Enum.Material.Neon,
 		{ shape = "Ball", shadow = false, collide = false }
 	)
