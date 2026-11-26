@@ -28,6 +28,15 @@ Last updated 11/26/2026 by the local session (Fable 5.2).
 - Neon design consult evaluated; taken and rejected ideas in DECISIONS.md and the shell brief.
 - 53 sounds uploaded through the Fishing Game window's Open Cloud permission (Stewart approved), ids in `audio\ids.json` and `SoundRegistry.luau`. Owner's voice "Tull (Dont Wave Back)" made in ElevenLabs; 10 tapes generated.
 
+## Paused 11/26/2026 evening (laptop asleep while Stewart drives home)
+
+Two local builders were mid-work when the laptop slept. Their files are on disk, UNCOMMITTED; nothing half-done was pushed. To resume:
+1. Check `git status`. The uncommitted files belong to:
+   - Core M5 and M7 builder: `src/shared/Core/**` (Run, Rulebook, entities/Finale, Profile, Leaderboard, SaveLogic), `tests/**`, `tools/sim/**`, `src/shared/Config.luau`, `docs/CLOUD-*.md`. It was also told: nights must start with the lantern lit.
+   - Shell S3 builder: `src/server/**`, `src/client/**` (EntityPresenter, fx modules, DeathCard, drowned, callouts, tally card), `PLAYTEST_GUIDE.md`, `docs/SHELL-*.md`.
+2. If this session still exists, resume each builder with SendMessage (they keep their context). If not, start a fresh builder per chunk with its brief (`docs/CLOUD-BRIEF.md` chunks M5 and M7, `docs/CLOUD-SHELL-BRIEF.md` chunk S3) and tell it to review and finish the files already on disk rather than start over.
+3. Then: gate, Studio check of each rule's pass and fail scenario, screen-record each scare for a Neon video review, update the making-of.
+
 ## In progress
 
 - Local builder: Core chunks M3 and M4 plus the Neon design changes (Neighbor rework, 6-minute nights, visible wrong-fish tells, no supplies, night tallies). It was cut off once by a network drop and resumed.
