@@ -17,6 +17,8 @@ Nothing here blocks the build. Each item says why it matters and the exact steps
 
    Until you do, the local session builds the same work itself whenever the PC is online.
 
+4. **Sound uploads are blocked until you grant a permission (found 11/26/2026).** The Studio window that has the horror game open (title starts with `C:\Users\stewa\Documents\Claude\Roblox\dead-calm\artifacts\studio\DeadCalm-play`) refuses uploads: "Scope 'asset:read' has not been granted". In THAT window: Assistant panel, the "..." menu, Settings, MCP Permissions. Grant the asset read and asset write permissions (the same ones the Fishing Game window has), and check the approved upload folders include `C:\Users\stewa\Documents\Claude\Roblox`. If that window offers no such setting because the place is a local file, tell Claude "upload through the fishing window": the upload goes to your account either way and changes nothing in the fishing place. Until then the game builds silent, with every chosen sound waiting in `C:\Users\stewa\Documents\Claude\Roblox\dead-calm\audio\final`.
+
 ## After the run
 
 3. **Play it solo.** Double-click `C:\Users\stewa\Documents\Claude\Roblox\dead-calm\DeadCalm.rbxl`, then press Play in Studio. To rebuild the file first:

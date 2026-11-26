@@ -1,0 +1,82 @@
+[
+  {
+    "file": "lantern-noir-boat.jpg",
+    "style_id": "lantern-noir",
+    "style_name": "Lantern Noir",
+    "scene_id": "boat",
+    "model": "gemini-nano-banana-2.1",
+    "prompt": "Concept screenshot of a Roblox game. Everything is built from simple blocky low-poly parts with flat colors, like real Roblox, with blocky Roblox-style avatars. A co-op spooky fishing game at night on a foggy lake, for ages 10 and up: eerie but not gory, no blood, no text, no logos, no UI. First-person view from a seat in a small wooden rowboat. An oil lantern hangs on a post at the bow and glows warm. A fishing rod sits in the foreground. Far ahead through the fog a small dock with a blinking beacon light. Along the dark shoreline stand crooked trees, and among them one very tall thin still figure, barely visible. Style: almost black teal water and gray-green fog, one warm amber lantern as the only strong light, deep shadows, heavy atmosphere, shapes read as silhouettes, serious and lonely, cinematic."
+  },
+  {
+    "file": "lantern-noir-dock.jpg",
+    "style_id": "lantern-noir",
+    "style_name": "Lantern Noir",
+    "scene_id": "dock",
+    "model": "gemini-nano-banana-2.1",
+    "prompt": "Concept screenshot of a Roblox game. Everything is built from simple blocky low-poly parts with flat colors, like real Roblox, with blocky Roblox-style avatars. A co-op spooky fishing game at night on a foggy lake, for ages 10 and up: eerie but not gory, no blood, no text, no logos, no UI. Third-person view of an old sagging wooden dock at dusk with a small bait shack that has one lit window, a rowboat tied at the end of the dock with a lantern, a tall beacon light on a pole, dark lake and fog beyond, a leaning church steeple sticking out of the water in the far distance. Two blocky Roblox avatars carry fishing rods toward the boat. Style: almost black teal water and gray-green fog, one warm amber lantern as the only strong light, deep shadows, heavy atmosphere, shapes read as silhouettes, serious and lonely, cinematic."
+  },
+  {
+    "file": "papercut-boat.jpg",
+    "style_id": "papercut",
+    "style_name": "Storybook Papercut",
+    "scene_id": "boat",
+    "model": "gemini-nano-banana-2.1",
+    "prompt": "Concept screenshot of a Roblox game. Everything is built from simple blocky low-poly parts with flat colors, like real Roblox, with blocky Roblox-style avatars. A co-op spooky fishing game at night on a foggy lake, for ages 10 and up: eerie but not gory, no blood, no text, no logos, no UI. First-person view from a seat in a small wooden rowboat. An oil lantern hangs on a post at the bow and glows warm. A fishing rod sits in the foreground. Far ahead through the fog a small dock with a blinking beacon light. Along the dark shoreline stand crooked trees, and among them one very tall thin still figure, barely visible. Style: like a shadow puppet theater or cut paper diorama, flat layered silhouettes in muted navy and slate blues with a paper grain, a pale moon, one warm yellow lantern, gentle and storybook spooky."
+  },
+  {
+    "file": "papercut-dock.jpg",
+    "style_id": "papercut",
+    "style_name": "Storybook Papercut",
+    "scene_id": "dock",
+    "model": "gemini-nano-banana-2.1",
+    "prompt": "Concept screenshot of a Roblox game. Everything is built from simple blocky low-poly parts with flat colors, like real Roblox, with blocky Roblox-style avatars. A co-op spooky fishing game at night on a foggy lake, for ages 10 and up: eerie but not gory, no blood, no text, no logos, no UI. Third-person view of an old sagging wooden dock at dusk with a small bait shack that has one lit window, a rowboat tied at the end of the dock with a lantern, a tall beacon light on a pole, dark lake and fog beyond, a leaning church steeple sticking out of the water in the far distance. Two blocky Roblox avatars carry fishing rods toward the boat. Style: like a shadow puppet theater or cut paper diorama, flat layered silhouettes in muted navy and slate blues with a paper grain, a pale moon, one warm yellow lantern, gentle and storybook spooky."
+  },
+  {
+    "file": "toybox-boat.jpg",
+    "style_id": "toybox",
+    "style_name": "Toybox Spooky",
+    "scene_id": "boat",
+    "model": "gemini-nano-banana-2.1",
+    "prompt": "Concept screenshot of a Roblox game. Everything is built from simple blocky low-poly parts with flat colors, like real Roblox, with blocky Roblox-style avatars. A co-op spooky fishing game at night on a foggy lake, for ages 10 and up: eerie but not gory, no blood, no text, no logos, no UI. First-person view from a seat in a small wooden rowboat. An oil lantern hangs on a post at the bow and glows warm. A fishing rod sits in the foreground. Far ahead through the fog a small dock with a blinking beacon light. Along the dark shoreline stand crooked trees, and among them one very tall thin still figure, barely visible. Style: bright chunky classic Roblox plastic look, saturated moonlit blues and purples, glowing green and orange accents, friendly cartoon spooky like a Halloween toy set, clear and colorful, not dark."
+  },
+  {
+    "file": "toybox-dock.jpg",
+    "style_id": "toybox",
+    "style_name": "Toybox Spooky",
+    "scene_id": "dock",
+    "model": "gemini-nano-banana-2.1",
+    "prompt": "Concept screenshot of a Roblox game. Everything is built from simple blocky low-poly parts with flat colors, like real Roblox, with blocky Roblox-style avatars. A co-op spooky fishing game at night on a foggy lake, for ages 10 and up: eerie but not gory, no blood, no text, no logos, no UI. Third-person view of an old sagging wooden dock at dusk with a small bait shack that has one lit window, a rowboat tied at the end of the dock with a lantern, a tall beacon light on a pole, dark lake and fog beyond, a leaning church steeple sticking out of the water in the far distance. Two blocky Roblox avatars carry fishing rods toward the boat. Style: bright chunky classic Roblox plastic look, saturated moonlit blues and purples, glowing green and orange accents, friendly cartoon spooky like a Halloween toy set, clear and colorful, not dark."
+  },
+  {
+    "file": "vhs-boat.jpg",
+    "style_id": "vhs",
+    "style_name": "Found Footage",
+    "scene_id": "boat",
+    "model": "gemini-nano-banana-2.1",
+    "prompt": "Concept screenshot of a Roblox game. Everything is built from simple blocky low-poly parts with flat colors, like real Roblox, with blocky Roblox-style avatars. A co-op spooky fishing game at night on a foggy lake, for ages 10 and up: eerie but not gory, no blood, no text, no logos, no UI. First-person view from a seat in a small wooden rowboat. An oil lantern hangs on a post at the bow and glows warm. A fishing rod sits in the foreground. Far ahead through the fog a small dock with a blinking beacon light. Along the dark shoreline stand crooked trees, and among them one very tall thin still figure, barely visible. Style: looks filmed on a 1990s camcorder, grainy, slightly washed out with a green tint, scanlines and a soft vignette, harsh small light from the lantern, unsettling home video feel."
+  },
+  {
+    "file": "vhs-dock.jpg",
+    "style_id": "vhs",
+    "style_name": "Found Footage",
+    "scene_id": "dock",
+    "model": "gemini-nano-banana-2.1",
+    "prompt": "Concept screenshot of a Roblox game. Everything is built from simple blocky low-poly parts with flat colors, like real Roblox, with blocky Roblox-style avatars. A co-op spooky fishing game at night on a foggy lake, for ages 10 and up: eerie but not gory, no blood, no text, no logos, no UI. Third-person view of an old sagging wooden dock at dusk with a small bait shack that has one lit window, a rowboat tied at the end of the dock with a lantern, a tall beacon light on a pole, dark lake and fog beyond, a leaning church steeple sticking out of the water in the far distance. Two blocky Roblox avatars carry fishing rods toward the boat. Style: looks filmed on a 1990s camcorder, grainy, slightly washed out with a green tint, scanlines and a soft vignette, harsh small light from the lantern, unsettling home video feel."
+  },
+  {
+    "file": "moonlit-boat.jpg",
+    "style_id": "moonlit",
+    "style_name": "Moonlit Watercolor",
+    "scene_id": "boat",
+    "model": "gemini-nano-banana-2.1",
+    "prompt": "Concept screenshot of a Roblox game. Everything is built from simple blocky low-poly parts with flat colors, like real Roblox, with blocky Roblox-style avatars. A co-op spooky fishing game at night on a foggy lake, for ages 10 and up: eerie but not gory, no blood, no text, no logos, no UI. First-person view from a seat in a small wooden rowboat. An oil lantern hangs on a post at the bow and glows warm. A fishing rod sits in the foreground. Far ahead through the fog a small dock with a blinking beacon light. Along the dark shoreline stand crooked trees, and among them one very tall thin still figure, barely visible. Style: soft painterly low-poly with gentle color gradients, silver moonlight, a sky full of stars, thin mist instead of heavy fog, calm and beautiful with something slightly wrong, cool blues with one warm lantern."
+  },
+  {
+    "file": "moonlit-dock.jpg",
+    "style_id": "moonlit",
+    "style_name": "Moonlit Watercolor",
+    "scene_id": "dock",
+    "model": "gemini-nano-banana-2.1",
+    "prompt": "Concept screenshot of a Roblox game. Everything is built from simple blocky low-poly parts with flat colors, like real Roblox, with blocky Roblox-style avatars. A co-op spooky fishing game at night on a foggy lake, for ages 10 and up: eerie but not gory, no blood, no text, no logos, no UI. Third-person view of an old sagging wooden dock at dusk with a small bait shack that has one lit window, a rowboat tied at the end of the dock with a lantern, a tall beacon light on a pole, dark lake and fog beyond, a leaning church steeple sticking out of the water in the far distance. Two blocky Roblox avatars carry fishing rods toward the boat. Style: soft painterly low-poly with gentle color gradients, silver moonlight, a sky full of stars, thin mist instead of heavy fog, calm and beautiful with something slightly wrong, cool blues with one warm lantern."
+  }
+]

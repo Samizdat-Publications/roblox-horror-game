@@ -41,6 +41,14 @@ if (-not $exe) {
 	exit 1
 }
 
+# Studio opens a copy, so a rebuild of DeadCalm.rbxl never fights Studio's lock on the file.
+$playDir = Join-Path $root "artifacts\studio"
+New-Item -ItemType Directory -Force $playDir | Out-Null
+$stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+$playPlace = Join-Path $playDir ("DeadCalm-play-{0}.rbxl" -f $stamp)
+Copy-Item $place $playPlace -Force
+$place = $playPlace
+
 $proc = Start-Process -FilePath $exe.FullName -ArgumentList ('"{0}"' -f $place) -PassThru
 New-Item -ItemType Directory -Force (Split-Path -Parent $pidFile) | Out-Null
 Set-Content -Path $pidFile -Value $proc.Id -Encoding ascii

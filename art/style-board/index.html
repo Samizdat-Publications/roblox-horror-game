@@ -1,0 +1,143 @@
+<title>Don't Wave Back Style Board</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Special+Elite&family=Inter:wght@400;600&display=swap">
+<style>
+/* Layout: one column of five "pages from the owner's notebook", each a style with two pictures and a pick button.
+   Single dark look on purpose: the game is a night lake. */
+:root {
+  color-scheme: dark;
+  --water: #0b1418;
+  --fog: #1b2a2e;
+  --fog-2: #24373c;
+  --paper: #e9dfc3;
+  --ink-soft: #b9c7c4;
+  --lantern: #ffb45a;
+  --amend: #d9694f;
+  --hand: "Kalam", "Comic Sans MS", cursive;
+  --type: "Special Elite", "Courier New", monospace;
+  --body: "Inter", system-ui, sans-serif;
+}
+body {
+  background: var(--water);
+  color: var(--ink-soft);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.55;
+  padding-block: 28px 120px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 36px; }
+header h1 { font-family: var(--hand); font-weight: 700; color: var(--paper); font-size: clamp(2rem, 7vw, 3.4rem); line-height: 1.05; margin: 0 0 10px; text-wrap: balance; }
+header p { margin: 0; max-width: 62ch; }
+.kicker { font-family: var(--type); letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.78rem; color: var(--lantern); margin: 0 0 8px; }
+.style { background: var(--fog); border-radius: 6px; padding: 18px; display: flex; flex-direction: column; gap: 14px; outline: 2px solid transparent; transition: outline-color 0.2s; }
+.style.picked { outline-color: var(--lantern); }
+.style h2 { font-family: var(--hand); color: var(--paper); font-size: 1.9rem; margin: 0; line-height: 1.1; }
+.style .what { margin: 0; max-width: 64ch; }
+.pics { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+figure { margin: 0; min-width: 0; }
+figure img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 4px; background: var(--fog-2); }
+figcaption { font-family: var(--type); font-size: 0.78rem; letter-spacing: 0.04em; margin-top: 6px; color: var(--ink-soft); }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; }
+.tag { font-family: var(--type); font-size: 0.8rem; color: var(--lantern); }
+button.pick { font-family: var(--hand); font-size: 1.25rem; font-weight: 700; color: var(--water); background: var(--paper); border: 0; border-radius: 4px; padding: 8px 20px; cursor: pointer; }
+button.pick:hover { background: #fff6da; }
+button.pick:focus-visible { outline: 3px solid var(--lantern); outline-offset: 3px; }
+.style.picked button.pick { background: var(--lantern); }
+.note { font-size: 0.92rem; border-left: 3px solid var(--amend); padding-left: 12px; max-width: 66ch; }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--fog-2); color: var(--paper); font-family: var(--hand); font-size: 1.2rem;
+  padding: 12px max(16px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); text-align: center; }
+.bar b { color: var(--lantern); }
+@media (prefers-reduced-motion: reduce) { .style { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="kicker">Tull's Bait and Tackle, night shift</p>
+    <h1>Liam, pick the look of the lake</h1>
+    <p>Same game, five different looks. In every picture you are in the boat with the lantern, the dock light is far away, and something tall is standing in the trees. Tap the one you want to play in. You can change your mind.</p>
+  </header>
+
+  <section class="style" data-id="lantern-noir" data-name="Lantern Noir">
+    <div class="row"><h2>1. Lantern Noir</h2><span class="tag">what we are building right now</span></div>
+    <p class="what">Almost black water, thick fog, and your lantern is the only real light. The scariest one. You mostly see shapes.</p>
+    <div class="pics">
+      <figure><img src="lantern-noir-boat.jpg" alt="Dark foggy lake seen from a rowboat with one glowing amber lantern and a tall figure in the trees" loading="lazy"><figcaption>in the boat</figcaption></figure>
+      <figure><img src="lantern-noir-dock.jpg" alt="Dark foggy dock with a bait shack and a beacon light" loading="lazy"><figcaption>the dock</figcaption></figure>
+    </div>
+    <div class="row"><span></span><button class="pick" id="pick-lantern-noir" type="button">Pick this one</button></div>
+  </section>
+
+  <section class="style" data-id="papercut" data-name="Storybook Papercut">
+    <div class="row"><h2>2. Storybook Papercut</h2></div>
+    <p class="what">Like a shadow puppet show made of cut paper. Blue layers, a pale moon, mist between the trees. Spooky like a storybook.</p>
+    <div class="pics">
+      <figure><img src="papercut-boat.jpg" alt="Layered blue paper-style lake at night seen from a rowboat with a lantern and a moon" loading="lazy"><figcaption>in the boat</figcaption></figure>
+      <figure><img src="papercut-dock.jpg" alt="Paper-style dock and bait shack under a moon" loading="lazy"><figcaption>the dock</figcaption></figure>
+    </div>
+    <div class="row"><span></span><button class="pick" id="pick-papercut" type="button">Pick this one</button></div>
+  </section>
+
+  <section class="style" data-id="toybox" data-name="Toybox Spooky">
+    <div class="row"><h2>3. Toybox Spooky</h2></div>
+    <p class="what">Bright, chunky, classic Roblox. Purple and green fog, glowing eyes, a big square moon. More fun than frightening.</p>
+    <div class="pics">
+      <figure><img src="toybox-boat.jpg" alt="Bright colorful blocky lake at night with purple fog and a figure with green eyes" loading="lazy"><figcaption>in the boat</figcaption></figure>
+      <figure><img src="toybox-dock.jpg" alt="Colorful blocky dock and bait shack with fireflies" loading="lazy"><figcaption>the dock</figcaption></figure>
+    </div>
+    <div class="row"><span></span><button class="pick" id="pick-toybox" type="button">Pick this one</button></div>
+  </section>
+
+  <section class="style" data-id="vhs" data-name="Found Footage">
+    <div class="row"><h2>4. Found Footage</h2></div>
+    <p class="what">Looks like somebody filmed it on an old camcorder. Grainy, a little green, like a tape you were not supposed to find.</p>
+    <div class="pics">
+      <figure><img src="vhs-boat.jpg" alt="Grainy green-tinted camcorder view from a rowboat on a lake at night" loading="lazy"><figcaption>in the boat</figcaption></figure>
+      <figure><img src="vhs-dock.jpg" alt="Grainy green-tinted dock and bait shack" loading="lazy"><figcaption>the dock</figcaption></figure>
+    </div>
+    <div class="row"><span></span><button class="pick" id="pick-vhs" type="button">Pick this one</button></div>
+  </section>
+
+  <section class="style" data-id="moonlit" data-name="Moonlit Watercolor">
+    <div class="row"><h2>5. Moonlit Watercolor</h2></div>
+    <p class="what">A beautiful night. Stars, silver water, thin mist. Calm and pretty, with something a little bit wrong.</p>
+    <div class="pics">
+      <figure><img src="moonlit-boat.jpg" alt="Starry moonlit lake seen from a rowboat with a lantern" loading="lazy"><figcaption>in the boat</figcaption></figure>
+      <figure><img src="moonlit-dock.jpg" alt="Moonlit dock, bait shack and a church steeple in the lake under stars" loading="lazy"><figcaption>the dock</figcaption></figure>
+    </div>
+    <div class="row"><span></span><button class="pick" id="pick-moonlit" type="button">Pick this one</button></div>
+  </section>
+
+  <p class="note">These pictures were drawn by an AI to show the idea. The real game is built from Roblox blocks, so it will be simpler than these, but it will follow the look you choose. The game keeps getting built in look number 1 until you decide.</p>
+</div>
+
+<div class="bar" id="bar">Tap a look to pick it.</div>
+
+<script>
+(function () {
+  var KEY = "dwb-style-pick";
+  var sections = Array.prototype.slice.call(document.querySelectorAll(".style"));
+  var bar = document.getElementById("bar");
+  function show(id) {
+    var name = "";
+    sections.forEach(function (s) {
+      var on = s.getAttribute("data-id") === id;
+      s.classList.toggle("picked", on);
+      s.querySelector("button.pick").textContent = on ? "Picked" : "Pick this one";
+      if (on) { name = s.getAttribute("data-name"); }
+    });
+    bar.innerHTML = name ? "Your pick: <b>" + name + "</b>. Tell Dad, and he will tell Claude." : "Tap a look to pick it.";
+  }
+  var saved = "";
+  try { saved = window.localStorage.getItem(KEY) || ""; } catch (e) { saved = ""; }
+  show(saved);
+  sections.forEach(function (s) {
+    s.querySelector("button.pick").addEventListener("click", function () {
+      var id = s.getAttribute("data-id");
+      try { window.localStorage.setItem(KEY, id); } catch (e) {}
+      show(id);
+    });
+  });
+})();
+</script>
