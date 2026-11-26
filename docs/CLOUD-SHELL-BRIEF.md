@@ -41,6 +41,8 @@ One branch per chunk: `claude/shell-s1`, `claude/shell-s2` and so on, each cut f
 - **The default emote menu is off.** Our Wave lives in the callout wheel.
 - **SoundRegistry** gets one entry per id in `audio/sounds.json` plus the tape ids in `audio/tapes.json`, all with id `0` for now, with volume, looped, spatial and a group (Ambience, Boat, Fishing, Rule, UI, Music, Voice). The local session fills in ids.
 
+The local session may have built some of this already. Before each chunk, pull `main`. If a module on your list already exists there, review it against the brief, fix gaps, and move on. Do not rewrite working code.
+
 ## The work, in order
 
 **S1 The lake you can row.** `WorldBuilder` and `world/*`, `LightingController`, `BoatService`, `Net` with `Remotes` (validation through `Core.Validate` and `Core.RateLimit` when they exist, local checks until then), client `Input`, `Camera`, `AudioDirector` (ambience layers driven by a `NightView`-shaped table; use `Core.SoundMix` when it exists), a minimal `HUD`. `DebugDriver` scenarios `row_to_steeple` and `tour` (teleports the boat to each point of interest in turn) and a Studio-only client `DebugBot` that can sit in a seat and send helm input through the real remotes.

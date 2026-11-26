@@ -27,6 +27,8 @@ You have no Roblox Studio. Everything you write must run under Lune. Follow the 
 - Keep `docs/CLOUD-PROGRESS.md` current: done, in progress, next, anything the local session must know.
 - Never publish anything, never add asset ids, never add network calls.
 
+The local session may have built some of this already. Before each chunk, pull `main`. If a module on your list already exists there with passing specs, review it against the brief, fix gaps, and move on. Do not rewrite working code.
+
 ## The work, in order
 
 **Chunk M1.** `LakeMap` (zone at a point, inside lake, distance to shore, nearest shore point, safe zone, random point in a zone), `BoatModel` (pure kinematics: throttle and steer to velocity and heading, oars and motor), `Lantern` (on, off, forced out, oil burn, refill), `SoundMix` (from a NightView and local facts, return target volumes for ambience layers: chorus band crossfade, motor masking, dock radio by distance, cue ducking), `RateLimit` (token bucket), `Validate` (payload shape and range checks for every remote in ARCHITECTURE.md). Specs for each.
