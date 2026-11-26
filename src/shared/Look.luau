@@ -133,6 +133,7 @@ Look.Mix = {
 		dockWater = 0.6,
 		lanternFlame = 0.5,
 		motorIdle = 0.8,
+		reel = 0.6,
 	},
 	fadePerSecond = 1.5, -- how fast a layer moves toward its target volume
 	chorusFadePerSecond = 4, -- the chorus changes fast: silence must be sudden
@@ -141,6 +142,127 @@ Look.Mix = {
 	hullCreakMax = 20,
 	wildlifeMin = 30, -- seconds between a loon or owl call on shore
 	wildlifeMax = 70,
+	-- The frog chorus from pieces (brief, 11/26/2026): seconds between single frog calls at
+	-- each band, the full loop only at band 3. Bands change gradually except the drop to 0.
+	frogGaps = {
+		{ 5, 11 }, -- band 1
+		{ 1.5, 4 }, -- band 2
+		{ 0.4, 1.2 }, -- band 3 (under the loop)
+	},
+	chorusRisePerSecond = 1 / 3, -- how fast the chorus level climbs between bands
+	frogShoreSpread = 0.45, -- radians either side of the nearest shore point
+	frogPitch = { 0.9, 1.12 },
+	frogVolume = { 0.65, 1.0 },
+	radioStaticSeconds = 4, -- static between the two radio tunes
+	tape = {
+		lowGain = -14, -- dB, EqualizerSoundEffect on the Voice group: a cheap cassette
+		midGain = 2,
+		highGain = -12,
+		distortion = 0.12, -- DistortionSoundEffect.Level
+		clickGap = 0.35, -- seconds between the tape click and the voice
+		duck = 0.6, -- ambience is multiplied by this while a tape plays
+	},
+}
+
+-- Fireflies: the visual twin of the frog chorus. Many at bands 2 and 3, a few at band 1,
+-- frozen in place and then faded at band 0.
+Look.Fireflies = {
+	count = 36,
+	color = Color3.fromRGB(214, 255, 140),
+	size = 0.22,
+	fadePerSecond = 0.8,
+	freezeHold = 0.6, -- seconds frozen in place before they fade
+	freezeFade = 2.5,
+	boatRing = { 8, 30 }, -- studs from the boat
+	shoreSpread = 0.5, -- radians either side of the nearest shore point
+	relocateDist = 150, -- a fly this far from the boat moves when it next goes dark
+}
+
+-- Fish built from parts (server/world/FishModel). Sizes in studs: length, height, width.
+Look.Fish = {
+	Pumpkinseed = {
+		length = 1.4,
+		height = 1.0,
+		width = 0.45,
+		body = Color3.fromRGB(120, 140, 70),
+		fin = Color3.fromRGB(150, 110, 50),
+		bar = Color3.fromRGB(50, 60, 30),
+	},
+	YellowPerch = {
+		length = 1.8,
+		height = 0.7,
+		width = 0.45,
+		body = Color3.fromRGB(190, 170, 70),
+		fin = Color3.fromRGB(190, 110, 50),
+		bar = Color3.fromRGB(45, 50, 30),
+	},
+	Bullhead = {
+		length = 1.8,
+		height = 0.65,
+		width = 0.55,
+		body = Color3.fromRGB(85, 70, 50),
+		fin = Color3.fromRGB(70, 58, 42),
+		bar = Color3.fromRGB(40, 32, 24),
+	},
+	Papermouth = {
+		length = 1.7,
+		height = 0.9,
+		width = 0.4,
+		body = Color3.fromRGB(175, 180, 175),
+		fin = Color3.fromRGB(140, 145, 140),
+		bar = Color3.fromRGB(60, 62, 60),
+		tallFin = true,
+	},
+	ChainPickerel = {
+		length = 2.6,
+		height = 0.55,
+		width = 0.42,
+		body = Color3.fromRGB(80, 110, 60),
+		fin = Color3.fromRGB(110, 120, 70),
+		bar = Color3.fromRGB(35, 50, 30),
+		finBack = true,
+	},
+	Walleye = {
+		length = 2.2,
+		height = 0.7,
+		width = 0.5,
+		body = Color3.fromRGB(150, 140, 90),
+		fin = Color3.fromRGB(120, 110, 70),
+		bar = Color3.fromRGB(55, 50, 35),
+	},
+	OldPlank = {
+		length = 3.4,
+		height = 0.8,
+		width = 0.7,
+		body = Color3.fromRGB(90, 95, 92),
+		fin = Color3.fromRGB(70, 74, 72),
+		bar = Color3.fromRGB(45, 48, 46),
+	},
+	SteepleCat = {
+		length = 3.0,
+		height = 0.8,
+		width = 0.75,
+		body = Color3.fromRGB(70, 85, 105),
+		fin = Color3.fromRGB(55, 66, 82),
+		bar = Color3.fromRGB(35, 42, 52),
+	},
+	eye = Color3.fromRGB(215, 205, 160),
+	pupil = Color3.fromRGB(10, 10, 12),
+	glowTransparency = 0.6,
+	glowRange = 7,
+	glowBrightness = 1.2,
+	blinkEvery = { 1.6, 3.2 }, -- seconds between blinks
+	blinkFor = 0.18,
+}
+
+-- Fishing gear (server FishingService).
+Look.Gear = {
+	rod = Color3.fromRGB(60, 45, 30),
+	line = Color3.fromRGB(205, 205, 190),
+	lineWidth = 0.04,
+	bobber = Color3.fromRGB(190, 45, 32),
+	bobberCap = Color3.fromRGB(230, 225, 210),
+	token = Color3.fromRGB(150, 150, 140), -- the fish shapes on the hold lid
 }
 
 -- UI: paper and ink.

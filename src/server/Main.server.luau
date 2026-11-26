@@ -1,6 +1,7 @@
 --!strict
 -- Server entry point: builds the world and the night look, opens the remotes, launches the
--- boat, and seats every player who joins (there is no lobby until S4).
+-- boat and the fishing gear, seats every player who joins (there is no lobby until S4), and
+-- runs the night (NightService) once the first player is seated.
 -- Prints exactly one line in normal operation; anything else is a warning or an error.
 
 local Players = game:GetService("Players")
@@ -12,6 +13,8 @@ local WorldBuilder = require(server:WaitForChild("WorldBuilder"))
 local LightingController = require(server:WaitForChild("LightingController"))
 local BoatService = require(server:WaitForChild("BoatService"))
 local Net = require(server:WaitForChild("Net"))
+local FishingService = require(server:WaitForChild("FishingService"))
+local NightService = require(server:WaitForChild("NightService"))
 
 local startupWarnings: { string } = {}
 
@@ -21,6 +24,7 @@ for _, w in LightingController.apply() do
 end
 Net.init()
 BoatService.init(WorldBuilder.context())
+FishingService.init()
 
 -- Seat a fresh character in the first free seat. Seat:Sit can miss while the character is
 -- still loading, so retry a few times and say so loudly if it never works.
@@ -66,6 +70,7 @@ end
 
 local function onPlayer(player: Player)
 	player.CameraMode = Enum.CameraMode.LockFirstPerson
+	NightService.onPlayerAdded(player)
 	player.CharacterAdded:Connect(function(character)
 		task.spawn(seatWhenReady, player, character)
 	end)
@@ -79,19 +84,12 @@ for _, p in Players:GetPlayers() do
 	onPlayer(p)
 end
 
--- S1 stand-in for NightService (S2): the boat moves every frame, and the two intents that
--- matter without a night (lantern, motor) are applied directly. Everything else is drained
--- and dropped until Core.Night consumes it.
+-- The boat moves every frame; the night steps at Config.Night.tick inside NightService.
 RunService.Heartbeat:Connect(function(dt: number)
 	BoatService.step(dt)
-	for _, intent in Net.drainIntents() do
-		if intent.kind == "ToggleLantern" then
-			BoatService.setLantern(not BoatService.lanternOn())
-		elseif intent.kind == "ToggleMotor" then
-			BoatService.setMotor(not BoatService.motorOn())
-		end
-	end
+	NightService.tick(dt)
 end)
+NightService.startWhenReady(15)
 
 print("[DeadCalm] server up")
 

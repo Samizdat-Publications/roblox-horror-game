@@ -3,8 +3,8 @@
 -- and AlignOrientation toward the pose that the boat kinematics compute from helm input,
 -- held at the water line with a small scripted bob. Four seats; only the helm steers.
 --
--- S1 also keeps the lantern and motor flags here. In S2 NightService owns them (Core.Night)
--- and calls setLantern / setMotor from its events.
+-- The lantern and motor flags here mirror Core.Night: NightService calls setLantern and
+-- setMotor from the NightView after every tick.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -346,6 +346,29 @@ end
 -- Kinematic state (the target), not the physical hull.
 function BoatService.kinematics(): Kin
 	return table.clone(kin)
+end
+
+-- The helm input the boat is following right now (zero once it has timed out).
+function BoatService.helmInput(): (number, number)
+	if clock - helm.at > BoatService.INPUT_TIMEOUT then
+		return 0, 0
+	end
+	return helm.throttle, helm.steer
+end
+
+-- The seat a player's character sits in on this boat, or nil.
+function BoatService.seatOf(player: Player): Seat?
+	local b = built
+	local char = player.Character
+	if b == nil or char == nil then
+		return nil
+	end
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	local seat = hum and hum.SeatPart
+	if seat and seat:IsA("Seat") and seat:IsDescendantOf(b.model) then
+		return seat
+	end
+	return nil
 end
 
 -- Plain-data snapshot for DebugDriver "state" (no Instances, so it prints cleanly).

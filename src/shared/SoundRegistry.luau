@@ -38,8 +38,6 @@ local sounds: { [string]: SoundEntry } = {
 		maxDist = 700,
 	},
 	["chorus-frogs-full"] = { id = 95125265524882, volume = 0.6, looped = true, spatial = false, group = "Ambience" },
-	["chorus-frogs-thin"] = { id = 0, volume = 0.6, looped = true, spatial = false, group = "Ambience" },
-	["chorus-frogs-sparse"] = { id = 0, volume = 0.6, looped = true, spatial = false, group = "Ambience" },
 	["chorus-crickets"] = { id = 84329609517658, volume = 0.6, looped = true, spatial = false, group = "Ambience" },
 	["frog-first-back"] = { id = 107148567442804, volume = 0.7, looped = false, spatial = false, group = "Ambience" },
 	["frog-peeper-a"] = {

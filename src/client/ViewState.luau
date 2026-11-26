@@ -1,8 +1,9 @@
 --!strict
--- The latest NightView. Until the server sends one (NightService arrives in S2), a local
+-- The latest NightView from the server (NightService). Until the first one arrives, a local
 -- stand-in is kept from Config and the boat's attributes, so the HUD and the audio mix
 -- always have a NightView-shaped table to read.
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
@@ -58,6 +59,30 @@ end
 
 function ViewState.onChange(fn: (NightView) -> ())
 	table.insert(listeners, fn)
+end
+
+-- The local player's line and life, or nil when they are not in tonight's crew.
+function ViewState.me(): Types.PlayerView?
+	local me = Players.LocalPlayer
+	if me == nil or type(view.players) ~= "table" then
+		return nil
+	end
+	for _, p in view.players do
+		if type(p) == "table" and p.id == me.UserId then
+			return p
+		end
+	end
+	return nil
+end
+
+-- True when the boat is close enough to the dock end to bank or refill (Config.Lake.bankRadius).
+function ViewState.atDock(): boolean
+	local pos = BoatClient.pose()
+	if pos == nil then
+		return false
+	end
+	local tip = Config.Lake.dockEnd
+	return (pos.X - tip.x) ^ 2 + (pos.Z - tip.z) ^ 2 <= Config.Lake.bankRadius ^ 2
 end
 
 -- Only the fields the S1 world can know: lantern, motor, and whether the boat is in the

@@ -4,19 +4,87 @@
 -- BoatInput remote exactly like a player's. The server seats players itself.
 --
 -- Commands on the DebugBot remote (server to client, tables):
+--   { cmd = "hello" }                    just an ack (DebugDriver checks the bot is there)
 --   { cmd = "autopilot", x, z, arrive }  steer toward (x, z) until told to stop
 --   { cmd = "stop" }                     hands the helm back to the devices
+--   { cmd = "intent", kind, num, flag }  sends one intent through Input.sendIntent
+--   { cmd = "autoreel", on }             Studio-only auto-reel: sets the hook on a bite and
+--                                        holds the tension inside the band by sending the
+--                                        same ReelHold intents the reel button sends (MCP
+--                                        input is too slow for timed reeling)
 -- Each command is answered with { ack = cmd, seat = <seat name or nil> }.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
-local Remotes = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Remotes"))
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared:WaitForChild("Config"))
+local Remotes = require(Shared:WaitForChild("Remotes"))
 
 local BoatClient = require(script.Parent:WaitForChild("BoatClient"))
 local Input = require(script.Parent:WaitForChild("Input"))
+local ViewState = require(script.Parent:WaitForChild("ViewState"))
 
 local DebugBot = {}
+
+-- Auto-reel state. The bot predicts tension between views (at most 10 a second) from the
+-- reel rates in Config.Fishing, and keeps its own token bucket under Net's intent limit.
+local reel = {
+	on = false,
+	held = false,
+	viewAt = 0,
+	tension = 0,
+	tokens = 4,
+	lastRefill = 0,
+}
+DebugBot.REEL_RATE = Config.Net.intentPerSec - 1 -- intents per second, under Net's limit
+
+local function sendReel(held: boolean): boolean
+	local now = os.clock()
+	reel.tokens = math.min(4, reel.tokens + (now - reel.lastRefill) * DebugBot.REEL_RATE)
+	reel.lastRefill = now
+	if reel.tokens < 1 then
+		return false
+	end
+	reel.tokens -= 1
+	reel.held = held
+	Input.sendIntent("ReelHold", nil, held)
+	return true
+end
+
+local function reelStep()
+	if not reel.on then
+		return
+	end
+	local pv = ViewState.me()
+	if pv == nil then
+		return
+	end
+	local F = Config.Fishing
+	if pv.fishing == "Bite" then
+		if not reel.held then
+			sendReel(true)
+		end
+		return
+	elseif pv.fishing ~= "Reeling" then
+		if reel.held then
+			sendReel(false)
+		end
+		return
+	end
+	local dt = os.clock() - reel.viewAt
+	local predicted = reel.tension + (if reel.held then F.tensionUp else -F.tensionDown) * dt
+	local w = pv.zoneHi - pv.zoneLo
+	local lo, hi = pv.zoneLo + w * 0.3, pv.zoneHi - w * 0.3
+	if predicted > 0.92 then
+		hi = math.min(hi, 0.9)
+	end
+	if predicted < lo and not reel.held then
+		sendReel(true)
+	elseif predicted > hi and reel.held then
+		sendReel(false)
+	end
+end
 
 -- Throttle and steer toward (tx, tz). Same law as DebugDriver's server autopilot.
 function DebugBot.steerToward(tx: number, tz: number, arrive: number): (number, number)
@@ -42,6 +110,14 @@ function DebugBot.init()
 	if not RunService:IsStudio() then
 		return
 	end
+	ViewState.onChange(function()
+		local pv = ViewState.me()
+		if pv then
+			reel.tension = pv.tension
+			reel.viewAt = os.clock()
+		end
+	end)
+	RunService.Heartbeat:Connect(reelStep)
 	task.spawn(function()
 		local folder = ReplicatedStorage:WaitForChild(Remotes.DEBUG_FOLDER, 10)
 		local remote = folder and folder:FindFirstChild("DebugBot")
@@ -61,7 +137,16 @@ function DebugBot.init()
 			elseif msg.cmd == "stop" then
 				Input.setOverride(nil)
 				Input.sendHelm(0, 0)
-			else
+			elseif msg.cmd == "intent" and type(msg.kind) == "string" then
+				local num = if type(msg.num) == "number" then msg.num else nil
+				local flag = if type(msg.flag) == "boolean" then msg.flag else nil
+				Input.sendIntent(msg.kind, num, flag)
+			elseif msg.cmd == "autoreel" then
+				reel.on = msg.on == true
+				if not reel.on and reel.held then
+					sendReel(false)
+				end
+			elseif msg.cmd ~= "hello" then -- hello is an ack only
 				return
 			end
 			remote:FireServer({ ack = msg.cmd, seat = BoatClient.mySeat() })
