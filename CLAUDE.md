@@ -1,6 +1,6 @@
 # Don't Wave Back (code name Dead Calm): a co-op Roblox horror game
 
-Night shift on Blackwater Lake. One to four players share a rowboat, fill the bait shop's quota before dawn, and follow the Lake Rules. Built by Claude for Stewart and his son Liam (11). This folder is its own project and its own git repo (private GitHub: `Samizdat-Publications/roblox-horror-game`). It sits inside the fishing game's folder only for convenience.
+Night shift on Blackwater Lake. One to four players share a rowboat, fill the bait shop's quota before dawn, and follow the Lake Rules. Built by Claude for Stewart and his son. This folder is its own project and its own git repo (private GitHub: `Samizdat-Publications/roblox-horror-game`). It sits inside the fishing game's folder only for convenience.
 
 ## This file wins here
 

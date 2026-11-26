@@ -271,7 +271,7 @@ Tags: [fable] main session, [builder] Opus, [grunt] Sonnet, [scout] Haiku lookup
 ## What I need from Stewart
 
 1. **A permission mode that does not stop to ask.** I cannot change that myself, and an unattended run stalls at the first prompt.
-2. **Leave the PC on and signed in**, with Roblox Studio signed in as ProBabyTurtle. I will ask the app to keep the PC awake.
+2. **Leave the PC on and signed in**, with Roblox Studio signed in to his account. I will ask the app to keep the PC awake.
 3. **In Studio's MCP Permissions**, confirm `C:\Users\stewa\Documents\Claude\Roblox` is still an approved upload folder (it should cover the new subfolder; if Studio wants the exact folder, add `C:\Users\stewa\Documents\Claude\Roblox\dead-calm`).
 4. **Connection:** the local half only moves while the hotspot is home. Type "continue" here when you are back if it has not resumed.
 5. **Afterward:** to play with Liam on two devices, you publish it privately yourself. Steps will be in HUMAN_TODO.md. Solo play and a two-player test on one PC work straight from the file.
