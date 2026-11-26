@@ -36,7 +36,7 @@ Last updated 11/26/2026 by the local session (Fable 5.2).
 ## Next
 
 - [ ] Review, gate, commit and push the M3 and M4 work.
-- [ ] Prove an uploaded sound actually plays in the local place (check `Sound.IsLoaded` and `TimeLength` in Studio); moderation was "Reviewing" at upload.
+- [x] Spike 2 PASSED 11/26/2026: uploaded sounds load in the unpublished local place while still in moderation review (bed-hull-lap 30.0 s, chorus-frogs-full 30.0 s, hum-rise 15.0 s, tape-night-1 13.6 s; console clean). 68 sounds and tapes are uploaded in total.
 - [ ] Shell S2 (fishing and the night on screen) once Core M3 lands, if the cloud shell session has not done it.
 - [ ] Core M3 to M5 and M7, Shell S2 to S6 (cloud sessions if Stewart started them, else local builders, one chunk at a time).
 - [ ] M8 polish and docs, final self-review, per `docs/PLAN.md`.
