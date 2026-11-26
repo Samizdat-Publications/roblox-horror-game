@@ -1,4 +1,4 @@
--- Core.Night (M2 scope): start events, fishing through to the hold, banking, quota, oil,
+-- Core.Night (M2 scope; rules, deaths and the director are in NightRules.spec.luau): start events, fishing through to the hold, banking, quota, oil,
 -- motor, attention and chorus, wrong catches, clear and fail, determinism, the view.
 return function(t, Shared)
 	local Night = require(Shared.Core.Night)
@@ -16,8 +16,8 @@ return function(t, Shared)
 			newRules = { "Hum" },
 			amendments = {},
 			supplies = {},
-			real = 2,
-			fake = 3,
+			real = 0, -- these M2 specs are about fishing: no director scares unless asked
+			fake = 0,
 			quietGap = 75,
 			quota = 4,
 			maxConcurrent = 1,
@@ -196,7 +196,7 @@ return function(t, Shared)
 		end
 		t.ok(sawWrong, "a wrong fish by catch " .. Config.Fishing.teachWrongByCatch)
 		t.ok(s.keptWrong >= 1, "kept wrong counted")
-		t.ok(s.attentionFloor >= Config.Attention.keptWrongFloor, "attention floor rose")
+		t.ok(s.attn.floor >= Config.Attention.keptWrongFloor, "attention floor rose")
 		local expected = 0
 		for _, c in s.hold do
 			expected += if c.wrong then c.points * Config.Fishing.wrongPointsMult else c.points
@@ -235,7 +235,7 @@ return function(t, Shared)
 	end)
 
 	t.test("lantern burns, refills only at the dock, motor toggles", function()
-		local s = Night.new(Config, params())
+		local s = Night.new(Config, params({ rules = {}, newRules = {} })) -- no rules: attention cannot bring a Hum
 		Night.step(s, input(OUT, { { kind = "ToggleLantern", player = 1 } }))
 		t.ok(s.lantern.on, "lit")
 		Night.step(s, input(OUT, {}, 1))
@@ -269,7 +269,7 @@ return function(t, Shared)
 		for _ = 1, 60 do
 			Night.step(s, input(AT_DOCK, {}, 1))
 		end
-		t.eq(s.attention, 0, "drained at the dock")
+		t.eq(s.attn.value, 0, "drained at the dock")
 		t.eq(s.chorus, 3, "full chorus again")
 	end)
 
@@ -288,12 +288,12 @@ return function(t, Shared)
 		t.eq(kindsOf(e).Callout, 1, "callout")
 	end)
 
-	t.test("supplies: oil can, second stringer, lucky lure, trimmed wick", function()
+	t.test("supplies are ignored (the pick was cut)", function()
 		local s = Night.new(Config, params({ supplies = { "OilCan", "BigCooler", "LuckyLure", "TrimmedWick" } }))
-		t.eq(s.lantern.refills, Config.Lantern.refillsPerNight + 1, "extra can")
-		t.eq(s.holdMax, Config.Fishing.holdMax + 2, "bigger hold")
-		t.eq(s.biteMult, 0.75, "lucky lure")
-		t.ok(s.lantern.burnMult > 1, "slower burn")
+		t.eq(s.lantern.refills, Config.Lantern.refillsPerNight, "no extra can")
+		t.eq(s.holdMax, Config.Fishing.holdMax, "no bigger hold")
+		t.eq(s.biteMult, 1, "no lucky lure")
+		t.eq(s.lantern.burnMult, 1, "no trimmed wick")
 	end)
 
 	t.test("same seed and inputs give the same night", function()
@@ -343,6 +343,5 @@ return function(t, Shared)
 		t.eq(#v.players, 2, "players")
 		t.eq(v.players[1].fishing, "Idle", "fishing phase")
 		t.eq(v.safe, false, "out on the lake")
-		t.eq(#Night.debugForce(s, "Hum", nil), 0, "debugForce is a stub until M3")
 	end)
 end

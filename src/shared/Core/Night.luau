@@ -5,12 +5,18 @@
 --   Night.step(state, input) -> { Event }
 --   Night.view(state) -> NightView
 --   Night.result(state) -> NightResult?
---   Night.debugForce(state, rule, opts) -> { Event }
+--   Night.debugForce(state, rule, opts) -> { Event }   -- start a rule now (Studio, tests)
 --
--- Core M2 scope: clock, fishing, hold, bank, lantern and oil refills, motor, the lake's
--- attention (a stub that already follows cfg.Attention and drives the chorus band),
--- Wrong Catch traits on catches, and clear and fail. Rules, the director, deaths and
--- flooding arrive in M3 and M4; their state fields exist so the view is complete.
+-- Owns: clock, quota, hold and cooler, lantern and refills, motor, each player's line and
+-- alive flag, attention (Core.Attention), the Director, the active rules
+-- (Core.entities.*), deaths, the drowned's bell (Core.Ghost), the in-water drag timer,
+-- the leak, bailing and sinking, and clear and fail.
+--
+-- Rules never touch the crew: a rule's EntityFail carries effects (kill, loseHold, rock,
+-- snuff, flood, eatBanked) and Night applies them. PlayerDied carries the rule, the
+-- variant and a death card text id "Death.<Rule>.<Cause>" (Core.Rulebook maps them, M5).
+-- The Finale (night 5's clock at 4 AM) is Core M5: it is not a director rule and
+-- debugForce("Finale") does nothing yet. Seam: add it to RULES and start it from step.
 
 local Types = require(script.Parent.Types)
 local Rng = require(script.Parent.Rng)
@@ -19,6 +25,15 @@ local NightClock = require(script.Parent.NightClock)
 local Quota = require(script.Parent.Quota)
 local Lantern = require(script.Parent.Lantern)
 local Fishing = require(script.Parent.Fishing)
+local Attention = require(script.Parent.Attention)
+local Director = require(script.Parent.Director)
+local Fakeouts = require(script.Parent.Fakeouts)
+local Ghost = require(script.Parent.Ghost)
+local Hum = require(script.Parent.entities.Hum)
+local Neighbor = require(script.Parent.entities.Neighbor)
+local Knocking = require(script.Parent.entities.Knocking)
+local Watcher = require(script.Parent.entities.Watcher)
+local WrongCatchRule = require(script.Parent.entities.WrongCatch)
 
 type Event = Types.Event
 type Catch = Types.Catch
@@ -28,12 +43,24 @@ type NightView = Types.NightView
 type NightResult = Types.NightResult
 type RuleId = Types.RuleId
 type PlayerId = Types.PlayerId
+type PlayerObs = Types.PlayerObs
+type EntityObs = Types.EntityObs
+type PlayerTally = Types.PlayerTally
 
 export type CrewMember = {
 	id: PlayerId,
 	alive: boolean,
 	fishing: Fishing.FishState,
 	bailing: boolean,
+	inWaterFor: number,
+	dragWarned: boolean,
+}
+
+export type ActiveRule = {
+	id: RuleId,
+	mod: any,
+	state: any,
+	real: boolean, -- a director rule (counts toward activeReal and the quiet gap)
 }
 
 export type NightState = {
@@ -41,18 +68,30 @@ export type NightState = {
 	params: NightParams,
 	rng: Rng.RngState,
 	fishRng: Rng.RngState,
+	fakeRng: Rng.RngState,
+	coolerRng: Rng.RngState,
 	clock: NightClock.ClockState,
 	quota: Quota.QuotaState,
 	lantern: Lantern.LanternState,
 	motorOn: boolean,
 	hold: { Catch },
 	holdMax: number,
+	cooler: { Catch },
 	crew: { [PlayerId]: CrewMember },
 	order: { PlayerId },
-	attention: number,
-	attentionFloor: number,
+	attn: Attention.AttentionState,
+	director: Director.DirectorState,
+	ghost: Ghost.GhostState,
+	rules: { ActiveRule },
+	ruleCount: number,
+	directorBand: number,
+	dipFor: number,
 	chorus: number,
 	flood: number,
+	leakOn: boolean,
+	plugLeft: number, -- seconds of bailing until the leak is plugged
+	floodSent: number,
+	sunk: boolean,
 	safe: boolean,
 	boatSpeed: number,
 	phase: Types.NightPhase,
@@ -60,6 +99,7 @@ export type NightState = {
 	wrongChance: number,
 	wrongTier: number,
 	teachWrong: boolean, -- tonight teaches Wrong Catch: one wrong fish by catch N
+	forceWrongNext: boolean, -- debugForce("WrongCatch"): the next fish hooked is wrong
 	wrongSeen: number,
 	hooked: number, -- fish hooked tonight (for the teaching guarantee)
 	biteMult: number,
@@ -69,9 +109,24 @@ export type NightState = {
 	deaths: { { player: PlayerId, rule: string } },
 	result: NightResult?,
 	lastIntents: { Types.Intent }, -- this tick's rule-facing intents (Knock, Wave, BailHold)
+	lastLantern: PlayerId?,
+	lastMotor: PlayerId?,
+	neighborEarliest: number,
+	lastObs: EntityObs?,
+	tally: { [PlayerId]: PlayerTally },
+	staring: { [PlayerId]: boolean }, -- staring at a Watcher last tick (for the tally)
 }
 
 local Night = {}
+
+-- The rule modules by id. Finale joins in Core M5.
+Night.RULES = {
+	Hum = Hum,
+	Neighbor = Neighbor,
+	Knocking = Knocking,
+	Watcher = Watcher,
+	WrongCatch = WrongCatchRule,
+} :: { [string]: any }
 
 local function has(list: { any }, v: any): boolean
 	for _, x in list do
@@ -97,33 +152,62 @@ end
 function Night.new(cfg: any, params: NightParams): NightState
 	assert(#params.playerIds >= 1, "a night needs at least one player")
 	local rng = Rng.new(params.seed)
-	local supplies = params.supplies or {}
-	local refills = cfg.Lantern.refillsPerNight + (if has(supplies, "OilCan") then 1 else 0)
-	local burnMult = if has(supplies, "TrimmedWick") then 1.2 else 1
+	-- The between-night supply pick was cut (design change 11/26/2026): params.supplies is ignored.
+	local tally: { [PlayerId]: PlayerTally } = {}
 	local crew: { [PlayerId]: CrewMember } = {}
 	local order: { PlayerId } = {}
 	for _, id in params.playerIds do
-		crew[id] = { id = id, alive = true, fishing = Fishing.new(), bailing = false }
+		crew[id] = {
+			id = id,
+			alive = true,
+			fishing = Fishing.new(),
+			bailing = false,
+			inWaterFor = 0,
+			dragWarned = false,
+		}
 		table.insert(order, id)
+		tally[id] = {
+			player = id,
+			brokeSilence = 0,
+			keptWrong = 0,
+			knocksAnswered = 0,
+			bailedSeconds = 0,
+			timesStaredAtWatcher = 0,
+			deaths = 0,
+		}
 	end
 	local wrongChance, wrongTier = wrongOdds(cfg, params)
+	local ruleRng = Rng.fork(rng, "rules")
+	local R = cfg.Rules.Neighbor
 	return {
 		cfg = cfg,
 		params = params,
 		rng = rng,
 		fishRng = Rng.fork(rng, "fish"),
+		fakeRng = Rng.fork(rng, "fakeouts"),
+		coolerRng = Rng.fork(rng, "cooler"),
 		clock = NightClock.new(cfg),
 		quota = Quota.new(params.quota),
-		lantern = Lantern.new(cfg, refills, burnMult),
+		lantern = Lantern.new(cfg, cfg.Lantern.refillsPerNight, 1),
 		motorOn = false,
 		hold = {},
-		holdMax = cfg.Fishing.holdMax + (if has(supplies, "BigCooler") then 2 else 0),
+		holdMax = cfg.Fishing.holdMax,
+		cooler = {},
 		crew = crew,
 		order = order,
-		attention = 0,
-		attentionFloor = 0,
+		attn = Attention.new(),
+		director = Director.new(cfg, Rng.fork(rng, "director"), params),
+		ghost = Ghost.new(cfg),
+		rules = {},
+		ruleCount = 0,
+		directorBand = 3,
+		dipFor = 0,
 		chorus = 3,
 		flood = 0,
+		leakOn = false,
+		plugLeft = 0,
+		floodSent = 0,
+		sunk = false,
 		safe = true,
 		boatSpeed = 0,
 		phase = "Night",
@@ -131,15 +215,22 @@ function Night.new(cfg: any, params: NightParams): NightState
 		wrongChance = wrongChance,
 		wrongTier = wrongTier,
 		teachWrong = has(params.newRules, "WrongCatch"),
+		forceWrongNext = false,
 		wrongSeen = 0,
 		hooked = 0,
-		biteMult = if has(supplies, "LuckyLure") then 0.75 else 1,
+		biteMult = 1,
 		caught = 0,
 		keptWrong = 0,
 		scaresSurvived = 0,
 		deaths = {},
 		result = nil,
 		lastIntents = {},
+		lastLantern = nil,
+		lastMotor = nil,
+		neighborEarliest = Rng.range(ruleRng, R.spawnMin, R.spawnMax),
+		lastObs = nil,
+		tally = tally,
+		staring = {},
 	}
 end
 
@@ -159,6 +250,16 @@ local function aliveCount(s: NightState): number
 	return n
 end
 
+local function aliveIds(s: NightState): { PlayerId }
+	local out = {}
+	for _, id in s.order do
+		if s.crew[id].alive then
+			table.insert(out, id)
+		end
+	end
+	return out
+end
+
 local function hour(s: NightState): number
 	return NightClock.hour(s.cfg, s.clock)
 end
@@ -168,21 +269,38 @@ local function value(cfg: any, c: Catch): number
 	return if c.wrong then c.points * cfg.Fishing.wrongPointsMult else c.points
 end
 
+-- A player dies. `cause` picks the death card: "Death.<rule>.<cause>".
+local function die(s: NightState, id: PlayerId, rule: string, variant: string, cause: string, events: { Event })
+	local m = s.crew[id]
+	if m == nil or not m.alive then
+		return
+	end
+	m.alive = false
+	m.bailing = false
+	s.tally[id].deaths += 1
+	push(events, Fishing.interrupt(m.fishing, id, rule))
+	table.insert(s.deaths, { player = id, rule = rule })
+	table.insert(events, {
+		kind = "PlayerDied",
+		player = id,
+		data = { rule = rule, variant = variant, text = "Death." .. rule .. "." .. cause },
+	})
+end
+
 -- Keep or throw back the fish on a player's line.
 local function decide(s: NightState, m: CrewMember, keep: boolean, events: { Event })
 	local c = Fishing.take(m.fishing)
 	if c == nil then
 		return
 	end
-	local cfg = s.cfg
 	if keep and #s.hold < s.holdMax then
 		table.insert(s.hold, c)
 		-- Kept reports the Field Guide points so a client cannot tell a wrong fish by its value.
 		table.insert(events, { kind = "Kept", player = m.id, data = { points = c.points } })
 		if c.wrong then
 			s.keptWrong += 1
-			s.attention = math.min(1, s.attention + cfg.Attention.keptWrong)
-			s.attentionFloor = math.min(1, s.attentionFloor + cfg.Attention.keptWrongFloor)
+			s.tally[m.id].keptWrong += 1
+			Attention.keptWrong(s.cfg, s.attn)
 		end
 	else
 		local why = if keep then "HoldFull" else "ThrownBack"
@@ -190,21 +308,32 @@ local function decide(s: NightState, m: CrewMember, keep: boolean, events: { Eve
 	end
 end
 
--- Empties the hold into the cooler.
+local startRule: (s: NightState, id: RuleId, opts: { [string]: any }, events: { Event }) -> ActiveRule?
+
+-- Empties the hold into the cooler. Every kept wrong fish starts a Wrong Catch knock.
 local function bank(s: NightState, events: { Event })
 	if #s.hold == 0 then
 		return
 	end
-	local points, count = 0, #s.hold
+	local points, count, wrong = 0, #s.hold, 0
 	for _, c in s.hold do
 		points += value(s.cfg, c)
+		table.insert(s.cooler, c)
+		if c.wrong then
+			wrong += 1
+		end
 	end
 	s.hold = {}
 	table.insert(events, { kind = "Banked", data = { count = count, points = points } })
 	push(events, Quota.bank(s.quota, count, points, s.clock.elapsed))
+	if has(s.params.rules, "WrongCatch") then
+		for _ = 1, wrong do
+			startRule(s, "WrongCatch", {}, events)
+		end
+	end
 end
 
--- Loses the whole hold over the side (used by rule fails from M3 on).
+-- Loses the whole hold over the side.
 function Night.loseHold(s: NightState): { Event }
 	local count = #s.hold
 	if count == 0 then
@@ -212,6 +341,22 @@ function Night.loseHold(s: NightState): { Event }
 	end
 	s.hold = {}
 	return { { kind = "HoldLost", data = { count = count } } }
+end
+
+-- The cooler knocks: `n` banked fish are gone, at random.
+local function eatBanked(s: NightState, n: number): (number, number)
+	local fish, points = 0, 0
+	for _ = 1, n do
+		if #s.cooler == 0 then
+			break
+		end
+		local i = Rng.int(s.coolerRng, 1, #s.cooler)
+		local c = table.remove(s.cooler, i) :: Catch
+		fish += 1
+		points += value(s.cfg, c)
+	end
+	Quota.remove(s.quota, fish, points)
+	return fish, points
 end
 
 local function castOpts(s: NightState, boatPos: Types.Vec2): Fishing.CastOpts
@@ -226,6 +371,15 @@ local function castOpts(s: NightState, boatPos: Types.Vec2): Fishing.CastOpts
 	}
 end
 
+local function ruleActive(s: NightState, id: RuleId): boolean
+	for _, r in s.rules do
+		if r.id == id then
+			return true
+		end
+	end
+	return false
+end
+
 local function handleIntent(s: NightState, intent: Types.Intent, boatPos: Types.Vec2, events: { Event })
 	local m = s.crew[intent.player]
 	if m == nil then
@@ -233,29 +387,41 @@ local function handleIntent(s: NightState, intent: Types.Intent, boatPos: Types.
 	end
 	local kind = intent.kind
 	if not m.alive then
-		-- The drowned only ring the bell (M3).
+		-- The drowned only ring the bell.
 		if kind == "GhostBell" then
-			table.insert(s.lastIntents, intent)
+			push(events, Ghost.ring(s.ghost, m.id, s.clock.elapsed))
 		end
 		return
 	end
 	local cfg = s.cfg
 	if kind == "ToggleLantern" then
-		push(events, Lantern.toggle(s.lantern))
+		local e = Lantern.toggle(s.lantern)
+		if #e > 0 then
+			s.lastLantern = m.id
+		end
+		push(events, e)
 	elseif kind == "ToggleMotor" then
 		s.motorOn = not s.motorOn
+		s.lastMotor = m.id
 		table.insert(events, { kind = "MotorChanged", player = m.id, data = { on = s.motorOn } })
 	elseif kind == "Cast" then
-		push(events, Fishing.cast(cfg, m.fishing, s.fishRng, m.id, intent.num or 1, castOpts(s, boatPos)))
+		if not m.bailing then
+			push(events, Fishing.cast(cfg, m.fishing, s.fishRng, m.id, intent.num or 1, castOpts(s, boatPos)))
+		end
 	elseif kind == "ReelHold" then
+		if m.bailing then
+			return
+		end
 		local before = m.fishing.phase
 		if before == "Bite" then
 			-- Teaching night: the Nth fish hooked is wrong if none has been yet.
-			m.fishing.forceWrong = s.teachWrong and s.wrongSeen == 0 and s.hooked + 1 >= cfg.Fishing.teachWrongByCatch
+			local teach = s.teachWrong and s.wrongSeen == 0 and s.hooked + 1 >= cfg.Fishing.teachWrongByCatch
+			m.fishing.forceWrong = teach or s.forceWrongNext
 		end
 		Fishing.reel(cfg, m.fishing, s.fishRng, intent.flag == true)
 		if before == "Bite" and m.fishing.phase == "Reeling" then
 			s.hooked += 1
+			s.forceWrongNext = false
 			local c = m.fishing.catch
 			if c ~= nil and c.wrong then
 				s.wrongSeen += 1
@@ -277,55 +443,325 @@ local function handleIntent(s: NightState, intent: Types.Intent, boatPos: Types.
 		table.insert(events, { kind = "Callout", player = m.id, data = { phrase = intent.text } })
 	elseif kind == "BailHold" then
 		m.bailing = intent.flag == true
+		if m.bailing then
+			-- No fishing while bailing.
+			push(events, Fishing.interrupt(m.fishing, m.id, "Bailing"))
+		end
 		table.insert(s.lastIntents, intent)
 	else
-		-- Knock, Wave: for the rules (M3 and M4).
+		-- Knock, Wave: for the rules.
+		if kind == "Knock" and ruleActive(s, "Knocking") then
+			s.tally[m.id].knocksAnswered += 1
+		end
 		table.insert(s.lastIntents, intent)
 	end
 end
 
--- The attention stub (Core.Attention replaces it in M3 with the same numbers).
-local function stepAttention(s: NightState, dt: number)
-	local A = s.cfg.Attention
-	local reelers = 0
+local function reelers(s: NightState): number
+	local n = 0
 	for _, id in s.order do
 		local m = s.crew[id]
 		if m.alive and Fishing.isReeling(m.fishing) then
-			reelers += 1
+			n += 1
 		end
 	end
-	local rise = 0
-	if s.motorOn then
-		rise += A.motorPerSec
-	end
-	if s.lantern.on then
-		rise += A.lanternPerSec
-	end
-	rise += A.reelPerSec * reelers
-	if s.safe then
-		s.attention -= A.safeDecayPerSec * dt
-	elseif rise > 0 then
-		s.attention += rise * dt
-	else
-		s.attention -= A.decayPerSec * dt
-	end
-	s.attention = math.clamp(s.attention, s.attentionFloor, 1)
+	return n
 end
 
--- Chorus band from attention: 3 full, 2 thin, 1 sparse. (Rules silence it to 0 from M3.)
-local function chorusBand(cfg: any, attention: number): number
-	local b = cfg.Director.chorusBands
-	if attention < b[1] then
-		return 3
-	elseif attention < b[2] then
-		return 2
-	elseif attention < b[3] then
-		return 1
+-- Every crew member gets an observation, in crew order (missing ones are seated defaults).
+local function playersObs(s: NightState, given: { PlayerObs }): { PlayerObs }
+	local byId: { [PlayerId]: PlayerObs } = {}
+	for _, p in given do
+		byId[p.id] = p
 	end
-	return 1
+	local out: { PlayerObs } = {}
+	for i, id in s.order do
+		local p = byId[id]
+		if p == nil then
+			p = { id = id, seated = true, helm = i == 1, inWater = false, gazeYaw = 0, bookOpen = false }
+		end
+		table.insert(out, p :: PlayerObs)
+	end
+	return out
+end
+
+local function entityObs(s: NightState, dt: number, input: NightInput, players: { PlayerObs }): EntityObs
+	local alive: { [PlayerId]: boolean } = {}
+	local reeling: { [PlayerId]: boolean } = {}
+	for _, id in s.order do
+		local m = s.crew[id]
+		alive[id] = m.alive
+		reeling[id] = m.alive and Fishing.isReeling(m.fishing)
+	end
+	local l = s.lantern
+	return {
+		dt = dt,
+		boat = input.boat,
+		players = players,
+		alive = alive,
+		reeling = reeling,
+		lanternOn = l.on,
+		motorOn = s.motorOn,
+		safe = s.safe,
+		intents = s.lastIntents,
+		timeLeft = NightClock.timeLeft(s.clock),
+		lanternCanLight = l.oil > 0 and l.forcedFor <= 0,
+		lastLantern = s.lastLantern,
+		lastMotor = s.lastMotor,
+	}
+end
+
+local function isReal(id: RuleId): boolean
+	return has(Director.RULES, id)
+end
+
+-- Creates a rule and runs its first (zero-length) step so the cue goes out this tick.
+startRule = function(s: NightState, id: RuleId, opts: { [string]: any }, events: { Event }): ActiveRule?
+	local mod = Night.RULES[id]
+	if mod == nil then
+		return nil
+	end
+	s.ruleCount += 1
+	local cfg = s.cfg
+	local obs = s.lastObs
+	local boat = if obs then obs.boat else nil
+	local variant = opts.variant or (s.params.amendments or {})[id]
+	local ctx = {
+		variant = variant,
+		teaching = opts.teaching == true,
+		warningScale = s.params.warningScale,
+		only = opts.only,
+		boat = boat,
+		aliveIds = aliveIds(s),
+		elapsed = s.clock.elapsed,
+		form = opts.form,
+	}
+	local rng = Rng.fork(s.rng, "rule:" .. id .. ":" .. tostring(s.ruleCount))
+	local r: ActiveRule = { id = id, mod = mod, state = mod.new(cfg, rng, ctx), real = isReal(id) }
+	table.insert(s.rules, r)
+	if obs ~= nil then
+		local o = table.clone(obs)
+		o.dt = 0
+		o.intents = {}
+		push(events, mod.step(r.state, o))
+	end
+	return r
+end
+
+-- Applies a rule's fail effects.
+local function applyFail(s: NightState, r: ActiveRule, e: Event, events: { Event })
+	local data = e.data or {}
+	local fx = data.effects or {}
+	local variant = data.variant or "Default"
+	local cause = fx.cause or "Taken"
+	if r.id == "Hum" and fx.blame ~= nil and s.tally[fx.blame] ~= nil then
+		s.tally[fx.blame].brokeSilence += 1
+	end
+	if fx.rock then
+		table.insert(events, { kind = "BoatRocked", entity = r.id })
+	end
+	if fx.loseHold then
+		push(events, Night.loseHold(s))
+	end
+	if fx.snuff then
+		push(events, Lantern.forceOut(s.cfg, s.lantern))
+	end
+	if fx.flood and not s.leakOn then
+		s.leakOn = true
+		s.plugLeft = s.cfg.Rules.Knocking.floodLasts
+		table.insert(events, { kind = "Flooding", entity = r.id, data = { level = s.flood, leak = true } })
+		s.floodSent = s.flood
+	end
+	if fx.eatBanked ~= nil and fx.eatBanked > 0 then
+		local fish, points = eatBanked(s, fx.eatBanked)
+		fx.eaten = { count = fish, points = points }
+	end
+	for _, id in fx.kill or {} do
+		die(s, id, r.id, variant, cause, events)
+	end
+end
+
+local function stepRules(s: NightState, obs: EntityObs, events: { Event })
+	local keep: { ActiveRule } = {}
+	for _, r in s.rules do
+		for _, e in r.mod.step(r.state, obs) do
+			table.insert(events, e)
+			if e.kind == "EntityPass" then
+				if r.real then
+					s.scaresSurvived += 1
+					Director.resolved(s.director, r.id, true, s.clock.elapsed)
+				end
+			elseif e.kind == "EntityFail" then
+				applyFail(s, r, e, events)
+				if r.real then
+					Director.resolved(s.director, r.id, false, s.clock.elapsed)
+				end
+			end
+		end
+		if not r.mod.done(r.state) then
+			table.insert(keep, r)
+		end
+	end
+	s.rules = keep
+end
+
+-- Counts each time a living player's gaze lands straight on an active Watcher.
+local function tallyStares(s: NightState, obs: EntityObs)
+	local figure: Types.Vec2? = nil
+	for _, r in s.rules do
+		if r.id == "Watcher" and r.state.base.outcome == nil and r.state.base.cueAt ~= nil then
+			figure = r.state.pos
+		end
+	end
+	for _, p in obs.players do
+		local now = false
+		if figure ~= nil and obs.alive[p.id] then
+			now = Watcher.gazeAt(s.cfg, obs.boat.pos, figure :: Types.Vec2, p) == "Stare"
+		end
+		if now and not s.staring[p.id] then
+			s.tally[p.id].timesStaredAtWatcher += 1
+		end
+		s.staring[p.id] = now
+	end
+end
+
+-- The leak, the bailing and the sinking (water comes in from a Knocking fail).
+local function stepFlood(s: NightState, dt: number, events: { Event })
+	local K = s.cfg.Rules.Knocking
+	local bailers = 0
+	for _, id in s.order do
+		local m = s.crew[id]
+		if m.alive and m.bailing then
+			bailers += 1
+			if s.flood > 0 then
+				s.tally[id].bailedSeconds += dt
+			end
+		end
+	end
+	local before = s.flood
+	if s.leakOn and not s.safe then
+		s.flood += dt / K.floodSeconds
+	end
+	if bailers > 0 and s.flood > 0 then
+		s.flood -= bailers * dt / K.bailSeconds
+		if s.leakOn then
+			s.plugLeft -= dt
+			if s.plugLeft <= 0 then
+				s.leakOn = false
+			end
+		end
+	end
+	s.flood = math.clamp(s.flood, 0, 1)
+	if s.flood ~= before and (math.abs(s.flood - s.floodSent) >= 0.05 or s.flood == 0 or s.flood >= 1) then
+		s.floodSent = s.flood
+		table.insert(events, { kind = "Flooding", data = { level = s.flood, leak = s.leakOn } })
+	end
+	if s.flood >= 1 and not s.sunk then
+		s.sunk = true
+		table.insert(events, { kind = "Sunk" })
+		for _, id in s.order do
+			die(s, id, "Knocking", (s.params.amendments or {}).Knocking or "AnswerTwo", "Sunk", events)
+		end
+	end
+end
+
+-- Rule 0: a swimmer outside the dock light hears a pull at warnAt and is taken at dragSeconds.
+local function stepWater(s: NightState, dt: number, players: { PlayerObs }, events: { Event })
+	local W = s.cfg.Water
+	local scale = s.params.warningScale or 1
+	for _, p in players do
+		local m = s.crew[p.id]
+		if m ~= nil and m.alive then
+			if p.inWater then
+				m.inWaterFor += dt
+				if not m.dragWarned and m.inWaterFor >= W.warnAt * scale then
+					m.dragWarned = true
+					table.insert(events, { kind = "DragWarning", player = m.id, only = m.id })
+				end
+				if m.inWaterFor >= W.dragSeconds * scale then
+					die(s, m.id, "Water", "Default", "Drag", events)
+				end
+			else
+				m.inWaterFor = 0
+				m.dragWarned = false
+			end
+		end
+	end
+end
+
+local function activeRealCount(s: NightState): number
+	local n = 0
+	for _, r in s.rules do
+		if r.real and r.state.base.outcome == nil then
+			n += 1
+		end
+	end
+	return n
+end
+
+local function eligible(s: NightState, boatPos: Types.Vec2): { RuleId }
+	local info = { elapsed = s.clock.elapsed, boatPos = boatPos, neighborEarliest = s.neighborEarliest }
+	local out: { RuleId } = {}
+	for _, id in Director.RULES do
+		if has(s.params.rules, id) and not ruleActive(s, id) then
+			local mod = Night.RULES[id]
+			if mod ~= nil and mod.eligible(s.cfg, info) then
+				table.insert(out, id)
+			end
+		end
+	end
+	return out
+end
+
+local function stepDirector(s: NightState, dt: number, boatPos: Types.Vec2, events: { Event })
+	local decisions = Director.step(s.director, dt, {
+		attention = s.attn.value,
+		activeReal = activeRealCount(s),
+		safe = s.safe,
+		timeLeft = NightClock.timeLeft(s.clock),
+		elapsed = s.clock.elapsed,
+		eligible = eligible(s, boatPos),
+		aliveIds = aliveIds(s),
+	})
+	for _, d in decisions do
+		if d.kind == "Spawn" and d.rule ~= nil then
+			startRule(s, d.rule :: RuleId, { teaching = d.teaching, only = d.only }, events)
+		elseif d.kind == "Fakeout" and d.id ~= nil then
+			local e = Fakeouts.event(s.cfg, s.fakeRng, d.id :: string, d.only, boatPos)
+			if d.id == "ChorusDip" then
+				s.dipFor = Fakeouts.DIP_SECONDS
+			end
+			table.insert(events, e)
+		elseif d.kind == "Chorus" and d.band ~= nil then
+			s.directorBand = d.band :: number
+		end
+	end
+end
+
+-- The chorus the crew hears: silent while a rule wants silence, else the director's band,
+-- one band thinner during a ChorusDip.
+local function stepChorus(s: NightState, dt: number, events: { Event })
+	s.dipFor = math.max(0, s.dipFor - dt)
+	local band = s.directorBand
+	if s.dipFor > 0 then
+		band = math.max(1, band - 1)
+	end
+	for _, r in s.rules do
+		if r.state.base.silent then
+			band = 0
+		end
+	end
+	if band ~= s.chorus then
+		s.chorus = band
+		table.insert(events, { kind = "Chorus", data = { band = band } })
+	end
 end
 
 local function buildResult(s: NightState, cleared: boolean): NightResult
+	local tallies: { PlayerTally } = {}
+	for _, id in s.order do
+		table.insert(tallies, table.clone(s.tally[id]))
+	end
 	local deaths = {}
 	for _, d in s.deaths do
 		table.insert(deaths, { player = d.player, rule = d.rule })
@@ -338,6 +774,7 @@ local function buildResult(s: NightState, cleared: boolean): NightResult
 		scaresSurvived = s.scaresSurvived,
 		deaths = deaths,
 		keptWrong = s.keptWrong,
+		tallies = tallies,
 	}
 end
 
@@ -378,6 +815,7 @@ function Night.step(s: NightState, input: NightInput): { Event }
 	s.safe = LakeMap.isSafe(cfg, boat.pos)
 	s.boatSpeed = math.sqrt(boat.vel.x * boat.vel.x + boat.vel.z * boat.vel.z)
 	s.lastIntents = {}
+	local players = playersObs(s, input.players)
 
 	for _, intent in input.intents do
 		handleIntent(s, intent, boat.pos, events)
@@ -401,15 +839,26 @@ function Night.step(s: NightState, input: NightInput): { Event }
 	end
 
 	NightClock.step(s.clock, dt)
-	stepAttention(s, dt)
-	local band = chorusBand(cfg, s.attention)
-	if band ~= s.chorus then
-		s.chorus = band
-		table.insert(events, { kind = "Chorus", data = { band = band } })
+	Attention.step(cfg, s.attn, dt, {
+		motorOn = s.motorOn,
+		lanternOn = s.lantern.on,
+		reelers = reelers(s),
+		safe = s.safe,
+	})
+
+	stepWater(s, dt, players, events)
+	local obs = entityObs(s, dt, input, players)
+	s.lastObs = obs
+	stepRules(s, obs, events)
+	tallyStares(s, obs)
+	stepFlood(s, dt, events)
+	if aliveCount(s) > 0 then
+		stepDirector(s, dt, boat.pos, events)
 	end
+	stepChorus(s, dt, events)
 
 	if aliveCount(s) == 0 then
-		finish(s, false, "CrewLost", events)
+		finish(s, false, if s.sunk then "Sunk" else "CrewLost", events)
 	elseif NightClock.done(s.clock) then
 		if Quota.isMet(s.quota) then
 			finish(s, true, nil, events)
@@ -464,10 +913,40 @@ function Night.result(s: NightState): NightResult?
 	return s.result
 end
 
--- Studio scenarios and tests only. Rules arrive in Core M3; until then this is a no-op
--- that returns no events.
-function Night.debugForce(_s: NightState, _rule: RuleId, _opts: any?): { Event }
-	return {}
+-- Studio scenarios and tests only: start a rule now, outside the director's schedule.
+-- opts = { variant?, teaching?, only?, form? ("Boat" | "FalseBeacon" for the Neighbor) }.
+-- "WrongCatch" makes the next fish hooked a wrong one. "Finale" is Core M5 (no-op).
+-- The rule is told to the director as active so the quiet gap still follows it.
+-- Returns the events of the rule's first step (its cue).
+function Night.debugForce(s: NightState, rule: RuleId, opts: any?): { Event }
+	local o = opts or {}
+	local events: { Event } = {}
+	if s.phase ~= "Night" then
+		return events
+	end
+	if rule == "WrongCatch" then
+		s.forceWrongNext = true
+		return events
+	end
+	if Night.RULES[rule] == nil or ruleActive(s, rule) then
+		return events
+	end
+	if s.lastObs == nil then
+		-- Not stepped yet: observe a still boat at the dock end.
+		local dock = s.cfg.Lake.dockEnd
+		local input: NightInput = {
+			dt = 0,
+			boat = { pos = { x = dock.x, z = dock.z }, vel = { x = 0, z = 0 }, heading = 0, throttle = 0, steer = 0 },
+			players = {},
+			intents = {},
+		}
+		s.lastObs = entityObs(s, 0, input, playersObs(s, {}))
+	end
+	startRule(s, rule, o, events)
+	if isReal(rule) then
+		Director.noteSpawn(s.director, rule)
+	end
+	return events
 end
 
 return Night

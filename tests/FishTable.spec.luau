@@ -52,6 +52,7 @@ return function(t, Shared)
 					local d = WrongCatch.diff(Config, species, traits)
 					t.eq(#d, 1, species .. " tier " .. tier .. " changed " .. #d .. " traits")
 					t.ok(d[1] ~= "eyeshine", "eyeshine mutated")
+					t.ok(d[1] ~= "stripes" and d[1] ~= "barbels", "a count mutated")
 					t.eq(d[1], WrongCatch.TRAIT_OF[kind], "kind names its trait")
 					t.ok(not WrongCatch.matchesBook(Config, species, traits), "fails the book")
 				end
@@ -59,7 +60,7 @@ return function(t, Shared)
 		end
 	end)
 
-	t.test("tiers: 1 obvious, 2 medium, 3 subtle", function()
+	t.test("tiers: 1 obvious, 2 medium, 3 subtle, all visible at a glance", function()
 		local r = Rng.new(5)
 		local seen = { {}, {}, {} }
 		for tier = 1, 3 do
@@ -68,9 +69,12 @@ return function(t, Shared)
 				seen[tier][kind] = true
 			end
 		end
-		t.ok(seen[1].ThirdEye and seen[1].Glow and seen[1].Blink, "tier 1 kinds")
-		t.ok(seen[2].ExtraDorsal and seen[2].WrongTail and seen[2].Barbels, "tier 2 kinds")
-		t.ok(seen[3].Stripes and not seen[3].Glow and not seen[3].ThirdEye, "tier 3 is only bars")
+		t.ok(seen[1].ThirdEye and seen[1].Glow and not seen[1].Blink, "tier 1 kinds")
+		t.ok(seen[2].ExtraDorsal and seen[2].WrongTail, "tier 2 kinds")
+		t.ok(seen[3].Blink and seen[3].WrongEyeDir and seen[3].FlipFin and not seen[3].Glow, "tier 3 kinds")
+		for tier = 1, 3 do
+			t.ok(not seen[tier].Stripes and not seen[tier].Barbels, "never a count to check")
+		end
 	end)
 
 	t.test("the walleye keeps its eyeshine when wrong", function()

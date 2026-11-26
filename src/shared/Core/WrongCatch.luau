@@ -1,8 +1,10 @@
 --!strict
 -- Wrong Catch traits: a fish that is almost right. Exactly one trait differs from the
--- Field Guide. Tier 1 is obvious (a third eye, a glow, a blink), tier 2 is medium (an
--- extra back fin, the wrong tail, the wrong whisker count), tier 3 is subtle (one bar too
--- many or too few). Eyeshine is never the mutation: it is normal for the Walleye, so the
+-- Field Guide, and it is always one you can see at a glance on a phone (design change
+-- 11/26/2026): tier 1 is obvious (a glow, a third eye), tier 2 is medium (the wrong tail
+-- shape, an extra back fin), tier 3 is subtle (it blinks, one eye looks the wrong way, or a
+-- fin is on the wrong side). Counts that need counting (bars, whiskers) are never the
+-- mutation. Eyeshine is never the mutation either: it is normal for the Walleye, so the
 -- trap only works if the book stays true.
 -- This module is only the traits; the rule's consequences live in entities/WrongCatch (M4).
 
@@ -18,9 +20,9 @@ WrongCatch.TAILS = { "Forked", "Round", "Square", "Uneven" } :: { Tail }
 
 -- Mutation kinds by tier. Each changes exactly one trait.
 WrongCatch.KINDS = {
-	{ "ThirdEye", "Glow", "Blink" },
-	{ "ExtraDorsal", "WrongTail", "Barbels" },
-	{ "Stripes" },
+	{ "Glow", "ThirdEye" },
+	{ "WrongTail", "ExtraDorsal" },
+	{ "Blink", "WrongEyeDir", "FlipFin" },
 } :: { { string } }
 
 -- Which trait each kind changes (for tests and the Field Guide check).
@@ -30,11 +32,12 @@ WrongCatch.TRAIT_OF = {
 	Blink = "blinks",
 	ExtraDorsal = "dorsal",
 	WrongTail = "tail",
-	Barbels = "barbels",
-	Stripes = "stripes",
+	WrongEyeDir = "wrongEyeDir",
+	FlipFin = "flipFin",
 } :: { [string]: string }
 
-WrongCatch.TRAIT_NAMES = { "eyes", "dorsal", "stripes", "barbels", "tail", "eyeshine", "glow", "blinks" }
+WrongCatch.TRAIT_NAMES =
+	{ "eyes", "dorsal", "stripes", "barbels", "tail", "eyeshine", "glow", "blinks", "wrongEyeDir", "flipFin" }
 
 function WrongCatch.copyTraits(t: Traits): Traits
 	return {
@@ -46,6 +49,8 @@ function WrongCatch.copyTraits(t: Traits): Traits
 		eyeshine = t.eyeshine,
 		glow = t.glow,
 		blinks = t.blinks,
+		wrongEyeDir = t.wrongEyeDir == true,
+		flipFin = t.flipFin == true,
 	}
 end
 
@@ -77,20 +82,10 @@ function WrongCatch.mutate(cfg: any, rng: Rng.RngState, species: string, tier: n
 			end
 		end
 		t.tail = Rng.pick(rng, others)
-	elseif kind == "Barbels" then
-		-- Two whiskers more, or two fewer if it has whiskers to lose.
-		if t.barbels >= 2 and Rng.next(rng) < 0.5 then
-			t.barbels -= 2
-		else
-			t.barbels += 2
-		end
-	elseif kind == "Stripes" then
-		-- One bar too many, or one too few if it has bars.
-		if t.stripes >= 1 and Rng.next(rng) < 0.5 then
-			t.stripes -= 1
-		else
-			t.stripes += 1
-		end
+	elseif kind == "WrongEyeDir" then
+		t.wrongEyeDir = true
+	elseif kind == "FlipFin" then
+		t.flipFin = true
 	end
 	return t, kind
 end
@@ -100,7 +95,12 @@ function WrongCatch.diff(cfg: any, species: string, traits: Traits): { string }
 	local book = cfg.Fish[species].traits
 	local out: { string } = {}
 	for _, name in WrongCatch.TRAIT_NAMES do
-		if (traits :: any)[name] ~= book[name] then
+		local a, b = (traits :: any)[name], book[name]
+		if type(a) == "boolean" or type(b) == "boolean" then
+			-- An absent flag means false (older traits tables have no tier 3 flags).
+			a, b = a == true, b == true
+		end
+		if a ~= b then
 			table.insert(out, name)
 		end
 	end

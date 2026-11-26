@@ -10,8 +10,9 @@ Full run: 200 seeds per cell, strict band 0.60 to 0.80, quota reached in at leas
 --fast (the gate): 24 seeds per cell, loose band 0.55 to 0.85 (small samples are noisy),
 quota reached in at least 90%.
 
-Each night stops as soon as the quota is met (until rules exist in Core M3 nothing can
-happen after that which changes time-to-quota). Writes artifacts/score/pacing.md and
+The rule-following bot answers every rule (Core M3 and M4), so scares cost it time.
+Each night stops as soon as the quota is met (nothing after that changes time-to-quota;
+the full nights to dawn are in tools/sim/rules.luau). Writes artifacts/score/pacing.md and
 artifacts/score/pacing.json (full) or pacing-fast.* (fast). Exit 1 on a miss.
 ]]
 
@@ -20,6 +21,7 @@ local process = require("@lune/process")
 local serde = require("@lune/serde")
 local loader = require("./loader")
 local crewbot = require("./crewbot")
+local simParams = require("./params")
 
 local fast = false
 local seeds: number? = nil
@@ -43,48 +45,11 @@ local minReached = if fast then 0.9 else 0.95
 
 local Shared, req = loader.load()
 local cfg = req(Shared.Config)
-local core = {
-	Night = req(Shared.Core.Night),
-	BoatModel = req(Shared.Core.BoatModel),
-	LakeMap = req(Shared.Core.LakeMap),
-	Rng = req(Shared.Core.Rng),
-	WrongCatch = req(Shared.Core.WrongCatch),
-}
 local Quota = req(Shared.Core.Quota)
+local core = simParams.core(Shared, req)
 
--- Story night parameters (Core.Run builds these from M5 on; this mirrors its rules).
 local function storyParams(night: number, crew: number, seed: number)
-	local rules, newRules = {}, {}
-	for n = 1, night do
-		for _, r in cfg.Nights[n].newRules do
-			table.insert(rules, r)
-			if n == night then
-				table.insert(newRules, r)
-			end
-		end
-	end
-	local N = cfg.Nights[night]
-	local ids = {}
-	for p = 1, crew do
-		table.insert(ids, p)
-	end
-	return {
-		seed = seed,
-		night = night,
-		mode = "Story",
-		difficulty = "Normal",
-		playerIds = ids,
-		rules = rules,
-		newRules = newRules,
-		amendments = {},
-		supplies = {},
-		real = N.real,
-		fake = N.fake,
-		quietGap = N.quietGap,
-		quota = Quota.scaled(cfg, N.quota, crew),
-		maxConcurrent = N.maxConcurrent,
-		warningScale = cfg.Scaling.warning[crew],
-	}
+	return simParams.story(cfg, Quota, night, crew, seed)
 end
 
 local function median(xs: { number }): number?

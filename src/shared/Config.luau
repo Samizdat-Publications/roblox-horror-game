@@ -13,13 +13,13 @@ Config.Players = { max = 4 }
 
 -- One night runs 10 PM to 5 AM in game time.
 Config.Night = {
-	realSeconds = 540,
+	realSeconds = 360, -- design change 11/26/2026 (was 540): about 6 real minutes
 	startHour = 22,
 	endHour = 29, -- 5 AM
 	tick = 0.1, -- rules step in seconds
-	openingGrace = 60, -- no real scare in the first seconds of a night
+	openingGrace = 40, -- no real scare in the first seconds of a night
 	teachFrom = 0.2, -- a new rule first appears between these fractions of the night
-	teachTo = 0.45,
+	teachTo = 0.55, -- widened from 0.45 when nights went to 360 s: night 4 teaches two rules
 }
 
 -- Indexed by living crew size at night start (1 to 4).
@@ -40,8 +40,8 @@ Config.Nights = {
 		newRules = { "Hum" },
 		real = 2,
 		fake = 3,
-		quietGap = 75,
-		quota = 23,
+		quietGap = 50,
+		quota = 12,
 		maxConcurrent = 1,
 		wrongChance = 0,
 		wrongTier = 1,
@@ -50,8 +50,8 @@ Config.Nights = {
 		newRules = { "WrongCatch" },
 		real = 3,
 		fake = 3,
-		quietGap = 65,
-		quota = 22,
+		quietGap = 43,
+		quota = 10,
 		maxConcurrent = 1,
 		wrongChance = 0.2,
 		wrongTier = 1,
@@ -60,8 +60,8 @@ Config.Nights = {
 		newRules = { "Neighbor" },
 		real = 4,
 		fake = 4,
-		quietGap = 55,
-		quota = 22,
+		quietGap = 37,
+		quota = 11.6,
 		maxConcurrent = 1,
 		wrongChance = 0.16,
 		wrongTier = 2,
@@ -70,8 +70,8 @@ Config.Nights = {
 		newRules = { "Knocking", "Watcher" },
 		real = 5,
 		fake = 4,
-		quietGap = 45,
-		quota = 22,
+		quietGap = 30,
+		quota = 13.4,
 		maxConcurrent = 2,
 		wrongChance = 0.16,
 		wrongTier = 2,
@@ -80,8 +80,8 @@ Config.Nights = {
 		newRules = { "Finale" },
 		real = 6,
 		fake = 5,
-		quietGap = 40,
-		quota = 23,
+		quietGap = 27,
+		quota = 12.4,
 		maxConcurrent = 2,
 		wrongChance = 0.2,
 		wrongTier = 3,
@@ -94,8 +94,8 @@ Config.Endless = {
 	realPerNight = 0.5,
 	realCap = 10,
 	fakeBase = 5,
-	quietGapBase = 40,
-	quietGapFloor = 25,
+	quietGapBase = 27,
+	quietGapFloor = 17,
 	quietGapStep = 2,
 	quotaBase = 26,
 	quotaPerNight = 3,
@@ -142,6 +142,8 @@ Config.Fish = {
 			eyeshine = false,
 			glow = false,
 			blinks = false,
+			wrongEyeDir = false,
+			flipFin = false,
 		},
 		zones = { Shallows = 5, Reeds = 3, Open = 1, Narrows = 1, Steeple = 0 },
 	},
@@ -158,6 +160,8 @@ Config.Fish = {
 			eyeshine = false,
 			glow = false,
 			blinks = false,
+			wrongEyeDir = false,
+			flipFin = false,
 		},
 		zones = { Shallows = 4, Reeds = 2, Open = 3, Narrows = 2, Steeple = 0 },
 	},
@@ -174,6 +178,8 @@ Config.Fish = {
 			eyeshine = false,
 			glow = false,
 			blinks = false,
+			wrongEyeDir = false,
+			flipFin = false,
 		},
 		zones = { Shallows = 3, Reeds = 4, Open = 1, Narrows = 2, Steeple = 1 },
 	},
@@ -190,6 +196,8 @@ Config.Fish = {
 			eyeshine = false,
 			glow = false,
 			blinks = false,
+			wrongEyeDir = false,
+			flipFin = false,
 		},
 		zones = { Shallows = 1, Reeds = 3, Open = 3, Narrows = 3, Steeple = 1 },
 	},
@@ -206,6 +214,8 @@ Config.Fish = {
 			eyeshine = false,
 			glow = false,
 			blinks = false,
+			wrongEyeDir = false,
+			flipFin = false,
 		},
 		zones = { Shallows = 0, Reeds = 5, Open = 2, Narrows = 2, Steeple = 0 },
 	},
@@ -222,6 +232,8 @@ Config.Fish = {
 			eyeshine = true,
 			glow = false,
 			blinks = false,
+			wrongEyeDir = false,
+			flipFin = false,
 		},
 		zones = { Shallows = 0, Reeds = 1, Open = 4, Narrows = 4, Steeple = 2 },
 	},
@@ -238,6 +250,8 @@ Config.Fish = {
 			eyeshine = false,
 			glow = false,
 			blinks = false,
+			wrongEyeDir = false,
+			flipFin = false,
 		},
 		zones = { Shallows = 0, Reeds = 0, Open = 2, Narrows = 4, Steeple = 3 },
 	},
@@ -254,6 +268,8 @@ Config.Fish = {
 			eyeshine = false,
 			glow = false,
 			blinks = false,
+			wrongEyeDir = false,
+			flipFin = false,
 		},
 		zones = { Shallows = 0, Reeds = 0, Open = 0, Narrows = 0, Steeple = 5 },
 		afterHour = 27, -- 3 AM
@@ -281,7 +297,7 @@ Config.Fishing = {
 }
 
 Config.Lantern = {
-	burnSeconds = 430, -- a full lantern left on lasts this long (about 80% of a night)
+	burnSeconds = 290, -- a full lantern left on lasts this long (about 80% of a night)
 	lowAt = 0.2,
 	refillsPerNight = 1,
 	forcedOutSeconds = 12, -- when a rule kills the lantern
@@ -323,20 +339,24 @@ Config.Attention = {
 	decayPerSec = 0.012, -- when still and quiet
 	safeDecayPerSec = 0.05, -- inside the dock light
 	budgetBonusAt = 0.7, -- sustained attention above this adds one real scare
-	budgetBonusSeconds = 45,
+	budgetBonusSeconds = 30,
 	calmShrink = 0.35, -- high attention shortens calm phases by up to this fraction
 }
 
 Config.Director = {
-	calmMin = 40,
-	calmMax = 70,
-	buildMin = 25,
-	buildMax = 45,
-	fakeGap = 20, -- seconds between fake-outs
+	calmMin = 27,
+	calmMax = 47,
+	buildMin = 17,
+	buildMax = 30,
+	fakeGap = 14, -- seconds between fake-outs
 	fakeClear = 8, -- no fake-out this close before or after a real cue
 	onlyOneChance = 0.35, -- chance a fake-out goes to one player only
 	chorusBands = { 0.3, 0.55, 0.8 }, -- tension thresholds: below first is band 3, then 2, then 1
 	soloCueMinSeconds = 12, -- a real cue shown to one player must leave at least this long
+	lateCutoff = 25, -- no new real scare with less night than this left
+	overlapAfter = 15, -- very high attention may bring a second rule this long after the first
+	teachWarnMult = 1.5, -- a teaching spawn's warning windows are this much longer
+	ruleCooldown = 3, -- seconds a rule lingers after its pass or fail (presentation)
 }
 
 Config.Fakeouts = {
@@ -359,22 +379,30 @@ Config.Rules = {
 		grace = 0.6, -- total seconds of noise forgiven during the hold
 	},
 	WrongCatch = {
-		knockDelayMin = 60, -- after a kept wrong fish is banked, the cooler knocks back this much later
-		knockDelayMax = 140,
+		knockDelayMin = 40, -- after a kept wrong fish is banked, the cooler knocks back this much later
+		knockDelayMax = 95,
 		fishEaten = 2, -- banked fish lost when the cooler knocks
 	},
 	Neighbor = {
-		spawnMin = 160,
-		spawnMax = 220,
-		driftSpeed = 3,
+		spawnMin = 107, -- earliest first Neighbor, drawn per night in spawnMin..spawnMax seconds
+		spawnMax = 147,
+		driftSpeed = 4, -- toward the boat while its lantern is lit
 		holdDist = 90,
-		lingerMin = 25,
-		lingerMax = 35,
+		lingerMin = 17, -- it gives up this long after the lantern went out (boat kept past holdDist)
+		lingerMax = 23,
 		killDist = 45,
 		falseBeaconChance = 0.35,
 		falseBeaconDist = 320,
 		falseBeaconKill = 60,
 		falseBeaconSeconds = 60,
+		warn = 6, -- seconds from the creak (or the light) before any fail can land
+		creakSeconds = 4, -- the oarlock creak before the boat shows
+		appearDist = 200, -- the boat first shows this far off
+		leaveDist = 220, -- it is gone once it has drifted this far off
+		presenceMax = 100, -- it gives up after this long whatever the crew does
+		fakeCallouts = { 1, 2 }, -- fake crew callouts while it is present (min, max)
+		closeSpeed = 0.5, -- amendment NoWaveRowAway: closing faster than this (studs/s) is the fail
+		closeGrace = 0.5, -- seconds of closing forgiven
 	},
 	Knocking = {
 		knockGap = 1.1,
@@ -387,7 +415,7 @@ Config.Rules = {
 	},
 	Watcher = {
 		shoreRange = 260, -- boat must be this close to a shore for it to appear
-		spawnMin = 120,
+		spawnMin = 80,
 		steps = 5, -- steps from the trees to the waterline
 		unwatchedStep = 4, -- seconds unwatched per step
 		stareLimit = 3.5, -- seconds of staring before it lunges
@@ -396,10 +424,12 @@ Config.Rules = {
 		edgeCone = 1.22, -- radians (70 degrees): between the cones is the edge of sight
 		presence = 40, -- it leaves after this long if held off
 		retreatDist = 320, -- or if the boat gets this far away
+		warn = 10, -- seconds from the sighting before it can reach anyone
+		stepLen = 6, -- studs per step between the trees and the waterline
 	},
 	Finale = {
 		hour = 28, -- 4 AM on night 5
-		oilSeconds = 75, -- lantern burns out this long after the bell (scaled by warning)
+		oilSeconds = 50, -- lantern burns out this long after the bell (scaled by warning)
 		stopLimit = 4, -- seconds the boat may sit still
 		neighborEvery = 14,
 		needSpecies = "SteepleCat", -- the owner's special order: one must be in the hold or banked
@@ -411,7 +441,7 @@ Config.Amendments = {
 	Hum = { "LanternOut", "LanternLit" },
 	Knocking = { "AnswerTwo", "AnswerOne", "AnswerNone" },
 	Watcher = { "EdgeOfSight", "StareItDown" },
-	Neighbor = { "NoWave", "NoWaveLanternOut" },
+	Neighbor = { "NoWave", "NoWaveRowAway" },
 }
 
 Config.Water = {

@@ -124,6 +124,9 @@ export type Traits = {
 	eyeshine: boolean, -- eyes shine in lantern light (normal for exactly one species)
 	glow: boolean, -- body glow (never normal)
 	blinks: boolean, -- fish do not have eyelids (never normal)
+	-- Added 11/26/2026 (additive, default false): glanceable tier 3 tells.
+	wrongEyeDir: boolean?, -- one eye looks the wrong way (never normal)
+	flipFin: boolean?, -- a fin on the wrong side (never normal)
 }
 
 export type Catch = {
@@ -144,13 +147,24 @@ export type NightParams = {
 	rules: { RuleId }, -- rules active tonight (including tonight's new ones)
 	newRules: { RuleId }, -- taught tonight with the long warning
 	amendments: { [string]: string }, -- RuleId -> variant id, see Config.Amendments
-	supplies: { string }, -- supply ids picked so far this run
+	supplies: { string }?, -- supply ids picked so far this run (the pick was cut 11/26/2026; ignored)
 	real: number, -- real scare budget
 	fake: number, -- fake-out budget
 	quietGap: number, -- seconds guaranteed quiet after a real scare resolves
 	quota: number, -- points, already scaled for crew size
 	maxConcurrent: number, -- real rules allowed at once
 	warningScale: number, -- multiplies every warning window
+}
+
+-- Added 11/26/2026 (additive): one player's night, for the end-of-night card.
+export type PlayerTally = {
+	player: PlayerId,
+	brokeSilence: number, -- Hum fails this player caused (the loudest)
+	keptWrong: number, -- wrong fish this player kept
+	knocksAnswered: number, -- knocks sent while the Knocking was out
+	bailedSeconds: number, -- seconds bailing water
+	timesStaredAtWatcher: number, -- times this player's gaze landed straight on the Watcher
+	deaths: number,
 }
 
 export type NightResult = {
@@ -161,6 +175,7 @@ export type NightResult = {
 	scaresSurvived: number,
 	deaths: { { player: PlayerId, rule: string } },
 	keptWrong: number,
+	tallies: { PlayerTally }?, -- added 11/26/2026, in crew order
 }
 
 export type EntityStage = "Idle" | "Cue" | "Window" | "Pass" | "Fail" | "Cooldown"
@@ -177,6 +192,10 @@ export type EntityObs = {
 	safe: boolean, -- boat inside the dock light
 	intents: { Intent },
 	timeLeft: number,
+	-- Added in Core M3 (additive): who to blame for the boat's noise and light.
+	lanternCanLight: boolean?, -- false when the lantern has no oil or a rule snuffed it
+	lastLantern: PlayerId?, -- the player who last toggled the lantern tonight
+	lastMotor: PlayerId?, -- the player who last toggled the motor tonight
 }
 
 return {}
