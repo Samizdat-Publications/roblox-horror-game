@@ -1,0 +1,32 @@
+﻿{
+    "note":  "Prompts for every game sound. Generate with tools/audio/eleven.py batch audio/sounds.json, rank variants with the critic (Hydrogen), keep the best in audio/final/, and record the choice and Roblox asset id in audio/README.md.",
+    "sounds":  [
+                   {
+                       "id":  "amb-lake-dawn",
+                       "kind":  "sfx",
+                       "variants":  2,
+                       "seconds":  30,
+                       "loop":  true,
+                       "influence":  0.6,
+                       "prompt":  "Seamless dawn ambience at a calm forest lake: a gentle chorus of songbirds in pine trees, soft water lapping against a wooden dock, very light breeze, peaceful, no music, no voices"
+                   },
+                   {
+                       "id":  "amb-lake-day",
+                       "kind":  "sfx",
+                       "variants":  2,
+                       "seconds":  30,
+                       "loop":  true,
+                       "influence":  0.6,
+                       "prompt":  "Seamless daytime ambience at a quiet lake: wind softly moving through pine trees, a few distant birds, small waves lapping at the shore, calm and warm, no music, no voices"
+                   },
+                   {
+                       "id":  "amb-lake-dusk",
+                       "kind":  "sfx",
+                       "variants":  2,
+                       "seconds":  30,
+                       "loop":  true,
+                       "influence":  0.6,
+                       "prompt":  "Seamless dusk ambience at a northern lake: the haunting call of a distant loon echoing across still water, first evening insects, a light breeze, peaceful and slightly melancholy, no music, no voices"
+                   }
+               ]
+}

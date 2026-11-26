@@ -1,0 +1,46 @@
+name: Checks
+
+# Runs on every push and pull request. The unit tests must pass. The format (StyLua) and
+# lint (Selene) checks only report for now: the existing code was never run through them,
+# and reformatting it is Stewart's call (see docs/PROGRESS.md).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    name: Unit tests (outside Studio, with Lune)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lune 0.11.1
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          if curl -fsSL -o /tmp/lune.zip https://github.com/lune-org/lune/releases/download/v0.11.1/lune-0.11.1-linux-x86_64.zip; then
+            unzip -o /tmp/lune.zip -d "$HOME/.local/bin"
+            chmod +x "$HOME/.local/bin/lune"
+          else
+            cargo install lune --version 0.11.1 --locked
+          fi
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Run the specs
+        run: lune run tools/test/run.luau
+      - name: Economy simulation still runs
+        run: python3 tools/econ/sim.py --quick --only current > /dev/null
+
+  style:
+    name: Format and lint (report only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: StyLua format check
+        continue-on-error: true
+        run: npx --yes @johnnymorganz/stylua-bin@2.6.0 --check src tools/test
+      - name: Install Selene
+        continue-on-error: true
+        run: cargo install selene --version 0.31.0 --locked
+      - name: Selene lint
+        continue-on-error: true
+        run: selene src

@@ -1,0 +1,6 @@
+# One config for everything Selene lints: src (the game), tests and the Lune tools.
+# std "roblox" covers both: Lune scripts are plain Luau and get their libraries from
+# require("@lune/..."), so they need no extra globals. The gate lints
+# src, tests, tools/test, tools/sim, tools/lint and tools/smoke. tools/studio/sync is
+# copied from the fishing game and is not linted.
+std = "roblox"

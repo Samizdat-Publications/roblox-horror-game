@@ -1,0 +1,25 @@
+# Build output and local place files (rebuilt by `rojo build`)
+*.rbxl
+*.rbxlx
+*.rbxl.lock
+*.rbxlx.lock
+sourcemap.json
+artifacts/
+
+# Local secrets, never committed
+.env
+.env.*
+!.env.example
+
+# Local Claude data and settings
+.claude/data/
+.claude/settings.local.json
+
+# Generated sound variants (only the winners in audio/final are kept)
+audio/variants/
+
+# OS, editors, Python
+Thumbs.db
+.DS_Store
+.vscode/
+__pycache__/

@@ -1,0 +1,64 @@
+name: Checks
+
+# The same gate as tools/check.ps1, on Linux. Every check step must pass.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  gate:
+    name: Gate (lint, format, specs, sim, lints, build, smoke)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rokit
+        run: |
+          curl -sSf https://raw.githubusercontent.com/rojo-rbx/rokit/main/scripts/install.sh | bash
+          echo "$HOME/.rokit/bin" >> "$GITHUB_PATH"
+
+      - name: Install pinned tools (rokit.toml)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # The token only lifts GitHub's anonymous API rate limit; installs work without it.
+          rokit authenticate github --token "$GH_TOKEN" --skip-parse --skip-verify || echo "rokit authenticate skipped"
+          rokit install --no-trust-check
+          rojo --version
+          selene --version
+          stylua --version
+          lune --version
+
+      - name: Selene
+        run: selene src tests tools/test tools/sim tools/lint tools/smoke
+
+      - name: StyLua check
+        run: stylua --check src tests tools
+
+      - name: Specs (Lune)
+        run: lune run tools/test/run.luau
+
+      - name: Pacing sim (fast)
+        run: lune run tools/sim/pacing.luau --fast
+
+      - name: "Lint: em dash"
+        run: python3 tools/lint/emdash.py
+
+      - name: "Lint: asset ids"
+        run: python3 tools/lint/asset_ids.py
+
+      - name: "Lint: secrets"
+        run: python3 tools/lint/secrets.py
+
+      - name: "Lint: core purity"
+        run: python3 tools/lint/core_purity.py
+
+      - name: "Lint: ui words"
+        run: python3 tools/lint/ui_words.py
+
+      - name: Rojo build
+        run: rojo build -o DeadCalm.rbxl
+
+      - name: Place smoke test
+        run: lune run tools/smoke/place.luau DeadCalm.rbxl
