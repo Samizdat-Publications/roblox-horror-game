@@ -24,7 +24,7 @@ Config.Night = {
 
 -- Indexed by living crew size at night start (1 to 4).
 Config.Scaling = {
-	quota = { 0.45, 0.7, 0.85, 1.0 },
+	quota = { 0.55, 0.75, 0.86, 1.0 },
 	warning = { 1.4, 1.15, 1.0, 1.0 },
 	budget = { 0.7, 0.85, 1.0, 1.0 }, -- real scare budget, rounded, never below 1
 }
@@ -41,7 +41,7 @@ Config.Nights = {
 		real = 2,
 		fake = 3,
 		quietGap = 75,
-		quota = 10,
+		quota = 23,
 		maxConcurrent = 1,
 		wrongChance = 0,
 		wrongTier = 1,
@@ -51,7 +51,7 @@ Config.Nights = {
 		real = 3,
 		fake = 3,
 		quietGap = 65,
-		quota = 14,
+		quota = 22,
 		maxConcurrent = 1,
 		wrongChance = 0.2,
 		wrongTier = 1,
@@ -61,7 +61,7 @@ Config.Nights = {
 		real = 4,
 		fake = 4,
 		quietGap = 55,
-		quota = 18,
+		quota = 22,
 		maxConcurrent = 1,
 		wrongChance = 0.16,
 		wrongTier = 2,
@@ -81,7 +81,7 @@ Config.Nights = {
 		real = 6,
 		fake = 5,
 		quietGap = 40,
-		quota = 26,
+		quota = 23,
 		maxConcurrent = 2,
 		wrongChance = 0.2,
 		wrongTier = 3,
@@ -277,6 +277,7 @@ Config.Fishing = {
 	holdMax = 4,
 	wrongPointsMult = 3,
 	teachWrongByCatch = 3, -- on the night Wrong Catch is new, one appears by this catch
+	biteInDockLight = false, -- fish do not bite in the beacon's light (else the dock is a free quota)
 }
 
 Config.Lantern = {
@@ -294,6 +295,22 @@ Config.Boat = {
 	turnRate = 1.1, -- radians per second at full steer
 	stillSpeed = 1.5, -- below this the boat counts as still
 	motorSoundMask = 0.75, -- how much of the chorus the motor hides (for SoundMix)
+}
+
+-- Ambience targets for Core.SoundMix (0..1 volumes before the registry's own volume).
+-- The client smooths toward these at crossfadePerSec.
+Config.Mix = {
+	bed = 0.6, -- hull lap and open-water air
+	bedSilent = 0.35, -- the bed when the chorus is dead: silence is used on purpose
+	chorus = 0.9, -- the active frog layer
+	crickets = 0.4, -- follow the chorus but never fully vanish until band 0
+	motor = 0.8,
+	radio = 0.5,
+	radioNear = 30, -- full radio within this distance of the dock end
+	radioFar = 240, -- radio gone beyond this
+	cueDuck = 0.7, -- a rule cue lowers every other layer by up to this fraction
+	drownedMuffle = 0.55, -- the drowned hear the world this much quieter
+	crossfadePerSec = 0.8,
 }
 
 -- The lake's attention, 0..1. Its only display is the frog chorus.
