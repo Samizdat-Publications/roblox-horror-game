@@ -409,7 +409,7 @@ local sounds: { [string]: SoundEntry } = {
 	["death-sting"] = { id = 120117132238934, volume = 0.7, looped = false, spatial = false, group = "Rule" },
 	["water-pull-warning"] = { id = 125472514231870, volume = 0.7, looped = false, spatial = false, group = "Rule" },
 	["ghost-bell"] = {
-		id = 117488559812339,
+		id = 109354337663641,
 		volume = 0.7,
 		looped = false,
 		spatial = true,
