@@ -50,3 +50,8 @@ One line each: date, call, why. All reversible.
 - 11/26/2026: The cassette effects (EqualizerSoundEffect low -14 dB, mid +2, high -12; DistortionSoundEffect 0.12) sit on the Voice SoundGroup. The docs show effects parented to a SoundGroup but give no gain ranges, so Studio must confirm the sound.
 - 11/26/2026: Fireflies are 36 local Neon balls (half around the boat, half along the nearest shore): 15 percent lit at band 1, 55 at band 2, all at band 3; at band 0 they freeze for 0.6 s, then fade over 2.5 s.
 - 11/26/2026: Night cards are simple for S2: "Night N" on start, and a clear or fail card with banked points, fish landed and one dry tally line per player. S4 replaces them.
+
+## Inspect fixes (11/26/2026)
+
+- 11/26/2026: The held fish is posed from a frame measured off its own parts (Body center to the Mouth for the head, the back fins for up, the body axes only as a fallback), not from the model's pivot, then set side-on to the camera: head right, tail left, back up, about 3 studs out at 29 percent across and 44 percent down the screen. It is scaled (Model:ScaleTo) to fill a third of the screen height, capped at 46 percent of the width so it stays clear of the Field Guide card, and sways only slightly (yaw 0.12 rad, roll 0.05 rad).
+- 11/26/2026: When a fish is landed the server removes that player's bobber and its line, including any stray `Bobber_<id>` left in the fishing folder, and any older fish still on the line; the next cast builds a fresh bobber and line. While the copy is held up, the client also turns off the original fish's lights (a glowing fish's pale green light) along with hiding its parts and its line.

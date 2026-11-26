@@ -1,6 +1,7 @@
 --!strict
 -- The catch, held up to the lantern: when the local player lands a fish, a copy of the fish
--- on their line hangs in front of the camera, turning slowly so both sides and the top show.
+-- on their line hangs in front of the camera in side profile (head right, back up, as in the
+-- Field Guide drawing), swaying gently.
 -- It is lit by the world (the boat's lantern), so with the lantern out it is hard to see.
 -- Beside it, the Field Guide opens as a half-screen card on the species the fish claims to
 -- be: a drawing (the book-true fish the server built) and the facts to check. Keep (E) or
@@ -36,6 +37,8 @@ local timerFill: Frame? = nil
 local viewport: ViewportFrame? = nil
 local labels: { [string]: TextLabel } = {}
 local held: Model? = nil
+-- Where the held copy's pivot sits relative to its measured fish frame (see fishFrame).
+local heldRel: CFrame? = nil
 local original: Model? = nil
 local openAt = 0
 local clock = 0
@@ -75,7 +78,9 @@ local function setOriginalHidden(m: Model?, hidden: boolean)
 	for _, x in m:GetDescendants() do
 		if x:IsA("BasePart") then
 			x.LocalTransparencyModifier = if hidden then 1 else 0
-		elseif x:IsA("Beam") then
+		elseif x:IsA("Beam") or x:IsA("Light") then
+			-- The line to the mouth, and a glowing fish's light (it would light the boat in
+			-- pale green from the rod while the copy is held up).
 			x.Enabled = not hidden
 		end
 	end
@@ -88,6 +93,7 @@ local function close()
 		h:Destroy()
 	end
 	held = nil
+	heldRel = nil
 	setOriginalHidden(original, false)
 	original = nil
 	local c, b = card, buttons
@@ -140,10 +146,133 @@ local function cloneFish(src: Model): Model
 			x.Anchored = true
 			x.CanCollide = false
 			x.LocalTransparencyModifier = 0
+		elseif x:IsA("Light") then
+			x.Enabled = true
 		end
 	end
 	m.Name = "Inspect"
 	return m
+end
+
+-- The fish's own frame, measured from its parts rather than assumed from the model's pivot
+-- or axes: X is the side, Y the back (dorsal) side, Z points to the tail (so the head is
+-- -Z, as in the Field Guide drawing). The origin is the middle of the fish's extent.
+-- Returns the frame and the extent (side, height, length) in that frame.
+local function fishFrame(m: Model): (CFrame, Vector3)
+	local body = m.PrimaryPart or m:FindFirstChild("Body")
+	local center: Vector3
+	local bodyCf: CFrame
+	if body and body:IsA("BasePart") then
+		center, bodyCf = body.Position, body.CFrame
+	else
+		local cf = m:GetBoundingBox()
+		center, bodyCf = cf.Position, cf
+	end
+	local function avg(prefix: string): Vector3?
+		local sum, n = Vector3.zero, 0
+		for _, x in m:GetChildren() do
+			if x:IsA("BasePart") and string.sub(x.Name, 1, #prefix) == prefix then
+				sum += x.Position
+				n += 1
+			end
+		end
+		return if n > 0 then sum / n else nil
+	end
+	-- Head direction: body center to the Mouth (head end), else tail to center.
+	local head: Vector3? = nil
+	local mouth = body and body:FindFirstChild("Mouth")
+	if mouth and mouth:IsA("Attachment") then
+		local d = mouth.WorldPosition - center
+		if d.Magnitude > 1e-3 then
+			head = d.Unit
+		end
+	end
+	if head == nil then
+		local tail = avg("Tail")
+		if tail and (center - tail).Magnitude > 1e-3 then
+			head = (center - tail).Unit
+		end
+	end
+	-- Last resort: FishModel builds the head along the Body's LookVector (-Z).
+	local headDir = head or bodyCf.LookVector
+	-- Up: toward the back fins, else away from a belly fin, else the body's up.
+	local up = bodyCf.UpVector
+	local fins = avg("BackFin")
+	local belly = avg("BellyFin")
+	if fins then
+		up = fins - center
+	elseif belly then
+		up = center - belly
+	end
+	up -= headDir * up:Dot(headDir)
+	if up.Magnitude < 1e-3 then
+		up = bodyCf.UpVector - headDir * bodyCf.UpVector:Dot(headDir)
+	end
+	up = up.Unit
+	local back = -headDir
+	local side = up:Cross(back)
+	local frame = CFrame.fromMatrix(center, side, up, back)
+	-- Extent of every visible part in that frame.
+	local lo = Vector3.new(math.huge, math.huge, math.huge)
+	local hi = -lo
+	for _, x in m:GetDescendants() do
+		if x:IsA("BasePart") and x.Transparency < 1 then
+			local rel = frame:ToObjectSpace(x.CFrame)
+			local s = x.Size / 2
+			for _, c in
+				{
+					Vector3.new(s.X, s.Y, s.Z),
+					Vector3.new(-s.X, s.Y, s.Z),
+					Vector3.new(s.X, -s.Y, s.Z),
+					Vector3.new(s.X, s.Y, -s.Z),
+					Vector3.new(-s.X, -s.Y, s.Z),
+					Vector3.new(-s.X, s.Y, -s.Z),
+					Vector3.new(s.X, -s.Y, -s.Z),
+					Vector3.new(-s.X, -s.Y, -s.Z),
+				}
+			do
+				local p = rel * c
+				lo = lo:Min(p)
+				hi = hi:Max(p)
+			end
+		end
+	end
+	if lo.X > hi.X then
+		return frame, Vector3.one
+	end
+	return frame * CFrame.new((lo + hi) / 2), hi - lo
+end
+
+-- Inspect framing: distance from the camera, where on screen (0..1) the fish's middle sits,
+-- the share of the screen height the fish fills, and the most of the screen width it may
+-- span (the Field Guide card covers the right side).
+local HOLD_DIST = 3
+local HOLD_SCREEN = Vector2.new(0.29, 0.44)
+local HOLD_HEIGHT = 1 / 3
+local HOLD_MAX_WIDTH = 0.46
+
+local function viewSize(cam: Camera, dist: number): Vector2
+	local h = 2 * dist * math.tan(math.rad(cam.FieldOfView) / 2)
+	local vp = cam.ViewportSize
+	local aspect = if vp.Y > 0 then vp.X / vp.Y else 16 / 9
+	return Vector2.new(h * aspect, h)
+end
+
+-- Scales the held copy to fill a third of the screen height (without running under the
+-- card), then records where its pivot sits relative to the measured fish frame.
+local function frameHeld(h: Model)
+	local cam = Workspace.CurrentCamera
+	local _, size = fishFrame(h)
+	if cam then
+		local view = viewSize(cam, HOLD_DIST)
+		local s =
+			math.min(view.Y * HOLD_HEIGHT / math.max(size.Y, 0.05), view.X * HOLD_MAX_WIDTH / math.max(size.Z, 0.05))
+		pcall(function()
+			h:ScaleTo(h:GetScale() * s)
+		end)
+	end
+	local frame = fishFrame(h)
+	heldRel = frame:ToObjectSpace(h:GetPivot())
 end
 
 local function open(species: string, serial: number?)
@@ -170,6 +299,7 @@ local function open(species: string, serial: number?)
 				setOriginalHidden(m, true)
 				local h = cloneFish(m)
 				h.Parent = localFolder
+				frameHeld(h)
 				held = h
 				return
 			end
@@ -328,16 +458,23 @@ function CatchInspect.init()
 		end
 		local h = held
 		local cam = Workspace.CurrentCamera
-		if h and cam then
-			local len = (h:GetAttribute("Length") :: number?) or 2
-			local dist = 2.4 + len * 0.55
+		local rel = heldRel
+		if h and cam and rel then
 			local cf = cam.CFrame
-			local pos = (cf * CFrame.new(-dist * 0.42, -0.1, -dist)).Position
-			-- Length across the screen, one side to the camera, the top tipped toward it.
-			local base = CFrame.lookAt(pos, pos + cf.RightVector, cf.UpVector)
-			local yaw = math.sin(clock * 0.6) * 0.55
-			local tilt = -0.35 - 0.15 * math.sin(clock * 0.45)
-			h:PivotTo(base * CFrame.Angles(0, yaw, 0) * CFrame.Angles(0, 0, tilt))
+			local view = viewSize(cam, HOLD_DIST)
+			local ox = (HOLD_SCREEN.X - 0.5) * view.X
+			local oy = (0.5 - HOLD_SCREEN.Y) * view.Y + 0.03 * math.sin(clock * 0.8)
+			local pos = (cf * CFrame.new(ox, oy, -HOLD_DIST)).Position
+			-- Clean side profile: the near side faces the camera, back up, head to the right
+			-- of the screen and tail to the left (as in the Field Guide drawing).
+			local toCam = (cf.Position - pos).Unit
+			local up = cf.UpVector - toCam * cf.UpVector:Dot(toCam)
+			up = if up.Magnitude > 1e-3 then up.Unit else cf.UpVector
+			local back = toCam:Cross(up)
+			local target = CFrame.fromMatrix(pos, toCam, up, back)
+			-- A slow, gentle sway that never loses the profile.
+			local sway = CFrame.Angles(0, math.sin(clock * 0.5) * 0.12, math.sin(clock * 0.37) * 0.05)
+			h:PivotTo(target * sway * rel)
 			-- Blinking eyelids, if this fish has them.
 			if h:GetAttribute("Blinks") then
 				local F = Look.Fish

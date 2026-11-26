@@ -141,10 +141,26 @@ local function seatName(userId: number): string
 	return "HelmSeat"
 end
 
-local function clearLine(l: Line)
+-- Destroys this player's bobber (with its line beam), including any stray one the Line
+-- record lost track of, so nothing is left floating once a fish is out of the water.
+local function removeBobber(l: Line)
 	if l.bobber then
 		l.bobber:Destroy()
 	end
+	local f = folder
+	if f then
+		local name = "Bobber_" .. l.userId
+		local stray = f:FindFirstChild(name)
+		while stray do
+			stray:Destroy()
+			stray = f:FindFirstChild(name)
+		end
+	end
+	l.bobber, l.bobberAtt, l.beam = nil, nil, nil
+end
+
+local function clearLine(l: Line)
+	removeBobber(l)
 	if l.fish then
 		l.fish:Destroy()
 	end
@@ -265,9 +281,13 @@ local function placeBobber(l: Line, pos: Vector3)
 end
 
 local function onCaught(l: Line, catch: any)
-	if l.bobber then
-		l.bobber:Destroy()
-		l.bobber, l.bobberAtt, l.beam = nil, nil, nil
+	-- The fish is out of the water: the bobber and its line go (the next cast makes new ones);
+	-- from here the line runs from the rod tip to the fish's mouth.
+	removeBobber(l)
+	l.castAt = nil
+	if l.fish then
+		l.fish:Destroy()
+		l.fish = nil
 	end
 	local f = folder
 	local r = rods[l.seat]
