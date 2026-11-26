@@ -30,6 +30,8 @@ def rank_once(spec, shuffled):
     uploaded: list[str] = []
     try:
         loop_rule = " It must loop cleanly: the end joins the start with no click, fade or recognisable repeating event." if spec.get("loop") else ""
+        iso_rule = (" This must be ONE ISOLATED single animal calling: any variant with more than one animal, a chorus, crickets or other insects, or audible background hiss is a FAIL and must rank last."
+                    if spec.get("batch") == "m1b" else "")
         kind = "music" if spec.get("kind") == "music" else "sound effect"
         parts = [
             {"text": critic.CONTEXT},
@@ -39,7 +41,7 @@ def rank_once(spec, shuffled):
                     f"{spec['prompt']}\nCriteria: fits that description; natural and clean (no artifacts, clicks, voices"
                     + ("" if spec.get("kind") == "music" else ", music") +
                     " where none belongs); not harsh or shrill; right length and loudness."
-                    + loop_rule +
+                    + loop_rule + iso_rule +
                     " Rank them best first. If all of them are poor, say so in the summary starting with 'ALL POOR:'. "
                     "Use each file's name exactly as given."
                 )

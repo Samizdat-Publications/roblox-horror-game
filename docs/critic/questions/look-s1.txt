@@ -1,0 +1,13 @@
+These are the first in-engine screenshots of a Roblox co-op horror fishing game set on a foggy lake at night, built from simple blocky parts. The target look ("Lantern Noir"): near-black teal water, gray-green fog, the boat's warm amber oil lantern as the only strong light, a far warm dock beacon as the way home, crooked tree silhouettes on the shore, a sunken church steeple leaning out of the water. Many players will be on phones in a bright room. The image names say which shot each is: helm (first person from the stern seat), dock (third person looking back at the dock, shack and beacon), steeple (the boat at the steeple far from home), before-black (the first attempt, shown only for comparison).
+
+Score each point 0 to 10, then give an overall score. Be blunt. No praise paragraphs. Do not use em dashes. Under 600 words.
+
+1. readability on a phone
+2. the lantern as the one warm pool of light
+3. the beacon as the way home
+4. mood: lonely and cold rather than merely dark
+5. silhouettes (trees, steeple, dock, boat)
+6. palette
+7. anything broken or ugly
+
+Then list the top five concrete fixes in order of impact, each naming the object, the property to change in plain words (brighter, warmer, larger, more fog, move it), and roughly how much.

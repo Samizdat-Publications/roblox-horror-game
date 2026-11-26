@@ -3,18 +3,52 @@
   "voice": {
     "name": "Tull",
     "description": "An older rural American man in his late sixties, tired, kind and dry, a low unhurried voice with a little gravel, speaking quietly into a cheap cassette recorder late at night. Understated, deadpan, never theatrical, never menacing.",
-    "sample_line": "Night one. Quota's on the cooler. Rules are taped in the boat. Read them."
+    "sample_line": "Night one. Quota's on the cooler. Rules are taped in the boat. Read them.",
+    "voice_id": "WkacbrL7BYcKmsUCcl8y",
+    "voice_name": "Tull (Dont Wave Back)",
+    "method": "voice design (eleven_ttv_v3, preview 1 of 3)",
+    "speech_model": "eleven_multilingual_v2"
   },
   "tapes": [
-    { "id": "tape-night-1", "text": "Night one. Quota's on the cooler. Rules are taped in the boat. Read them. Mostly it's just frogs out there. If the frogs quit, you quit too. That's all. Coffee's in the shack." },
-    { "id": "tape-night-2", "text": "Night two. You'll pull up things that look almost right. Almost is the problem. Count the eyes. Use the book. I don't pay for what isn't in the book. Officially." },
-    { "id": "tape-night-3", "text": "Night three. There's nobody else on this lake. I've held the only license since the dam went in. So if somebody waves at you, be rude." },
-    { "id": "tape-night-4", "text": "Night four. Two things. If it knocks, answer short. And don't go staring into my trees. Don't ignore them, neither. You'll work it out." },
-    { "id": "tape-night-5", "text": "Last night. I need one fish from over the steeple. They bite after three. And if you hear the bell, it isn't me ringing it. Come home. Don't stop for anything in that book." },
-    { "id": "tape-amended", "text": "One more thing. I changed the book. Read it again." },
-    { "id": "tape-night-failed", "text": "Rough night. Lake gives you one back. It doesn't do that forever." },
-    { "id": "tape-run-cleared", "text": "Huh. You're still here. Pay's in the envelope. Same time tomorrow?" },
-    { "id": "tape-endless", "text": "You came back. Nobody comes back. All right. Same rules. Mostly." },
-    { "id": "tape-title", "text": "Tull's Bait and Tackle. Night help wanted. Must follow instructions." }
+    {
+      "id": "tape-night-1",
+      "text": "Night one. Quota's on the cooler. Rules are taped in the boat. Read them. Mostly it's just frogs out there. If the frogs quit, you quit too. That's all. Coffee's in the shack."
+    },
+    {
+      "id": "tape-night-2",
+      "text": "Night two. You'll pull up things that look almost right. Almost is the problem. Count the eyes. Use the book. I don't pay for what isn't in the book. Officially."
+    },
+    {
+      "id": "tape-night-3",
+      "text": "Night three. There's nobody else on this lake. I've held the only license since the dam went in. So if somebody waves at you, be rude."
+    },
+    {
+      "id": "tape-night-4",
+      "text": "Night four. Two things. If it knocks, answer short. And don't go staring into my trees. Don't ignore them, neither. You'll work it out."
+    },
+    {
+      "id": "tape-night-5",
+      "text": "Last night. I need one fish from over the steeple. They bite after three. And if you hear the bell, it isn't me ringing it. Come home. Don't stop for anything in that book."
+    },
+    {
+      "id": "tape-amended",
+      "text": "One more thing. I changed the book. Read it again."
+    },
+    {
+      "id": "tape-night-failed",
+      "text": "Rough night. Lake gives you one back. It doesn't do that forever."
+    },
+    {
+      "id": "tape-run-cleared",
+      "text": "Huh. You're still here. Pay's in the envelope. Same time tomorrow?"
+    },
+    {
+      "id": "tape-endless",
+      "text": "You came back. Nobody comes back. All right. Same rules. Mostly."
+    },
+    {
+      "id": "tape-title",
+      "text": "Tull's Bait and Tackle. Night help wanted. Must follow instructions."
+    }
   ]
 }
