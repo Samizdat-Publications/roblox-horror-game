@@ -1,13 +1,92 @@
 --!strict
--- Server entry point. World building and services start here in later milestones.
+-- Server entry point: builds the world and the night look, opens the remotes, launches the
+-- boat, and seats every player who joins (there is no lobby until S4).
+-- Prints exactly one line in normal operation; anything else is a warning or an error.
 
+local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ServerScriptService = game:GetService("ServerScriptService")
+
+local server = script.Parent
+local WorldBuilder = require(server:WaitForChild("WorldBuilder"))
+local LightingController = require(server:WaitForChild("LightingController"))
+local BoatService = require(server:WaitForChild("BoatService"))
+local Net = require(server:WaitForChild("Net"))
+
+local startupWarnings: { string } = {}
+
+WorldBuilder.build()
+for _, w in LightingController.apply() do
+	table.insert(startupWarnings, w)
+end
+Net.init()
+BoatService.init(WorldBuilder.context())
+
+-- Seat a fresh character in the first free seat. Seat:Sit can miss while the character is
+-- still loading, so retry a few times and say so loudly if it never works.
+local function seatWhenReady(player: Player, character: Model)
+	local humanoid = character:WaitForChild("Humanoid", 10) :: Humanoid?
+	local root = character:WaitForChild("HumanoidRootPart", 10)
+	if humanoid == nil or root == nil then
+		warn("[DeadCalm] could not seat " .. player.Name .. ": character has no Humanoid or root")
+		return
+	end
+	for _ = 1, 8 do
+		if player.Character ~= character or character.Parent == nil then
+			return
+		end
+		local seatName = BoatService.seatPlayer(player)
+		if seatName == nil then
+			local msg = "could not seat " .. player.Name .. ": the boat is full"
+			table.insert(startupWarnings, msg)
+			warn("[DeadCalm] " .. msg)
+			return
+		end
+		task.wait(0.5)
+		if humanoid.SeatPart ~= nil and humanoid.SeatPart.Name == seatName then
+			return
+		end
+	end
+	local msg = "Seat:Sit never took for " .. player.Name
+	table.insert(startupWarnings, msg)
+	warn("[DeadCalm] " .. msg)
+end
+
+local function onPlayer(player: Player)
+	player.CameraMode = Enum.CameraMode.LockFirstPerson
+	player.CharacterAdded:Connect(function(character)
+		task.spawn(seatWhenReady, player, character)
+	end)
+	if player.Character then
+		task.spawn(seatWhenReady, player, player.Character)
+	end
+end
+
+Players.PlayerAdded:Connect(onPlayer)
+for _, p in Players:GetPlayers() do
+	onPlayer(p)
+end
+
+-- S1 stand-in for NightService (S2): the boat moves every frame, and the two intents that
+-- matter without a night (lantern, motor) are applied directly. Everything else is drained
+-- and dropped until Core.Night consumes it.
+RunService.Heartbeat:Connect(function(dt: number)
+	BoatService.step(dt)
+	for _, intent in Net.drainIntents() do
+		if intent.kind == "ToggleLantern" then
+			BoatService.setLantern(not BoatService.lanternOn())
+		elseif intent.kind == "ToggleMotor" then
+			BoatService.setMotor(not BoatService.motorOn())
+		end
+	end
+end)
 
 print("[DeadCalm] server up")
 
 if RunService:IsStudio() then
-	local DebugDriver = require(script.Parent:WaitForChild("DebugDriver")) :: any
+	local DebugDriver = require(server:WaitForChild("DebugDriver")) :: any
+	DebugDriver.warnings = startupWarnings
+	DebugDriver.init()
 	-- A BindableFunction is an Instance, so command bar or execute_luau code in any server
 	-- context can reach this live copy of DebugDriver (see the top of DebugDriver.luau).
 	local old = ServerScriptService:FindFirstChild(DebugDriver.BINDABLE_NAME)
