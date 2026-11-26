@@ -126,31 +126,58 @@ function Dock.build(ctx: any)
 	)
 	ctx.anchors.dockEnd = endAnchor
 
+	-- The cooler: a weathered metal chest, muted green-gray, with a darker lid band and two
+	-- end handles. Colors are set here (not Look.Palette.cooler, which read bright tan).
+	local chest = Color3.fromRGB(120, 135, 125)
+	local band = chest:Lerp(pal.ink, 0.45)
+	local coolerCF = endCF * CFrame.new(-2, 0, 2.2) * CFrame.Angles(0, math.rad(7), 0)
 	local cooler = parts.block(
 		ctx.parent,
 		"DockCooler",
-		Vector3.new(3, 1.8, 2),
-		endCF * CFrame.new(-2, 0.9, 2.2),
-		pal.cooler,
-		Enum.Material.SmoothPlastic
+		Vector3.new(3, 1.6, 2),
+		coolerCF * CFrame.new(0, 0.8, 0),
+		chest,
+		Enum.Material.DiamondPlate
 	)
 	parts.block(
 		cooler,
 		"Lid",
-		Vector3.new(3.1, 0.25, 2.1),
-		endCF * CFrame.new(-2, 1.9, 2.2),
-		pal.cooler:Lerp(pal.ink, 0.2),
-		Enum.Material.SmoothPlastic
+		Vector3.new(3.1, 0.35, 2.1),
+		coolerCF * CFrame.new(0, 1.75, 0),
+		band,
+		Enum.Material.Metal
 	)
+	for i, side in { -1, 1 } do
+		parts.block(
+			cooler,
+			"Handle" .. i,
+			Vector3.new(0.25, 0.25, 1.1),
+			coolerCF * CFrame.new(side * 1.62, 1.25, 0),
+			pal.metal,
+			Enum.Material.Metal,
+			{ collide = false }
+		)
+	end
 	ctx.anchors.cooler = cooler
 
+	-- The oil can: dull rust red-brown with a small angled spout.
+	local canCF = endCF * CFrame.new(1.6, 0, 2.6) * CFrame.Angles(0, math.rad(-12), 0)
 	local oil = parts.block(
 		ctx.parent,
 		"OilCan",
 		Vector3.new(1.2, 1.4, 1.2),
-		endCF * CFrame.new(1.6, 0.7, 2.6),
-		Color3.fromRGB(110, 40, 30),
+		canCF * CFrame.new(0, 0.7, 0),
+		Color3.fromRGB(110, 52, 38),
 		Enum.Material.Metal
+	)
+	parts.block(
+		oil,
+		"Spout",
+		Vector3.new(0.18, 0.7, 0.18),
+		canCF * CFrame.new(0.3, 1.6, 0) * CFrame.Angles(0, 0, math.rad(-35)),
+		Color3.fromRGB(80, 40, 30),
+		Enum.Material.Metal,
+		{ collide = false }
 	)
 	ctx.anchors.oilCan = oil
 
@@ -165,22 +192,67 @@ function Dock.build(ctx: any)
 		pal.dockPost,
 		Enum.Material.Wood
 	)
+	-- Lamp housing: a big warm Neon block inside a dark cage of thin bars, on a metal base.
+	-- WorldFx (client) blinks it by setting BeaconLamp.Color, so keep the name and the light.
+	local bx, bz = beacon.x + 6, beacon.z
+	local lampY = beacon.height + 2.1
+	local cage = pal.metal:Lerp(pal.silhouette, 0.4)
 	parts.block(
 		ctx.parent,
 		"BeaconHousing",
-		Vector3.new(2.6, 2.4, 2.6),
-		CFrame.new(beacon.x + 6, beacon.height + 1.2, beacon.z),
+		Vector3.new(3.2, 0.5, 3.2),
+		CFrame.new(bx, beacon.height + 0.25, bz),
 		pal.metal,
 		Enum.Material.Metal
 	)
 	local lamp = parts.block(
 		ctx.parent,
 		"BeaconLamp",
-		Vector3.new(1.9, 1.9, 1.9),
-		CFrame.new(beacon.x + 6, beacon.height + 3.2, beacon.z),
-		look.Beacon.Color,
+		Vector3.new(2.5, 3.0, 2.5),
+		CFrame.new(bx, lampY, bz),
+		Color3.fromRGB(255, 190, 110),
 		Enum.Material.Neon,
-		{ shape = "Ball", shadow = false }
+		{ shadow = false }
+	)
+	for i, c in { { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 } } do
+		parts.block(
+			ctx.parent,
+			"BeaconCageBar" .. i,
+			Vector3.new(0.22, 3.4, 0.22),
+			CFrame.new(bx + c[1] * 1.38, lampY, bz + c[2] * 1.38),
+			cage,
+			Enum.Material.Metal,
+			{ collide = false }
+		)
+	end
+	for i, dir in { { 1, 0 }, { 0, 1 } } do
+		-- A thin middle hoop, as two crossed bars, so the cage reads against the glow.
+		parts.block(
+			ctx.parent,
+			"BeaconCageHoop" .. i,
+			Vector3.new(if dir[1] == 1 then 2.98 else 0.16, 0.16, if dir[2] == 1 then 2.98 else 0.16),
+			CFrame.new(bx, lampY, bz),
+			cage,
+			Enum.Material.Metal,
+			{ collide = false, shadow = false }
+		)
+	end
+	parts.block(
+		ctx.parent,
+		"BeaconCap",
+		Vector3.new(3.3, 0.4, 3.3),
+		CFrame.new(bx, lampY + 1.75, bz),
+		cage,
+		Enum.Material.Metal
+	)
+	parts.block(
+		ctx.parent,
+		"BeaconFinial",
+		Vector3.new(0.5, 0.8, 0.5),
+		CFrame.new(bx, lampY + 2.35, bz),
+		cage,
+		Enum.Material.Metal,
+		{ collide = false }
 	)
 	ctx.anchors.beaconLamp = lamp
 	ctx.anchors.beaconLight = parts.light(lamp, "BeaconLight", look.Beacon)
@@ -292,12 +364,14 @@ function Dock.build(ctx: any)
 	parts.light(lightHolder, "WindowLight", look.Window)
 
 	-- Spawn on shore beside the shack. Players are seated in the boat automatically, so this
-	-- is only where a fresh character appears for a moment.
+	-- is only where a fresh character appears for a moment. It faces the lake (+z): the
+	-- first-person camera keeps the yaw the character spawned with when it is seated, so a
+	-- south-facing spawn left a fresh player in the helm looking back at the dock.
 	local spawn = parts.block(
 		ctx.parent,
 		"Spawn",
 		Vector3.new(6, 1, 6),
-		CFrame.new(shack.x + 16, wy + 1.2, shack.z + 8),
+		parts.facing(Vector3.new(shack.x + 16, wy + 1.2, shack.z + 8), Vector3.new(0, 0, 1)),
 		pal.dockPost,
 		Enum.Material.WoodPlanks,
 		{ class = "SpawnLocation" }

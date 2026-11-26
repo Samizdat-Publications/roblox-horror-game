@@ -76,20 +76,17 @@ function BoatHull.build(ctx: any, at: CFrame): Built
 		st.Disabled = false
 		seats[name] = st :: Seat
 	end
+	-- A Seat's occupant faces the seat's LookVector (-Z). Helm and bow keep the hull's
+	-- orientation, so they face the bow; BoatService moors the boat bow out (+z, north).
 	seat("HelmSeat", p(0, 0.95, 4.4))
 	seat("BowSeat", p(0, 0.95, -5.2))
 	seat("PortSeat", p(-1.15, 0.95, -1.4) * CFrame.Angles(0, math.rad(90), 0))
 	seat("StarboardSeat", p(1.15, 0.95, -1.4) * CFrame.Angles(0, math.rad(-90), 0))
 
-	-- The hold box (a cooler-sized crate) in the middle.
-	local hold = piece("Hold", Vector3.new(2.2, 1.3, 1.6), p(0, 0.9, 1.6), pal.cooler, Enum.Material.SmoothPlastic)
-	piece(
-		"HoldLid",
-		Vector3.new(2.3, 0.2, 1.7),
-		p(0, 1.65, 1.6),
-		pal.cooler:Lerp(pal.ink, 0.2),
-		Enum.Material.SmoothPlastic
-	)
+	-- The hold box (a cooler-sized wooden crate) in the middle, in hull wood tones.
+	local hold =
+		piece("Hold", Vector3.new(2.2, 1.3, 1.6), p(0, 0.9, 1.6), wood:Lerp(trim, 0.45), Enum.Material.WoodPlanks)
+	piece("HoldLid", Vector3.new(2.3, 0.2, 1.7), p(0, 1.65, 1.6), trim, Enum.Material.Wood)
 
 	-- The lantern on a post at the bow.
 	piece("LanternPost", Vector3.new(0.3, 4.4, 0.3), p(0, 2.4, -7.4), trim, Enum.Material.Wood)
