@@ -489,59 +489,80 @@
   },
   {
    "name": "knock-three-soft",
-   "id": 9120885468,
-   "source": "creator_store ProSoundEffects: Wood Hit Giant Wood Beam Dull Thuds Knocks 7",
-   "operation": null,
-   "moderation": "library",
-   "standin": true
+   "id": 101918976934528,
+   "source": "upload audio/final/knock-three-soft.mp3 (EQ'd for phone speakers, +7 dB at 1.5 kHz, peak -1 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "bf8ab1ee-93dd-431f-afca-27fe073746d8",
+   "moderation": "Reviewing",
+   "replaces": {
+    "id": 84090129016106,
+    "source": "upload audio/final/knock-three-soft.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)"
+   }
   },
   {
    "name": "knock-three-hard",
-   "id": 9126267413,
-   "source": "creator_store ProSoundEffects: Wood Hit Giant Wood Beam Dull Thuds Knocks 10",
-   "operation": null,
-   "moderation": "library",
-   "standin": true
+   "id": 100195038538278,
+   "source": "upload audio/final/knock-three-hard.mp3 (EQ'd for phone speakers, +7 dB at 1.5 kHz, peak -1 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "5d742032-31f5-42df-a993-6e033b05882c",
+   "moderation": "Reviewing",
+   "replaces": {
+    "id": 72082280144068,
+    "source": "upload audio/final/knock-three-hard.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)"
+   }
   },
   {
    "name": "knock-answer",
-   "id": 9126267607,
-   "source": "creator_store ProSoundEffects: Wood Hit Giant Wood Beam Dull Thuds Knocks 12",
-   "operation": null,
-   "moderation": "library",
-   "standin": true
+   "id": 91967969258785,
+   "source": "upload audio/final/knock-answer.mp3 (EQ'd for phone speakers, +7 dB at 1.5 kHz, peak -1 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "a14c2a5c-6229-4d1a-9439-532b1b83747e",
+   "moderation": "Reviewing",
+   "replaces": {
+    "id": 77398781948025,
+    "source": "upload audio/final/knock-answer.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)"
+   }
   },
   {
    "name": "fake-single-knock",
-   "id": 9126267639,
-   "source": "creator_store ProSoundEffects: Wood Hit Giant Wood Beam Dull Thuds Knocks 13",
-   "operation": null,
-   "moderation": "library",
-   "standin": true
+   "id": 115334613811427,
+   "source": "upload audio/final/fake-single-knock.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "1b360451-b2c6-4f5f-a395-2cc1a3155ec8",
+   "moderation": "Reviewing",
+   "replaces": {
+    "id": 9126267639,
+    "source": "creator_store ProSoundEffects: Wood Hit Giant Wood Beam Dull Thuds Knocks 13"
+   }
   },
   {
    "name": "fake-branch-snap",
-   "id": 9120258724,
-   "source": "creator_store ProSoundEffects: Tree Branches Breaking Snapping Cracking 1",
-   "operation": null,
-   "moderation": "library",
-   "standin": true
+   "id": 77751704687300,
+   "source": "upload audio/final/fake-branch-snap.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "0864249d-1e9d-47f7-858a-a78752d8d78a",
+   "moderation": "Reviewing",
+   "replaces": {
+    "id": 9120258724,
+    "source": "creator_store ProSoundEffects: Tree Branches Breaking Snapping Cracking 1"
+   }
   },
   {
    "name": "fake-fish-jump",
-   "id": 9119481909,
-   "source": "creator_store ProSoundEffects: Splash Thunking Impact 1",
-   "operation": null,
-   "moderation": "library",
-   "standin": true
+   "id": 110288332739528,
+   "source": "upload audio/final/fake-fish-jump.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "e37f3705-78e0-4cc3-b225-94c019c39d67",
+   "moderation": "Reviewing",
+   "replaces": {
+    "id": 9119481909,
+    "source": "creator_store ProSoundEffects: Splash Thunking Impact 1"
+   }
   },
   {
    "name": "fake-buoy-clank",
-   "id": 9126005978,
-   "source": "creator_store ProSoundEffects: Sting Striking Metallic Spoke Rattling Clank",
-   "operation": null,
-   "moderation": "library",
-   "standin": true
+   "id": 106311869507869,
+   "source": "upload audio/final/fake-buoy-clank.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "16b70d49-300e-4c93-97c9-af5bcb628290",
+   "moderation": "Reviewing",
+   "replaces": {
+    "id": 9126005978,
+    "source": "creator_store ProSoundEffects: Sting Striking Metallic Spoke Rattling Clank"
+   }
   },
   {
    "name": "finale-bed",
@@ -553,34 +574,47 @@
   },
   {
    "name": "dawn-cue",
-   "id": 9045880234,
-   "source": "creator_store APMOfficial: Eggshell (30ca)",
-   "operation": null,
-   "moderation": "library",
-   "standin": true
+   "id": 108171239705023,
+   "source": "upload audio/final/dawn-cue.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "96a95c08-4819-4cef-b780-61934234c6c6",
+   "moderation": "Reviewing",
+   "replaces": {
+    "id": 9045880234,
+    "source": "creator_store APMOfficial: Eggshell (30ca)"
+   }
   },
   {
    "name": "ui-book-open",
-   "id": 9118834867,
-   "source": "creator_store ProSoundEffects: Scrapbook Open 5",
-   "operation": null,
-   "moderation": "library",
-   "standin": true
+   "id": 114882577471513,
+   "source": "upload audio/final/ui-book-open.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "16344ddd-7ef3-4e9d-a529-098a65f40b03",
+   "moderation": "Reviewing",
+   "replaces": {
+    "id": 9118834867,
+    "source": "creator_store ProSoundEffects: Scrapbook Open 5"
+   }
   },
   {
    "name": "ui-page-turn",
-   "id": 9118836942,
-   "source": "creator_store ProSoundEffects: Scrapbook Placing On Table Turning Pages 3",
-   "operation": null,
-   "moderation": "library",
-   "standin": true
+   "id": 122266553721215,
+   "source": "upload audio/final/ui-page-turn.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "78311533-14ee-4aff-9f50-36b9f692b7b2",
+   "moderation": "Reviewing",
+   "replaces": {
+    "id": 9118836942,
+    "source": "creator_store ProSoundEffects: Scrapbook Placing On Table Turning Pages 3"
+   }
   },
   {
    "name": "neighbor-oarlock-loop",
-   "id": 127928982160736,
-   "source": "upload audio/final/neighbor-oarlock-loop.mp3 via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
-   "operation": "fd272c40-8cd1-4edf-b490-b8192e054d65",
-   "moderation": "Reviewing"
+   "id": 82003537808291,
+   "source": "upload audio/final/neighbor-oarlock-loop.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "8086fa2f-f7d1-4426-bc80-1547908d8ecc",
+   "moderation": "Reviewing",
+   "replaces": {
+    "id": 127928982160736,
+    "source": "upload audio/final/neighbor-oarlock-loop.mp3 via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)"
+   }
   },
   {
    "name": "watcher-tone-loop",
@@ -591,10 +625,14 @@
   },
   {
    "name": "knock-pass",
-   "id": 77185655134119,
-   "source": "upload audio/final/knock-pass.mp3 via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
-   "operation": "5fc25ed2-905c-45a6-b08e-17451e19edc4",
-   "moderation": "Reviewing"
+   "id": 73550488555913,
+   "source": "upload audio/final/knock-pass.mp3 (+4 dB at 1.2 kHz, peak -1 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "793ef8e5-debb-4df6-aa4a-4237e51bdaae",
+   "moderation": "Reviewing",
+   "replaces": {
+    "id": 77185655134119,
+    "source": "upload audio/final/knock-pass.mp3 via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)"
+   }
   },
   {
    "name": "cooler-knock-inside",
@@ -612,24 +650,36 @@
   },
   {
    "name": "wrong-blink",
-   "id": 139396552082410,
-   "source": "upload audio/final/wrong-blink.mp3 via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
-   "operation": "cf7d139a-8e02-4e8e-8058-988f3038aca5",
-   "moderation": "Reviewing"
+   "id": 129639027836787,
+   "source": "upload audio/final/wrong-blink.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "b45c07d0-71b9-4dc8-a22f-2c1b83fc064f",
+   "moderation": "Reviewing",
+   "replaces": {
+    "id": 139396552082410,
+    "source": "upload audio/final/wrong-blink.mp3 via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)"
+   }
   },
   {
    "name": "neighbor-pass",
-   "id": 125502979305321,
-   "source": "upload audio/final/neighbor-pass.mp3 via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
-   "operation": "372f7ac0-72ca-459e-888a-a1a9a8e08dd7",
-   "moderation": "Reviewing"
+   "id": 73417347056767,
+   "source": "upload audio/final/neighbor-pass.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "3d527de0-5b66-40a5-8181-3f92c28e50a9",
+   "moderation": "Reviewing",
+   "replaces": {
+    "id": 125502979305321,
+    "source": "upload audio/final/neighbor-pass.mp3 via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)"
+   }
   },
   {
    "name": "neighbor-fail",
-   "id": 86020956546353,
-   "source": "upload audio/final/neighbor-fail.mp3 via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
-   "operation": "c87579b1-4b13-4d6c-848c-ad430058b269",
-   "moderation": "Reviewing"
+   "id": 138916540979609,
+   "source": "upload audio/final/neighbor-fail.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "cb2754e1-e604-4f2b-9cf8-13f84ba8c2f7",
+   "moderation": "Reviewing",
+   "replaces": {
+    "id": 86020956546353,
+    "source": "upload audio/final/neighbor-fail.mp3 via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)"
+   }
   },
   {
    "name": "watcher-step",
@@ -654,17 +704,25 @@
   },
   {
    "name": "watcher-pass",
-   "id": 113551036615712,
-   "source": "upload audio/final/watcher-pass.mp3 via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
-   "operation": "435c3124-8c82-4836-845e-3be59803fccc",
-   "moderation": "Reviewing"
+   "id": 71715644342140,
+   "source": "upload audio/final/watcher-pass.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "b4e6fe29-3abc-4aac-aa98-76de45de61f4",
+   "moderation": "Reviewing",
+   "replaces": {
+    "id": 113551036615712,
+    "source": "upload audio/final/watcher-pass.mp3 via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)"
+   }
   },
   {
    "name": "lanterns-die",
-   "id": 118913012683154,
-   "source": "upload audio/final/lanterns-die.mp3 via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
-   "operation": "c83f27e2-e884-4e87-8f31-c5725e41c285",
-   "moderation": "Reviewing"
+   "id": 111576201133197,
+   "source": "upload audio/final/lanterns-die.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "00334952-6579-488e-8bd5-bbf762732051",
+   "moderation": "Reviewing",
+   "replaces": {
+    "id": 118913012683154,
+    "source": "upload audio/final/lanterns-die.mp3 via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)"
+   }
   },
   {
    "name": "flood-in-loop",
@@ -703,10 +761,14 @@
   },
   {
    "name": "fake-lantern-flicker",
-   "id": 88739646221503,
-   "source": "upload audio/final/fake-lantern-flicker.mp3 via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
-   "operation": "87bc7ba6-fe68-4ebd-9b64-301e1cd5a35b",
-   "moderation": "Reviewing"
+   "id": 129458675401565,
+   "source": "upload audio/final/fake-lantern-flicker.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "43a8977c-a816-4eb4-88a4-787d9e3d3392",
+   "moderation": "Reviewing",
+   "replaces": {
+    "id": 88739646221503,
+    "source": "upload audio/final/fake-lantern-flicker.mp3 via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)"
+   }
   },
   {
    "name": "night-cleared-sting",
@@ -727,6 +789,83 @@
    "id": 103040806273525,
    "source": "upload audio/final/wrong-glow-loop.mp3 via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
    "operation": "5a414e70-f8b9-4bba-8509-d2a66c979d43",
+   "moderation": "Reviewing"
+  },
+  {
+   "name": "title-theme",
+   "id": 114331093634988,
+   "source": "upload audio/final/title-theme.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "0d7cc311-f112-4bfa-9561-23e6c1e2e01d",
+   "moderation": "Reviewing"
+  },
+  {
+   "name": "run-cleared",
+   "id": 81998957010855,
+   "source": "upload audio/final/run-cleared.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "c5e3c852-1407-4622-81ae-96af7e383379",
+   "moderation": "Reviewing"
+  },
+  {
+   "name": "night-failed-sting",
+   "id": 131261149894687,
+   "source": "upload audio/final/night-failed-sting.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "c5b56cc3-1683-4bb3-8a0b-5152d7320244",
+   "moderation": "Reviewing"
+  },
+  {
+   "name": "callout-blip",
+   "id": 77462479873292,
+   "source": "upload audio/final/callout-blip.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "c3ad7744-ee2e-493c-a2c0-53ab95e5ade1",
+   "moderation": "Reviewing"
+  },
+  {
+   "name": "ui-envelope",
+   "id": 75268522799289,
+   "source": "upload audio/final/ui-envelope.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "49646a14-cb9b-4b09-a46f-f8cbfa5fec0e",
+   "moderation": "Reviewing"
+  },
+  {
+   "name": "ui-pencil-scratch",
+   "id": 116562064815306,
+   "source": "upload audio/final/ui-pencil-scratch.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "18a2534d-d299-4aec-960a-02369b8ade5d",
+   "moderation": "Reviewing"
+  },
+  {
+   "name": "ui-stamp",
+   "id": 128953835149173,
+   "source": "upload audio/final/ui-stamp.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "dbd96bd1-ff56-45de-9fcb-39bc93187b8a",
+   "moderation": "Reviewing"
+  },
+  {
+   "name": "ui-tape-click",
+   "id": 74897075663524,
+   "source": "upload audio/final/ui-tape-click.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "445b4b6b-554c-481b-a276-05ed819c5919",
+   "moderation": "Reviewing"
+  },
+  {
+   "name": "ui-tape-stop",
+   "id": 133452452666891,
+   "source": "upload audio/final/ui-tape-stop.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "6282b86c-2b5e-4b91-b6a8-10e92c0dafd1",
+   "moderation": "Reviewing"
+  },
+  {
+   "name": "ui-tick",
+   "id": 122726005364720,
+   "source": "upload audio/final/ui-tick.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "70bf8416-142f-4d20-b2e6-ea7d304c7064",
+   "moderation": "Reviewing"
+  },
+  {
+   "name": "rod-clatter",
+   "id": 100942212954055,
+   "source": "upload audio/final/rod-clatter.mp3 (peak-normalized to -3 dB) via Open Cloud (Fishing Game Studio window, approved by Stewart 11/26/2026; account ID verified 11/27/2026)",
+   "operation": "82e26b4a-2b5e-4fb9-a8a2-bd2180f3c3a8",
    "moderation": "Reviewing"
   }
  ]

@@ -19,6 +19,7 @@
 
 local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -164,7 +165,12 @@ local function setShown(on: boolean)
 		local t = theme
 		theme = nil
 		if t then
-			t:Destroy()
+			-- 11/27/2026 (Neon sound pass 2: the theme "hard-cuts" when the night starts): fade it.
+			local tw = TweenService:Create(t, TweenInfo.new(1.5), { Volume = 0 })
+			tw.Completed:Once(function()
+				t:Destroy()
+			end)
+			tw:Play()
 		end
 		AudioDirector.stopTape(false)
 		if GuiService.SelectedObject and g:IsAncestorOf(GuiService.SelectedObject) then
