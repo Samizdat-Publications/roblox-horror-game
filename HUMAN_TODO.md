@@ -27,6 +27,6 @@ cd "C:\Users\stewa\Documents\Claude\Roblox\dead-calm"; & "$env:USERPROFILE\.roki
 ```
 
 4. **Play it with Liam on two devices.** That needs the game on Roblox, which only you may do. In Studio with `DeadCalm.rbxl` open: File, Publish to Roblox As, create a new experience named "Don't Wave Back", keep it Private. Then in Game Settings, Security, turn on "Enable Studio Access to API Services" so saves work. Invite Liam's account under Game Settings, Permissions (Play). The maturity questionnaire answers are in `MATURITY_NOTES.md`.
-5. **Sound permissions after publishing.** Sounds uploaded by your account play in your own experiences. If any sound is silent in the published game, open the experience on create.roblox.com, Configure, Permissions, Assets, and grant the ids listed in `audio/ids.json`.
+5. **Sound permissions after publishing.** Sounds uploaded by your account play in your own experiences. If any sound is silent in the published game, open the experience on create.roblox.com, Configure, Permissions, Assets, and grant the ids listed in `audio/ids.json`. The same goes for the hero models (boat, lantern, Watcher, steeple, shack, dead trees) listed in `art/ids.json`: if one shows as the old block version in the published game, grant its ids there too. Nothing breaks if you don't: the game falls back to the block versions.
 
 More items are added below as the run finds them.

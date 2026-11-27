@@ -43,6 +43,16 @@ function Landmarks.steepleWaterline(cfg: any): (number, number)
 	return s.x + ux * off, s.z + uz * off
 end
 
+-- The tower's frame: origin at its foot (under the water), +Y up the leaning axis. The hero
+-- steeple mesh (server/HeroModels.luau) is placed in this same frame.
+function Landmarks.steepleFrame(cfg: any, parts: any): CFrame
+	local st = cfg.Lake.steeple
+	local wy = cfg.Lake.waterY
+	local footPos = Vector3.new(st.x, wy - Landmarks.STEEPLE_SINK / math.cos(math.rad(Landmarks.STEEPLE_LEAN)), st.z)
+	local lx, lz = Landmarks.steepleLeanDir(cfg)
+	return parts.facing(footPos, Vector3.new(lx, 0, lz)) * CFrame.Angles(math.rad(-Landmarks.STEEPLE_LEAN), 0, 0)
+end
+
 function Landmarks.build(ctx: any)
 	local cfg, look, parts, Rng, rng = ctx.cfg, ctx.look, ctx.parts, ctx.Rng, ctx.rng
 	local lake = cfg.Lake
@@ -52,9 +62,7 @@ function Landmarks.build(ctx: any)
 	-- The steeple. Built in a frame whose +Y runs up the leaning tower.
 	local st = lake.steeple
 	local steepleF = parts.folder(ctx.parent, "Steeple")
-	local footPos = Vector3.new(st.x, wy - Landmarks.STEEPLE_SINK / math.cos(math.rad(Landmarks.STEEPLE_LEAN)), st.z)
-	local lx, lz = Landmarks.steepleLeanDir(cfg)
-	local frame = parts.facing(footPos, Vector3.new(lx, 0, lz)) * CFrame.Angles(math.rad(-Landmarks.STEEPLE_LEAN), 0, 0)
+	local frame = Landmarks.steepleFrame(cfg, parts)
 	local W = 12
 	local S = Landmarks.STEEPLE_SCALE
 	local function tower(

@@ -13,6 +13,15 @@ Dock.DECK_HEIGHT = 2.2 -- deck top above the water
 Dock.PLANK_STEP = 1.8
 Dock.SAG = 0.9
 
+-- The shack's frame: the floor top centre, the lake side toward +z. The hero shack mesh
+-- (server/HeroModels.luau) is placed in this same frame.
+Dock.SHACK_FLOOR_LIFT = 2.2
+
+function Dock.shackBase(cfg: any): CFrame
+	local shack = cfg.Lake.shack
+	return CFrame.new(shack.x, cfg.Lake.waterY + Dock.SHACK_FLOOR_LIFT, shack.z)
+end
+
 function Dock.build(ctx: any)
 	local cfg, look, parts, Rng, rng = ctx.cfg, ctx.look, ctx.parts, ctx.Rng, ctx.rng
 	local lake = cfg.Lake
@@ -260,8 +269,7 @@ function Dock.build(ctx: any)
 	-- The bait shack, facing the lake (north), with a lit window and the radio inside.
 	local shack = lake.shack
 	local sw, sd, sh = 16, 12, 9
-	local floorY = wy + 2.2
-	local base = CFrame.new(shack.x, floorY, shack.z)
+	local base = Dock.shackBase(cfg)
 	local shackF = parts.folder(ctx.parent, "Shack")
 	local wall, roof = pal.shackWall, pal.shackRoof
 	local function sb(name: string, size: Vector3, offset: CFrame, color: Color3, mat: Enum.Material, opts: any?)

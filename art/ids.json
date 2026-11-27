@@ -1,1 +1,132 @@
-{ "assets": [] }
+{
+  "assets": [
+    {
+      "name": "BoatShell",
+      "id": 85052587790802,
+      "kind": "Model",
+      "source": "Open Cloud upload (private, Stewart's account) of art/models/roblox/BoatShell.glb, 11/27/2026",
+      "operation": "781b2aa7-20d2-419d-86b0-9d890438d053",
+      "note": "Approved"
+    },
+    {
+      "name": "BoatInterior",
+      "id": 107547718043490,
+      "kind": "Model",
+      "source": "Open Cloud upload (private, Stewart's account) of art/models/roblox/BoatInterior.glb, 11/27/2026",
+      "operation": "b8590f64-52bd-49ac-ba89-58ff259a0cbf",
+      "note": "Approved"
+    },
+    {
+      "name": "Lantern",
+      "id": 86351086974813,
+      "kind": "Model",
+      "source": "Open Cloud upload (private, Stewart's account) of art/models/roblox/Lantern.glb, 11/27/2026",
+      "operation": "5d737860-ce49-4540-883d-da214a782e4b",
+      "note": "Approved"
+    },
+    {
+      "name": "Watcher",
+      "id": 79014766812859,
+      "kind": "Model",
+      "source": "Open Cloud upload (private, Stewart's account) of art/models/roblox/Watcher.glb, 11/27/2026",
+      "operation": "63bdce48-21d9-473d-b6c2-a6cc27f8cb32",
+      "note": "Approved"
+    },
+    {
+      "name": "Steeple",
+      "id": 107228756629568,
+      "kind": "Model",
+      "source": "Open Cloud upload (private, Stewart's account) of art/models/roblox/Steeple.glb, 11/27/2026",
+      "operation": "436a6108-ef28-4016-a930-43ac15c7cb26",
+      "note": "Approved"
+    },
+    {
+      "name": "Shack",
+      "id": 131734055152778,
+      "kind": "Model",
+      "source": "Open Cloud upload (private, Stewart's account) of art/models/roblox/Shack.glb, 11/27/2026",
+      "operation": "5b5a4c7a-534b-47e0-a650-085605fde380",
+      "note": "Approved"
+    },
+    {
+      "name": "DeadTreeA",
+      "id": 130969346436761,
+      "kind": "Model",
+      "source": "Open Cloud upload (private, Stewart's account) of art/models/roblox/DeadTreeA.glb, 11/27/2026",
+      "operation": "aabd8691-492b-4145-be69-400c37159f4f",
+      "note": "Approved"
+    },
+    {
+      "name": "DeadTreeB",
+      "id": 88112243394590,
+      "kind": "Model",
+      "source": "Open Cloud upload (private, Stewart's account) of art/models/roblox/DeadTreeB.glb, 11/27/2026",
+      "operation": "7cfed24e-a027-4251-977c-467e20158d4b",
+      "note": "Approved"
+    },
+    {
+      "name": "BoatShellMesh",
+      "id": 122134959308734,
+      "kind": "Mesh",
+      "source": "The mesh inside model 85052587790802 (BoatShell), read with InsertService:LoadAsset in this project's own Studio window, 11/27/2026",
+      "operation": "781b2aa7-20d2-419d-86b0-9d890438d053",
+      "note": "Loaded at runtime with AssetService:CreateMeshPartAsync"
+    },
+    {
+      "name": "BoatInteriorMesh",
+      "id": 84143708456113,
+      "kind": "Mesh",
+      "source": "The mesh inside model 107547718043490 (BoatInterior), read with InsertService:LoadAsset in this project's own Studio window, 11/27/2026",
+      "operation": "b8590f64-52bd-49ac-ba89-58ff259a0cbf",
+      "note": "Loaded at runtime with AssetService:CreateMeshPartAsync"
+    },
+    {
+      "name": "LanternMesh",
+      "id": 106626381604242,
+      "kind": "Mesh",
+      "source": "The mesh inside model 86351086974813 (Lantern), read with InsertService:LoadAsset in this project's own Studio window, 11/27/2026",
+      "operation": "5d737860-ce49-4540-883d-da214a782e4b",
+      "note": "Loaded at runtime with AssetService:CreateMeshPartAsync"
+    },
+    {
+      "name": "WatcherMesh",
+      "id": 89883759138855,
+      "kind": "Mesh",
+      "source": "The mesh inside model 79014766812859 (Watcher), read with InsertService:LoadAsset in this project's own Studio window, 11/27/2026",
+      "operation": "63bdce48-21d9-473d-b6c2-a6cc27f8cb32",
+      "note": "Loaded at runtime with AssetService:CreateMeshPartAsync"
+    },
+    {
+      "name": "SteepleMesh",
+      "id": 104411145568116,
+      "kind": "Mesh",
+      "source": "The mesh inside model 107228756629568 (Steeple), read with InsertService:LoadAsset in this project's own Studio window, 11/27/2026",
+      "operation": "436a6108-ef28-4016-a930-43ac15c7cb26",
+      "note": "Loaded at runtime with AssetService:CreateMeshPartAsync"
+    },
+    {
+      "name": "ShackMesh",
+      "id": 126214794933057,
+      "kind": "Mesh",
+      "source": "The mesh inside model 131734055152778 (Shack), read with InsertService:LoadAsset in this project's own Studio window, 11/27/2026",
+      "operation": "5b5a4c7a-534b-47e0-a650-085605fde380",
+      "note": "Loaded at runtime with AssetService:CreateMeshPartAsync"
+    },
+    {
+      "name": "DeadTreeAMesh",
+      "id": 111957785113100,
+      "kind": "Mesh",
+      "source": "The mesh inside model 130969346436761 (DeadTreeA), read with InsertService:LoadAsset in this project's own Studio window, 11/27/2026",
+      "operation": "aabd8691-492b-4145-be69-400c37159f4f",
+      "note": "Loaded at runtime with AssetService:CreateMeshPartAsync"
+    },
+    {
+      "name": "DeadTreeBMesh",
+      "id": 123714846350356,
+      "kind": "Mesh",
+      "source": "The mesh inside model 88112243394590 (DeadTreeB), read with InsertService:LoadAsset in this project's own Studio window, 11/27/2026",
+      "operation": "7cfed24e-a027-4251-977c-467e20158d4b",
+      "note": "Loaded at runtime with AssetService:CreateMeshPartAsync"
+    }
+  ]
+}

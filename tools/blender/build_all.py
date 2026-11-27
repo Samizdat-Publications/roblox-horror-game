@@ -1,7 +1,6 @@
 """Rebuild every model, preview and the contact sheet, in one Blender (or bpy) process.
 
-    blender -b -P art/scripts/build_all.py        (Blender 5.1)
-    python art/scripts/build_all.py               (Python with `pip install bpy==5.1.2`)
+    blender -b -P tools/blender/build_all.py        (Blender 5.1)
 
 The contact sheet needs Pillow; without it the models and previews are still built.
 """
@@ -12,7 +11,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-SCRIPTS = ["dock", "fish_buyer", "bait_shop", "pond_rim", "logs", "buoy", "reeds", "trees", "rocks", "fish", "rods", "boat"]
+SCRIPTS = ["boat", "lantern", "watcher", "steeple", "shack", "dead_trees"]  # M9 hero models
 
 for name in SCRIPTS:
     print(f"== {name}", flush=True)

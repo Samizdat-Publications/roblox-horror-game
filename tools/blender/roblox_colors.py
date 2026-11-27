@@ -5,15 +5,15 @@ them as if they were already display (sRGB) colours, so every model came in far 
 (found on the first import, 2026-11-26). This converts each COLOR_0 value linear -> sRGB and
 changes nothing else, so the Blender scripts and previews stay correct.
 
-    python art/scripts/roblox_colors.py            (every model)
-    python art/scripts/roblox_colors.py Dock Bluegill
+    python tools/blender/roblox_colors.py            (every model)
+    python tools/blender/roblox_colors.py Dock Bluegill
 """
 import json
 import struct
 import sys
 from pathlib import Path
 
-MODELS = Path(__file__).resolve().parents[1] / "models"
+MODELS = Path(__file__).resolve().parents[2] / "art" / "models"
 OUT = MODELS / "roblox"
 FLOAT = 5126
 SIZES = {"VEC3": 3, "VEC4": 4}
