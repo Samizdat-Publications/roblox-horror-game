@@ -132,13 +132,25 @@ Look.Finale = {
 		shadows = true,
 		color = Color3.fromRGB(255, 176, 92),
 	},
-	-- The real dock beacon from the moment of the bell: a tall Neon shaft (fogged like the
-	-- world, so it reads near), and a thin column billboard drawn over the fog (it reads
-	-- from anywhere on the lake), both pulsing and blinking twice with the beacon. The
-	-- column fades out inside `hideWithin` studs, where the shaft and the halo carry it.
-	beaconShaft = { height = 160, width = 3, transparency = 0.35 },
-	beaconHalo = { studs = 26, minPixels = 46 },
-	beaconColumn = { studs = 150, width = 3.5, minPixels = 4, alpha = 0.35, hideWithin = 110, pulseHz = 0.5 },
+	-- Finale v6 (Neon finale-v5 2/10): the sky column is gone (it out-shone the false
+	-- beacons). Home is a modest warm light post at the dock end, near the water (`offset`
+	-- from the dock end, `height` studs of post, a small Neon lamp on top), with a small
+	-- halo drawn over the fog so it shows across the lake. It double-blinks with the beacon.
+	-- The false beacons wear the same halo and blink wrong.
+	beaconShaft = {
+		height = 8,
+		width = 0.5,
+		lamp = 1.1,
+		offset = Vector3.new(3, 0, -1),
+		lightRange = 24,
+		lightBrightness = 2.5,
+	},
+	beaconHalo = { studs = 9, minPixels = 14, maxDistance = 2500, ringTransparency = { 0.72, 0.5, 0.2 } },
+	-- How the false beacons blink wrong: "Steady" (always lit, a faint shimmer) or "Single"
+	-- (one dark flicker every `period` seconds, where the real one blinks twice).
+	falseBlink = { period = 6, dark = 0.45, shimmer = 0.08 },
+	captionAfterToll = 0.4, -- "The bell. Go home." shows this long after the first toll is heard
+	captionWaitMax = 1.5, -- at most this long waiting for the toll Sound to start before the delay
 	-- Hazards are drawn closer than Core holds them so they read through the fog: the gap
 	-- beyond the kill radius is scaled by `pull` (the kill distance itself is unchanged).
 	pull = 0.5,
@@ -149,6 +161,7 @@ Look.Finale = {
 	pulseScared = 4.5, -- Hz when the boat is nearly stopped
 	vignetteMax = 0.85,
 	oilWarn = 0.35, -- below this the oil bar pulses red
+	oilWarnFinale = 0.25, -- in the finale the bar is red all along and pulses below this
 }
 
 -- The boat's lantern. The client flickers it between flickerLow and 1 times Brightness.

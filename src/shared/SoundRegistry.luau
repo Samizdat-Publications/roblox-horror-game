@@ -1036,7 +1036,7 @@ local sounds: { [string]: SoundEntry } = {
 	-- tremolo as the boat slows), over a darker, slower finale bed.
 	["finale-chase-drone"] = {
 		id = 0,
-		volume = 0.55,
+		volume = 0.13, -- finale v6: a quarter of 0.55, a low pulse under the motor, not music
 		looped = true,
 		spatial = false,
 		group = "Music",

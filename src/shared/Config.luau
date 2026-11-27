@@ -464,8 +464,10 @@ Config.Rules = {
 		oilSeconds = 50, -- lantern burns out this long after the bell (scaled by warning)
 		stopLimit = 4, -- seconds the boat may sit still (scaled by warning)
 		-- Finale v2 (Neon 2/10, 11/26/2026: one hazard in a 30 s run home). A run home from the
-		-- steeple is about 30 to 45 s (21 s flat out); hazards at 5, 11, 17, 23, 29 s (Normal).
-		neighborEvery = 6, -- a Neighbor boat or false beacon shows up this often (scaled by warning)
+		-- steeple is about 30 to 45 s (21 s flat out).
+		-- Finale v6 (Neon 2/10, "a calm commute"): every 5 s, so a flat-out run from the steeple
+		-- (about 21 s) meets hazards at 5, 10 and 15 s, two boats of them ahead of the bow.
+		neighborEvery = 5, -- a Neighbor boat or false beacon shows up this often (scaled by warning)
 		hazardFirst = 5, -- seconds after the bell for the first one (scaled; never before `warn`)
 		-- The forms in order, then repeating: two of the first three are boats.
 		hazardForms = { "Boat", "FalseBeacon", "Boat", "Boat", "FalseBeacon", "Boat" },
@@ -479,6 +481,14 @@ Config.Rules = {
 		-- Fair: a new hazard keeps its kill distance plus this many studs clear of the straight
 		-- way home (boat to dock end), so it never blocks the run.
 		hazardClear = 15,
+		-- Finale v6: the first aheadCount Neighbor boats show up AHEAD of the boat, this far off
+		-- the bearing home (25 to 45 degrees) and this close (60 to 120 studs), still keeping
+		-- hazardClear off the straight way home. The helm has to steer around them a little.
+		aheadCount = 3,
+		aheadMin = 60,
+		aheadMax = 120,
+		aheadAngleMin = math.rad(25),
+		aheadAngleMax = math.rad(45),
 		hazardRetry = 1, -- seconds to the next try when no fair spot was found
 		boatDrift = 3, -- a Neighbor boat drifts toward the locked lantern this fast
 		beaconChance = 0.4, -- chance a hazard is a false beacon (only when hazardForms is unset)

@@ -62,11 +62,19 @@ local pulseClock = 0
 
 HUD.OIL_BAR_HEIGHT = 14
 HUD.PULSE_RED = Color3.fromRGB(205, 40, 28)
+HUD.PULSE_BRIGHT = Color3.fromRGB(255, 96, 70)
+local shownOil = 1 -- the oil fill as drawn (eased toward the real level)
 
--- 0..1: how hard the oil bar pulses right now (0 = steady ink).
+-- 0..1: how hard the oil bar pulses right now (0 = steady). Finale v6 (Neon: "the oil bar
+-- vanishes and becomes a static red square"): in the finale the bar stays a bar, filled red
+-- (HUD.isRed), and pulses only once the oil is under Look.Finale.oilWarnFinale.
 function HUD.oilPulse(view: NightView): number
 	if view.phase == "Finale" then
-		return 1
+		local w = Look.Finale.oilWarnFinale
+		if view.oil < w then
+			return 1 - math.clamp(view.oil / w, 0, 1) * 0.5
+		end
+		return 0
 	end
 	local warn = Look.Finale.oilWarn
 	if view.lanternOn and view.oil < warn then
@@ -76,12 +84,20 @@ function HUD.oilPulse(view: NightView): number
 end
 
 -- The last night's objective line, or nil on other nights (NightService adds the fields).
-function HUD.objectiveText(view: NightView): string?
+-- `short` (compact phone paper): "Fish: aboard" (Neon saw "Owner's fish: aboa" clipped).
+function HUD.objectiveText(view: NightView, short: boolean?): string?
 	local v: any = view
 	if v.specialAboard == nil then
 		return nil
 	end
-	return if v.specialAboard == true then "Owner's fish: aboard" else "Owner's fish: not yet"
+	local head = if short then "Fish: " else "Owner's fish: "
+	return head .. (if v.specialAboard == true then "aboard" else "not yet")
+end
+
+-- The paper's width: wide enough for its longest line (text width plus the side padding and
+-- a little slack for the paper's tilt), never narrower than `base`, never wider than `cap`.
+function HUD.paperWidth(longestText: number, base: number, cap: number): number
+	return math.clamp(math.ceil(longestText) + 16 + 8, base, math.max(base, cap))
 end
 
 local function label(parent: Instance, name: string, order: number, f: Font): TextLabel
@@ -111,6 +127,24 @@ function HUD.isCompact(viewportHeight: number): boolean
 	return viewportHeight < HUD.COMPACT_BELOW
 end
 
+-- Widens the paper to its longest visible line (set up in HUD.init).
+local paperBase = 180
+local function fitPaper()
+	local p = paperFrame
+	if p == nil then
+		return
+	end
+	local longest = 0
+	for name, t in labels do
+		if name ~= "Oil" and t.Visible then
+			longest = math.max(longest, t.TextBounds.X)
+		end
+	end
+	local cam = workspace.CurrentCamera
+	local cap = if cam then cam.ViewportSize.X * 0.45 else 400
+	p.Size = UDim2.fromOffset(HUD.paperWidth(longest, paperBase, cap), 0)
+end
+
 local function render(view: NightView)
 	local nightText = if view.mode == "Endless"
 		then string.format("Endless night %d", view.night)
@@ -124,17 +158,15 @@ local function render(view: NightView)
 	end
 	labels.Clock.Text = HUD.clockText(view.clock)
 	labels.Quota.Text = string.format("Quota %d / %d", view.banked, view.quota)
-	local objective = HUD.objectiveText(view)
+	local objective = HUD.objectiveText(view, compact)
 	local obj = labels.Objective
 	obj.Visible = objective ~= nil
 	obj.Text = objective or ""
 	obj.TextColor3 = if (view :: any).specialAboard == true then Look.UI.ink else Look.Palette.amendInk
-	local fill = oilFill
 	local finale = view.phase == "Finale"
-	if fill then
-		fill.Size = UDim2.fromScale(math.clamp(view.oil, 0, 1), 1)
-	end
-	labels.Oil.Text = if finale then "Oil: locked on" else "Oil"
+	-- The fill's size is eased toward the oil every frame (stepPulse), so the drain shows.
+	-- The label stays "Oil" (a longer label squeezed the bar into a square in the finale).
+	labels.Oil.Text = "Oil"
 	labels.Oil.TextColor3 = if finale then Look.Palette.amendInk else Look.UI.ink
 	local motor = labels.Motor
 	-- Not for the drowned: a dead player has no motor to mind (Scare polish 2; the paper said
@@ -144,6 +176,7 @@ local function render(view: NightView)
 	if motor then
 		motor.Visible = on
 	end
+	fitPaper()
 end
 
 -- Every frame: the oil bar pulses red while it matters.
@@ -153,18 +186,35 @@ local function stepPulse(dt: number)
 		return
 	end
 	local view = ViewState.get()
+	-- The drain shows: the fill eases toward the oil level instead of jumping with each update.
+	local target = math.clamp(view.oil, 0, 1)
+	shownOil += (target - shownOil) * math.clamp(dt * 6, 0, 1)
+	if math.abs(target - shownOil) > 0.25 then
+		shownOil = target -- a refill or a new night: no slow climb
+	end
+	fill.Size = UDim2.fromScale(shownOil, 1)
 	local p = HUD.oilPulse(view)
+	local red = view.phase == "Finale"
 	if p <= 0 then
-		fill.BackgroundColor3 = Look.UI.ink
-		bar.BackgroundColor3 = Look.UI.ink
-		bar.BackgroundTransparency = 0.75
+		-- In the finale the bar is red all along (the oil is the clock); otherwise ink.
+		fill.BackgroundColor3 = if red then HUD.PULSE_RED else Look.UI.ink
+		bar.BackgroundColor3 = if red then HUD.PULSE_RED else Look.UI.ink
+		bar.BackgroundTransparency = if red then 0.78 else 0.75
+		fill.BackgroundTransparency = 0
 		return
 	end
 	-- Faster as the oil runs out: 1.2 to 3.5 pulses a second.
 	local rate = 1.2 + 2.3 * (1 - math.clamp(view.oil, 0, 1))
 	pulseClock += dt * rate * 2 * math.pi
 	local w = 0.5 + 0.5 * math.sin(pulseClock)
-	fill.BackgroundColor3 = Look.Palette.amendInk:Lerp(HUD.PULSE_RED, w * p)
+	if red then
+		-- Red throughout; the pulse flashes it toward a bright warning red and back.
+		fill.BackgroundColor3 = HUD.PULSE_RED:Lerp(HUD.PULSE_BRIGHT, w * p)
+		fill.BackgroundTransparency = 0.25 * (1 - w) * p
+	else
+		fill.BackgroundColor3 = Look.Palette.amendInk:Lerp(HUD.PULSE_RED, w * p)
+		fill.BackgroundTransparency = 0
+	end
 	bar.BackgroundColor3 = HUD.PULSE_RED
 	bar.BackgroundTransparency = 0.8 - 0.25 * w * p
 end
@@ -290,7 +340,8 @@ function HUD.init()
 		local cam = workspace.CurrentCamera
 		compact = cam ~= nil and HUD.isCompact(cam.ViewportSize.Y)
 		local ts = if compact then HUD.COMPACT_TEXT else Look.UI.hudTextSize
-		paper.Size = UDim2.fromOffset(if compact then 150 else 180, 0)
+		paperBase = if compact then 150 else 180
+		paper.Size = UDim2.fromOffset(paperBase, 0)
 		for _, t in labels do
 			t.TextSize = ts
 			if t.Name ~= "Oil" then
@@ -317,6 +368,12 @@ function HUD.init()
 		render(v)
 	end)
 	paper:GetPropertyChangedSignal("AbsoluteSize"):Connect(layoutRow)
+	-- Text measures in only once the font has loaded: re-fit the paper when any line does.
+	for name, t in labels do
+		if name ~= "Oil" then
+			t:GetPropertyChangedSignal("TextBounds"):Connect(fitPaper)
+		end
+	end
 	game:GetService("RunService").Heartbeat:Connect(stepPulse)
 	LobbyClient.onChange(function(st)
 		gui.Enabled = st.phase ~= "Title"

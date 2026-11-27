@@ -30,6 +30,13 @@
 --     Look.Dawn.seconds (Look.Dawn), the fog lifts and warms, the water comes back with the
 --     dawn cue and birds, and a bold paper banner says "Dawn. You made it home."
 --   EntityFail: the hazards fade and the water sounds come back (the night's end card follows).
+-- Finale v6 (Neon finale-v5 2/10, docs/critic/11-26-2026-finale-v5-neon.md), overriding the
+--   notes above where they differ: the line "The bell. Go home." comes 0.4 s AFTER the first
+--   toll is heard; no music on the run home (the pursuit layer is only a low pulse, and
+--   finale-chase-under is gone), the water stays silent until dawn; the shaft and the sky
+--   column are gone: home is a modest light post with a small halo at the dock end, and false
+--   beacons wear the same halo but blink wrong (steady or one flicker); the wake is thin faint
+--   streaks; the real Steeple Cat lies on the hold lid while it is aboard.
 -- This module never writes a SoundGroup: sound goes through AudioDirector only.
 
 local Lighting = game:GetService("Lighting")
@@ -59,7 +66,21 @@ Finale.FOLLOW = 4 -- how quickly a drawn hazard closes on where it should be dra
 Finale.KEY = "Finale" -- AudioDirector mute and hush key
 Finale.CAPTION = "The bell. Go home."
 Finale.BANNER = "Dawn. You made it home."
-Finale.WAKE = { count = 34, every = 0.06, life = 1.3, ahead = { 7, 38 }, minSpeed = 3 }
+-- Wake streaks (finale v6): thin (width), soft (alpha is the most opaque they get, 0.3), and
+-- gone `behind` studs behind the boat.
+Finale.WAKE = {
+	count = 26,
+	every = 0.08,
+	life = 1.4,
+	ahead = { 7, 38 },
+	minSpeed = 3,
+	width = 0.08,
+	length = { 1.8, 3.4 },
+	alpha = 0.3,
+	fadeIn = 0.25,
+	behind = 5,
+	color = Color3.fromRGB(196, 192, 180),
+}
 Finale.CAPTION_COLOR = Color3.fromRGB(255, 238, 228)
 
 type Hazard = {
@@ -71,6 +92,8 @@ type Hazard = {
 	light: PointLight?,
 	lanternPost: CFrame?, -- the Neighbor boat's lantern hangs from here (it sways)
 	sound: Sound?,
+	halo: BillboardGui?, -- false beacons: the same halo as home
+	blink: string?, -- false beacons: "Steady" or "Single" (never the real double blink)
 	target: Vector3, -- where Core holds it
 	drawn: Vector3, -- where it is drawn (pulled closer, smoothed)
 	phase: number,
@@ -93,10 +116,9 @@ local coneLight: SpotLight? = nil
 -- The bell on its post.
 local bell: { post: BasePart, bell: BasePart, swing: number }? = nil
 
--- The real beacon's shaft and halo.
+-- The real beacon's light post and its halo.
 local shaft: BasePart? = nil
 local halo: BillboardGui? = nil
-local column: BillboardGui? = nil -- drawn over the fog: home from anywhere
 
 -- The chase.
 local drone: Sound? = nil
@@ -499,12 +521,24 @@ local function stepWake(dt: number, alive: boolean)
 	local hull = BoatClient.hull()
 	local W = Finale.WAKE
 	local keep = {}
+	-- Finale v6 (Neon: "flat white rectangles"): thin, soft, faint streaks. Each fades in, then
+	-- fades out with age and fully by the time it is a few studs behind the boat.
+	local look0 = if hull then flat(hull.CFrame.LookVector) else Vector3.zero
 	for _, w in wake do
 		local age = clock - w.born
 		if age >= W.life or w.part.Parent == nil then
 			w.part:Destroy()
 		else
-			w.part.Transparency = 0.35 + 0.65 * (age / W.life)
+			local u = age / W.life
+			local fadeIn = math.clamp(age / W.fadeIn, 0, 1)
+			local alpha = W.alpha * fadeIn * (1 - u)
+			if hull and look0.Magnitude > 1e-3 then
+				local along = (flat(w.part.Position) - flat(hull.Position)):Dot(look0.Unit)
+				if along < 0 then
+					alpha *= math.clamp(1 + along / W.behind, 0, 1)
+				end
+			end
+			w.part.Transparency = 1 - alpha
 			table.insert(keep, w)
 		end
 	end
@@ -525,11 +559,11 @@ local function stepWake(dt: number, alive: boolean)
 	local pos = flat(hull.Position) + look * d + right * side + Vector3.new(0, Config.Lake.waterY + 0.07, 0)
 	local p = Common.part(
 		"FinaleWake",
-		Vector3.new(0.25, 0.05, 0.9 + math.random() * 1.2),
+		Vector3.new(W.width, 0.02, W.length[1] + math.random() * (W.length[2] - W.length[1])),
 		CFrame.lookAt(pos, pos + look),
-		Color3.fromRGB(214, 204, 182),
+		W.color,
 		Enum.Material.SmoothPlastic,
-		{ transparency = 0.35 }
+		{ transparency = 1 }
 	)
 	table.insert(wake, { part = p, born = clock })
 end
@@ -542,111 +576,100 @@ local function clearWake()
 end
 
 ----------------------------------------------------------------------------------------
--- The real dock beacon: a tall steady shaft and a halo that grows as you come in.
+-- The real dock beacon, finale v6 (Neon 2/10: the sky column out-shone the false beacons and
+-- made them pointless). Now a modest warm light post at the dock end, near the water, with a
+-- small halo drawn over the fog so home still shows across the lake. It double-blinks with the
+-- beacon (WorldFx.beaconDark): the rulebook's tell. The false beacons wear the same halo and
+-- blink wrong (steady, or one flicker). The view turns to face home at the first toll.
 
-local function buildShaft()
-	local lamp = BoatClient.find("Dock", "BeaconLamp")
-	if lamp == nil or shaft ~= nil then
-		return
-	end
-	local S, H, K = Look.Finale.beaconShaft, Look.Finale.beaconHalo, Look.Finale.beaconColumn
-	local p = Common.part(
-		"FinaleBeaconShaft",
-		Vector3.new(S.height, S.width, S.width),
-		CFrame.new(lamp.Position + Vector3.new(0, S.height / 2, 0)) * CFrame.Angles(0, 0, math.pi / 2),
-		Look.Beacon.Color,
-		Enum.Material.Neon,
-		{ shape = Enum.PartType.Cylinder, transparency = S.transparency }
-	)
-	shaft = p
+-- A small halo of three soft rings, sized in studs with a pixel floor so it never vanishes in
+-- the distance and never fills the screen up close. Shared by the real and the false beacons.
+local function makeHalo(name: string, adornee: BasePart, color: Color3): BillboardGui
+	local H = Look.Finale.beaconHalo
 	local bb = Instance.new("BillboardGui")
-	bb.Name = "FinaleBeaconHalo"
-	bb.Adornee = lamp
+	bb.Name = name
+	bb.Adornee = adornee
 	bb.AlwaysOnTop = true
 	bb.LightInfluence = 0
-	bb.MaxDistance = 2000
+	bb.MaxDistance = H.maxDistance
 	bb.Size = UDim2.new(H.studs, H.minPixels, H.studs, H.minPixels)
-	bb.Parent = p
-	for i, k in { 1, 0.62, 0.32 } do
+	for i, k in { 1, 0.6, 0.3 } do
 		local f = Instance.new("Frame")
 		f.Name = "Ring" .. i
 		f.AnchorPoint = Vector2.new(0.5, 0.5)
 		f.Position = UDim2.fromScale(0.5, 0.5)
 		f.Size = UDim2.fromScale(k, k)
-		f.BackgroundColor3 = Look.Beacon.Color:Lerp(Color3.new(1, 1, 1), 0.25 * i)
-		f.BackgroundTransparency = 0.85 - 0.25 * i
+		f.BackgroundColor3 = color:Lerp(Color3.new(1, 1, 1), 0.2 * i)
+		f.BackgroundTransparency = H.ringTransparency[i]
 		f.BorderSizePixel = 0
 		f.Parent = bb
 		local corner = Instance.new("UICorner")
 		corner.CornerRadius = UDim.new(0.5, 0)
 		corner.Parent = f
 	end
-	halo = bb
-	-- The column: a tall thin billboard over the lamp, drawn on top so the fog never hides
-	-- it. Brightest at the lamp, fading out toward the top, like a beam into the fog.
-	local cb = Instance.new("BillboardGui")
-	cb.Name = "FinaleBeaconColumn"
-	cb.Adornee = lamp
-	cb.AlwaysOnTop = true
-	cb.LightInfluence = 0
-	cb.MaxDistance = 3000
-	cb.Size = UDim2.new(K.width, K.minPixels, K.studs, 0)
-	cb.StudsOffsetWorldSpace = Vector3.new(0, K.studs / 2, 0)
-	cb.Parent = p
-	local beam = Instance.new("Frame")
-	beam.Name = "Beam"
-	beam.Size = UDim2.fromScale(1, 1)
-	beam.BorderSizePixel = 0
-	beam.BackgroundColor3 = Look.Beacon.Color:Lerp(Color3.new(1, 1, 1), 0.2)
-	beam.BackgroundTransparency = 0
-	beam.Parent = cb
-	local grad = Instance.new("UIGradient")
-	grad.Rotation = -90 -- keypoint 0 at the bottom (the lamp)
-	grad.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0),
-		NumberSequenceKeypoint.new(0.55, 0.45),
-		NumberSequenceKeypoint.new(1, 1),
-	})
-	grad.Parent = beam
-	column = cb
+	bb.Parent = adornee
+	return bb
+end
+
+local postLamp: BasePart? = nil
+
+local function buildShaft()
+	if shaft ~= nil then
+		return
+	end
+	local S = Look.Finale.beaconShaft
+	local at = dockPoint()
+	local base = Vector3.new(at.X + S.offset.X, Config.Lake.waterY, at.Z + S.offset.Z)
+	local p = Common.part(
+		"FinaleBeaconPost",
+		Vector3.new(S.height, S.width, S.width),
+		CFrame.new(base + Vector3.new(0, S.height / 2, 0)) * CFrame.Angles(0, 0, math.pi / 2),
+		Look.Palette.dockPost,
+		Enum.Material.Wood,
+		{ shape = Enum.PartType.Cylinder }
+	)
+	shaft = p
+	local lamp = Common.part(
+		"FinaleBeaconPostLamp",
+		Vector3.new(S.lamp, S.lamp * 1.2, S.lamp),
+		CFrame.new(base + Vector3.new(0, S.height + S.lamp * 0.6, 0)),
+		Look.Beacon.Color,
+		Enum.Material.Neon,
+		{ parent = p }
+	)
+	local light = Instance.new("PointLight")
+	light.Color = Look.Beacon.Color
+	light.Range = S.lightRange
+	light.Brightness = S.lightBrightness
+	light.Shadows = false
+	light.Parent = lamp
+	postLamp = lamp
+	halo = makeHalo("FinaleBeaconHalo", lamp, Look.Beacon.Color)
 end
 
 local function stepShaft()
-	local p, bb = shaft, halo
-	if p == nil then
+	local lamp, bb = postLamp, halo
+	if shaft == nil or lamp == nil then
 		return
 	end
 	local dark = WorldFx.beaconDark(Workspace:GetServerTimeNow())
-	local S, K = Look.Finale.beaconShaft, Look.Finale.beaconColumn
-	-- A slow breath on top of the beacon's double blink.
-	local breath = 0.5 + 0.5 * math.sin(clock * 2 * math.pi * K.pulseHz)
-	p.Transparency = if dark then 0.92 else S.transparency + 0.15 * (1 - breath)
+	lamp.Material = if dark then Enum.Material.SmoothPlastic else Enum.Material.Neon
+	lamp.Transparency = if dark then 0.5 else 0
+	local light = lamp:FindFirstChildOfClass("PointLight")
+	if light then
+		light.Enabled = not dark
+	end
 	if bb then
 		bb.Enabled = not dark
-	end
-	local cb = column
-	if cb then
-		local beam = cb:FindFirstChild("Beam")
-		local cam = Workspace.CurrentCamera
-		local near = 1
-		if cam then
-			local d = (flat(cam.CFrame.Position) - flat(p.Position)).Magnitude
-			near = math.clamp((d - K.hideWithin) / 60, 0, 1)
-		end
-		local a = (1 - K.alpha) * (0.7 + 0.3 * breath) * near -- opacity at the lamp
-		cb.Enabled = not dark and a > 0.01
-		if beam and beam:IsA("Frame") then
-			beam.BackgroundTransparency = 1 - a
-		end
 	end
 end
 
 local function clearShaft(fade: number)
 	local p = shaft
-	if column then
-		column.Enabled = false -- a billboard does not fade with its part
+	if halo then
+		halo.Enabled = false -- a billboard does not fade with its part
 	end
-	shaft, halo, column = nil, nil, nil
+	shaft, halo, postLamp = nil, nil, nil
 	if p then
 		if fade > 0 then
 			Common.fadeOut(p, fade)
@@ -719,37 +742,44 @@ local function buildBoat(pos: Vector3): Hazard
 	}
 end
 
-local function buildBeacon(pos: Vector3): Hazard
+-- Finale v6: a false beacon is built like home's light post (same post, same lamp, same halo)
+-- so from across the water it could be home. Only the blink tells: "Steady" (never goes dark)
+-- or "Single" (one dark flicker per period), never the beacon's clean double blink.
+local function buildBeacon(pos: Vector3, id: number): Hazard
+	local S = Look.Finale.beaconShaft
 	local m = Instance.new("Model")
 	m.Name = "FinaleFalseBeacon"
 	m.Parent = Common.folder()
 	local parts = {}
+	local postOffset = CFrame.new(0, S.height / 2, 0) * CFrame.Angles(0, 0, math.pi / 2)
 	local pole = Common.part(
 		"Pole",
-		Vector3.new(0.5, 14, 0.5),
-		CFrame.new(pos + Vector3.new(0, 7, 0)),
-		Look.Palette.silhouette,
-		nil,
-		{ parent = m }
+		Vector3.new(S.height, S.width, S.width),
+		CFrame.new(pos) * postOffset,
+		Look.Palette.dockPost,
+		Enum.Material.Wood,
+		{ parent = m, shape = Enum.PartType.Cylinder }
 	)
-	table.insert(parts, { part = pole, offset = CFrame.new(0, 7, 0) })
+	table.insert(parts, { part = pole, offset = postOffset })
+	local lampOffset = CFrame.new(0, S.height + S.lamp * 0.6, 0)
 	local lamp = Common.part(
 		"Lamp",
-		Vector3.new(2.5, 3, 2.5),
-		CFrame.new(pos + Vector3.new(0, 15, 0)),
+		Vector3.new(S.lamp, S.lamp * 1.2, S.lamp),
+		CFrame.new(pos) * lampOffset,
 		Look.Beacon.Color,
 		Enum.Material.Neon,
 		{ parent = m }
 	)
-	table.insert(parts, { part = lamp, offset = CFrame.new(0, 15, 0) })
+	table.insert(parts, { part = lamp, offset = lampOffset })
 	local light = Instance.new("PointLight")
 	light.Color = Look.Beacon.Color
-	light.Range = Look.Beacon.Range
-	light.Brightness = Look.Beacon.Brightness
+	light.Range = S.lightRange
+	light.Brightness = S.lightBrightness
 	light.Shadows = false
 	light.Parent = lamp
 	-- Never outlined: the drowned see an outline on the real beacon only (Drowned.luau).
 	local snd = AudioDirector.loop("finale-hazard-whine", lamp)
+	local bb = makeHalo("FinaleFalseHalo", lamp, Look.Beacon.Color)
 	return {
 		form = "FalseBeacon",
 		model = m,
@@ -759,6 +789,8 @@ local function buildBeacon(pos: Vector3): Hazard
 		light = light,
 		lanternPost = nil,
 		sound = snd,
+		halo = bb,
+		blink = if id % 2 == 0 then "Steady" else "Single",
 		target = pos,
 		drawn = pos,
 		phase = math.random() * 10,
@@ -774,6 +806,10 @@ local function dropHazard(id: number, fade: number)
 	local s = h.sound
 	if s then
 		s:Destroy()
+	end
+	local bb = h.halo
+	if bb then
+		bb.Enabled = false -- a billboard does not fade with its part
 	end
 	if fade > 0 then
 		Common.fadeOut(h.model, fade)
@@ -824,12 +860,19 @@ local function stepHazards(dt: number)
 			local sway2 = math.sin(clock * 1.2 + h.phase * 2) * 0.2
 			lamp.CFrame = root * (h.lanternPost :: CFrame) * CFrame.Angles(sway, 0, sway2) * CFrame.new(0, -0.9, 0)
 		elseif h.form == "FalseBeacon" and lamp and light then
-			-- It flickers like a flame, never the beacon's clean double blink.
-			local n = math.noise(clock * 6 + h.phase, h.phase)
-			local out = math.noise(clock * 1.3, h.phase * 3) > 0.32
-			local k = if out then 0.05 else math.clamp(0.75 + n, 0.35, 1.2)
-			light.Brightness = Look.Beacon.Brightness * k
-			lamp.Material = if k < 0.3 then Enum.Material.SmoothPlastic else Enum.Material.Neon
+			-- It blinks wrong: steady (a faint shimmer, never dark) or one dark flicker per
+			-- period. Never the beacon's clean double blink.
+			local B = Look.Finale.falseBlink
+			local dark = h.blink == "Single" and ((clock + h.phase) % B.period) < B.dark
+			local k = if dark then 0 else 1 + B.shimmer * math.noise(clock * 5 + h.phase, h.phase)
+			light.Brightness = Look.Finale.beaconShaft.lightBrightness * k
+			light.Enabled = not dark
+			lamp.Material = if dark then Enum.Material.SmoothPlastic else Enum.Material.Neon
+			lamp.Transparency = if dark then 0.5 else 0
+			local bb = h.halo
+			if bb then
+				bb.Enabled = not dark
+			end
 		end
 	end
 end
@@ -837,12 +880,13 @@ end
 ----------------------------------------------------------------------------------------
 -- The chase: the pursuit layer and the closing edges
 
+-- Finale v6 (Neon: "ambient synth music fades in at 00:20, killing the eerie silence"): no
+-- music on the run home. Only the low pulse (finale-chase-drone, at a quarter of its old level
+-- in SoundRegistry) under the motor, plus the hazards' own sounds. finale-chase-under (the
+-- slowed finale-bed) no longer plays; `under` stays for a clean stop of an older loop.
 local function startChase()
 	if drone == nil then
 		drone = AudioDirector.loop("finale-chase-drone", nil)
-	end
-	if under == nil then
-		under = AudioDirector.loop("finale-chase-under", nil)
 	end
 end
 
@@ -906,6 +950,98 @@ local function stepChase(dt: number, alive: boolean)
 			trem.Frequency = F.pulseCalm + (F.pulseScared - F.pulseCalm) * fear
 		end
 	end
+end
+
+----------------------------------------------------------------------------------------
+-- The owner's fish on deck (finale v6, Neon: "a smooth grey oval posing as the special fish").
+-- While the Steeple Cat is in the hold, the real fish model (the server's Field Guide drawing,
+-- the same FishModel the catch uses) lies on the hold lid, and the one plain hold token it
+-- stands for is hidden on this client (LocalTransparencyModifier). No model: nothing shows.
+
+Finale.GUIDE_FOLDER = "DeadCalmFieldGuide"
+Finale.DECK_CAT = { length = 2.6, offset = Vector3.new(0, 1.84, 1.6), yaw = 75 }
+
+local deckCat: Model? = nil
+local deckRel: CFrame = CFrame.identity -- pivot relative to the bounding box center
+local deckLift = 0 -- half the fish's thickness lying on its side
+local hiddenToken: BasePart? = nil
+
+local function clearDeckCat()
+	local m = deckCat
+	deckCat = nil
+	if m then
+		m:Destroy()
+	end
+	local t = hiddenToken
+	hiddenToken = nil
+	if t and t.Parent then
+		t.LocalTransparencyModifier = 0
+	end
+end
+
+local function buildDeckCat(): Model?
+	local folder = ReplicatedStorage:FindFirstChild(Finale.GUIDE_FOLDER)
+	local src = folder and folder:FindFirstChild(Config.Rules.Finale.needSpecies)
+	if src == nil or not src:IsA("Model") then
+		return nil
+	end
+	local m = src:Clone()
+	m.Name = "FinaleDeckCat"
+	for _, d in m:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Anchored = true
+			d.CanCollide = false
+			d.CanQuery = false
+			d.CanTouch = false
+			d.CastShadow = false
+		end
+	end
+	-- Fit its length (the Field Guide fish runs along Z) to the hold lid.
+	local _, size = m:GetBoundingBox()
+	local long = math.max(size.X, size.Y, size.Z)
+	if long > 1e-3 then
+		m:ScaleTo(m:GetScale() * Finale.DECK_CAT.length / long)
+	end
+	local cf, scaled = m:GetBoundingBox()
+	deckRel = cf:Inverse() * m:GetPivot()
+	deckLift = scaled.X / 2 -- on its side its width stands up
+	m.Parent = Common.folder()
+	return m
+end
+
+local function stepDeckCat()
+	local view: any = ViewState.get()
+	local hull = BoatClient.hull()
+	local want = active and view.specialAboard == true and (tonumber(view.hold) or 0) > 0 and hull ~= nil
+	if not want or hull == nil then
+		if deckCat or hiddenToken then
+			clearDeckCat()
+		end
+		return
+	end
+	if deckCat == nil then
+		deckCat = buildDeckCat()
+		if deckCat == nil then
+			return
+		end
+	end
+	if hiddenToken == nil or hiddenToken.Parent == nil then
+		local boat = BoatClient.model()
+		for i = 8, 1, -1 do
+			local t = boat and boat:FindFirstChild("HoldFish" .. i, true)
+			if t and t:IsA("BasePart") then
+				t.LocalTransparencyModifier = 1
+				hiddenToken = t
+				break
+			end
+		end
+	end
+	local D = Finale.DECK_CAT
+	local at = hull.CFrame
+		* CFrame.new(D.offset + Vector3.new(0, deckLift, 0))
+		* CFrame.Angles(0, math.rad(D.yaw), math.pi / 2)
+	local m = deckCat :: Model
+	m:PivotTo(at * deckRel)
 end
 
 ----------------------------------------------------------------------------------------
@@ -1008,6 +1144,7 @@ local function step(dt: number)
 		stepShaft()
 		stepWake(dt, alive)
 	end
+	stepDeckCat()
 	stepChase(dt, alive)
 	stepHazards(dt)
 	stepBell(dt)
@@ -1027,6 +1164,7 @@ local function endFinale(fade: number)
 	end
 	clearLock()
 	clearWake()
+	clearDeckCat()
 	clearHazards(fade)
 	clearShaft(fade)
 	stopChase(math.min(fade, 1.5))
@@ -1101,8 +1239,24 @@ local function onCue(data: { [string]: any })
 		-- The tolls, still hushed: nothing but the bell until the last stroke has rung.
 		phase = "Bell"
 		ringBell()
-		showCaption(Finale.CAPTION, F.captionHold)
 		faceHome(1.2)
+		-- Finale v6 (Neon: the line flashed before the bell rang): silence, the first toll,
+		-- THEN the line, F.captionAfterToll after the toll is actually heard (the Sound may
+		-- take a moment to load and start; wait for it, at most F.captionWaitMax).
+		task.spawn(function()
+			local t0 = os.clock()
+			while os.clock() - t0 < F.captionWaitMax do
+				local s = toll
+				if s and s.Parent and s.IsPlaying and s.TimePosition > 0 then
+					break
+				end
+				task.wait()
+			end
+			task.wait(F.captionAfterToll)
+			if cueToken == my and active then
+				showCaption(Finale.CAPTION, F.captionHold)
+			end
+		end)
 		task.delay((F.bellStrokes - 1) * F.bellGap + F.afterBell, function()
 			if cueToken ~= my or not active then
 				return
@@ -1135,7 +1289,7 @@ function Finale.handle(e: any)
 		local pos = Common.water(data.pos, 0)
 		local h = hazards[id]
 		if h == nil then
-			h = if data.form == "FalseBeacon" then buildBeacon(pos) else buildBoat(pos)
+			h = if data.form == "FalseBeacon" then buildBeacon(pos, id) else buildBoat(pos)
 			local hull = BoatClient.hull()
 			-- Drawn where it should be at once (no slide in from Core's far position).
 			h.drawn = if hull then Finale.pulled(hull.Position, pos, h.form) else pos
@@ -1200,10 +1354,11 @@ function Finale.debugState(): { [string]: any }
 		cone = coneLight ~= nil and (coneLight :: SpotLight).Enabled,
 		coneOnLantern = coneAim ~= nil and (coneAim :: Attachment).Parent ~= nil,
 		shaft = shaft ~= nil,
-		column = column ~= nil and (column :: BillboardGui).Enabled,
+		halo = halo ~= nil and (halo :: BillboardGui).Enabled,
 		tolls = tolls,
 		tollPlaying = toll ~= nil and (toll :: Sound).Parent ~= nil,
 		wake = #wake,
+		deckCat = deckCat ~= nil,
 		chase = drone ~= nil,
 		speed = math.floor(speed * 10 + 0.5) / 10,
 		stillFor = math.floor(stillFor * 10 + 0.5) / 10,

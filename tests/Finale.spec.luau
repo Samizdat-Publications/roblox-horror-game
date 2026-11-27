@@ -197,7 +197,9 @@ return function(t, Shared)
 		t.ok(#appear >= 2, "two or more hazards in " .. tostring(F.neighborEvery * 2) .. " s")
 		for _, e in appear do
 			local d = math.sqrt((e.data.pos.x - OUT.x) ^ 2 + (e.data.pos.z - OUT.z) ^ 2)
-			t.ok(d >= F.hazardMin - 1 and d <= F.hazardMax + 1, "placed in range")
+			local side = d >= F.hazardMin - 1 and d <= F.hazardMax + 1
+			local ahead = d >= F.aheadMin - 1 and d <= F.aheadMax + 1
+			t.ok(side or ahead, "placed in range (" .. math.floor(d) .. ")")
 		end
 		-- Sail onto the newest live hazard.
 		local h = s.rules[1].state.hazards[#s.rules[1].state.hazards]
@@ -213,47 +215,72 @@ return function(t, Shared)
 		t.eq(died[1].data.text, want, "card for the form")
 	end)
 
-	t.test("a run home from the steeple shows three or more hazards, two boats, none on the way home", function()
-		local N = Config.Rules.Neighbor
-		local Rule = require(Shared.Core.entities.Finale)
-		local LakeMap = require(Shared.Core.LakeMap)
-		local dock = Config.Lake.dockEnd
-		for seed = 1, 20 do
-			local s = Night.new(Config, params({ seed = seed, playerIds = { 1, 2, 3, 4 } }))
-			local start = Config.Lake.steeple
-			toBell(s)
-			-- Motor straight home at full speed from the steeple, about 30 s to the light.
-			local pos = { x = start.x, z = start.z }
-			local dx, dz = dock.x - start.x, dock.z - start.z
-			local len = math.sqrt(dx * dx + dz * dz)
-			local vel = { x = dx / len * Config.Boat.motorSpeed, z = dz / len * Config.Boat.motorSpeed }
-			local boats, beacons = 0, 0
-			for _ = 1, 400 do -- 40 s
-				local e = Night.step(s, input({ pos = { x = pos.x, z = pos.z }, vel = vel }))
-				for _, ev in all(e, "EntityMoved", "Finale") do
-					if ev.data.appear then
-						local p = ev.data.pos
-						if ev.data.form == "Boat" then
-							boats += 1
-						else
-							beacons += 1
+	t.test(
+		"a run home from the steeple shows three or more hazards, two ahead of the bow, a beacon to the side, none on the way home",
+		function()
+			local N = Config.Rules.Neighbor
+			local Rule = require(Shared.Core.entities.Finale)
+			local LakeMap = require(Shared.Core.LakeMap)
+			local dock = Config.Lake.dockEnd
+			for seed = 1, 20 do
+				local s = Night.new(Config, params({ seed = seed, playerIds = { 1, 2, 3, 4 } }))
+				local start = Config.Lake.steeple
+				toBell(s)
+				-- Motor straight home at full speed from the steeple, about 30 s to the light.
+				local pos = { x = start.x, z = start.z }
+				local dx, dz = dock.x - start.x, dock.z - start.z
+				local len = math.sqrt(dx * dx + dz * dz)
+				local vel = { x = dx / len * Config.Boat.motorSpeed, z = dz / len * Config.Boat.motorSpeed }
+				local boats, beacons, ahead, sideBeacons = 0, 0, 0, 0
+				for _ = 1, 400 do -- 40 s
+					local e = Night.step(s, input({ pos = { x = pos.x, z = pos.z }, vel = vel }))
+					for _, ev in all(e, "EntityMoved", "Finale") do
+						if ev.data.appear then
+							local p = ev.data.pos
+							if ev.data.form == "Boat" then
+								boats += 1
+							else
+								beacons += 1
+							end
+							local kill = if ev.data.form == "Boat" then N.killDist else N.falseBeaconKill
+							local off = Rule.distToSegment(p, pos, dock)
+							t.ok(off >= kill + F.hazardClear - 1e-6, "seed " .. seed .. ": clear of the way home")
+							local d = math.sqrt((p.x - pos.x) ^ 2 + (p.z - pos.z) ^ 2)
+							-- Angle off the line home (the bow line of a boat heading home).
+							local hx, hz = dock.x - pos.x, dock.z - pos.z
+							local cosA = ((p.x - pos.x) * hx + (p.z - pos.z) * hz) / (d * math.sqrt(hx * hx + hz * hz))
+							local angle = math.acos(math.clamp(cosA, -1, 1))
+							t.ok(angle > 0.05, "seed " .. seed .. ": never dead ahead")
+							local isAhead = d >= F.aheadMin - 1
+								and d <= F.aheadMax + 1
+								and angle >= F.aheadAngleMin - 1e-3
+								and angle <= F.aheadAngleMax + 1e-3
+							local isSide = d >= F.hazardMin - 1
+								and d <= F.hazardMax + 1
+								and angle >= F.hazardAngleMin - 1e-3
+								and angle <= F.hazardAngleMax + 1e-3
+							t.ok(isAhead or isSide, "seed " .. seed .. ": ahead or to the side")
+							if isAhead then
+								ahead += 1
+							end
+							if ev.data.form == "FalseBeacon" and isSide then
+								-- Rowing for it leaves the way home: it sits well off the line.
+								sideBeacons += 1
+							end
 						end
-						local kill = if ev.data.form == "Boat" then N.killDist else N.falseBeaconKill
-						local off = Rule.distToSegment(p, pos, dock)
-						t.ok(off >= kill + F.hazardClear - 1e-6, "seed " .. seed .. ": clear of the way home")
-						local d = math.sqrt((p.x - pos.x) ^ 2 + (p.z - pos.z) ^ 2)
-						t.ok(d >= F.hazardMin - 1 and d <= F.hazardMax + 1, "seed " .. seed .. ": in range")
 					end
+					if s.phase ~= "Finale" or LakeMap.isSafe(Config, pos) then
+						break
+					end
+					pos = { x = pos.x + vel.x * 0.1, z = pos.z + vel.z * 0.1 }
 				end
-				if s.phase ~= "Finale" or LakeMap.isSafe(Config, pos) then
-					break
-				end
-				pos = { x = pos.x + vel.x * 0.1, z = pos.z + vel.z * 0.1 }
+				t.ok(boats + beacons >= 3, "seed " .. seed .. ": three or more hazards (" .. (boats + beacons) .. ")")
+				t.ok(boats >= 2, "seed " .. seed .. ": two or more boats (" .. boats .. ")")
+				t.ok(ahead >= 2, "seed " .. seed .. ": two or more ahead of the bow (" .. ahead .. ")")
+				t.ok(sideBeacons >= 1, "seed " .. seed .. ": a false beacon off to the side (" .. sideBeacons .. ")")
 			end
-			t.ok(boats + beacons >= 3, "seed " .. seed .. ": three or more hazards (" .. (boats + beacons) .. ")")
-			t.ok(boats >= 2, "seed " .. seed .. ": two or more boats (" .. boats .. ")")
 		end
-	end)
+	)
 
 	t.test("home with the Steeple Cat aboard: pass, hold banked, night cleared at once", function()
 		local s = Night.new(Config, params({ quota = 3 }))

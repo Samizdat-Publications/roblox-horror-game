@@ -22,7 +22,9 @@
 --     order) shows up hazardMin..hazardMax away, hazardAngleMin..Max off the boat's bearing
 --     to the dock (never dead ahead), and at least its kill distance plus hazardClear off
 --     the straight way home (it never blocks the run; no fair spot: retry in hazardRetry
---     seconds). Boats drift toward the lit lantern at
+--     seconds). Finale v6: the first aheadCount Neighbor boats are placed AHEAD instead,
+--     aheadAngleMin..Max off the bearing home at aheadMin..aheadMax studs (same clearance
+--     rule), so the helm has to steer around them; false beacons stay to the side. Boats drift toward the lit lantern at
 --     boatDrift. Each is gone after hazardLife seconds. Sent as EntityMoved with data
 --     { hazard = n, form, pos, appear? , gone? }.
 --   * Fail (EntityFail): the last living player is taken, or dawn comes first (no kill,
@@ -51,6 +53,7 @@ export type FinaleState = {
 	hazards: { Hazard },
 	nextHazard: number, -- age of the next hazard
 	hazardCount: number,
+	aheadPlaced: number, -- hazards placed ahead of the boat so far (R.aheadCount)
 	stillFor: number,
 	darkFor: number, -- seconds dark on the water since the last Dark strike
 	darkStruck: boolean, -- the first Dark strike has landed
@@ -70,6 +73,7 @@ function Finale.new(cfg: any, rng: Rng.RngState, ctx: EntityBase.SpawnCtx): Fina
 		hazards = {},
 		nextHazard = math.max(base.warn, (R.hazardFirst or 0) * base.scale),
 		hazardCount = 0,
+		aheadPlaced = 0,
 		stillFor = 0,
 		darkFor = 0,
 		darkStruck = false,
@@ -135,6 +139,43 @@ local function nextForm(s: FinaleState): string
 	return if Rng.next(s.base.rng) < R.beaconChance then "FalseBeacon" else "Boat"
 end
 
+-- One candidate spot AHEAD (finale v6, Neon 2/10 "a calm commute"): aheadAngleMin..Max off the
+-- bearing home at aheadMin..aheadMax studs, close enough to the bow line that the helm has to
+-- steer a little. The distance is drawn from the part of the range that can still be `clear`
+-- of the straight way home at that angle (d sin a >= clear), so most draws are fair; the
+-- caller still checks the segment distance and the water. Nil when the angle cannot be fair.
+local function aheadSpot(s: FinaleState, boatPos: Vec2, home: number, clear: number): Vec2?
+	local b = s.base
+	local R = b.cfg.Rules.Finale
+	local side = if Rng.next(b.rng) < 0.5 then -1 else 1
+	local off = Rng.range(b.rng, R.aheadAngleMin, R.aheadAngleMax)
+	local lo = math.max(R.aheadMin, clear / math.max(1e-3, math.sin(off)))
+	if lo > R.aheadMax then
+		return nil
+	end
+	local d = Rng.range(b.rng, lo, R.aheadMax)
+	local a = home + side * off
+	return { x = boatPos.x + math.sin(a) * d, z = boatPos.z + math.cos(a) * d }
+end
+
+-- One candidate spot to the side (the older placement): hazardAngleMin..Max off the bearing
+-- home at hazardMin..hazardMax studs. A player who steered for it would leave the way home.
+local function sideSpot(s: FinaleState, boatPos: Vec2, home: number): Vec2
+	local b = s.base
+	local R = b.cfg.Rules.Finale
+	local side = if Rng.next(b.rng) < 0.5 then -1 else 1
+	local a = home + side * Rng.range(b.rng, R.hazardAngleMin, R.hazardAngleMax)
+	local d = Rng.range(b.rng, R.hazardMin, R.hazardMax)
+	return { x = boatPos.x + math.sin(a) * d, z = boatPos.z + math.cos(a) * d }
+end
+
+-- Whether the next hazard goes ahead of the boat: a Neighbor boat while fewer than aheadCount
+-- have been placed ahead. False beacons always go to the side.
+local function wantsAhead(s: FinaleState, form: string): boolean
+	local R = s.base.cfg.Rules.Finale
+	return form == "Boat" and (R.aheadCount or 0) > s.aheadPlaced
+end
+
 -- Places one hazard off the way home. False when no fair spot was found this tick.
 local function spawnHazard(s: FinaleState, obs: EntityObs, events: { Event }): boolean
 	local b = s.base
@@ -146,12 +187,16 @@ local function spawnHazard(s: FinaleState, obs: EntityObs, events: { Event }): b
 	local home = EntityBase.bearing(boatPos, dock)
 	local form = nextForm(s)
 	local clear = (if form == "FalseBeacon" then N.falseBeaconKill else N.killDist) + (R.hazardClear or 0)
-	for _ = 1, 16 do
-		local side = if Rng.next(b.rng) < 0.5 then -1 else 1
-		local a = home + side * Rng.range(b.rng, R.hazardAngleMin, R.hazardAngleMax)
-		local d = Rng.range(b.rng, R.hazardMin, R.hazardMax)
-		local p = { x = boatPos.x + math.sin(a) * d, z = boatPos.z + math.cos(a) * d }
-		if onWater(cfg, p) and Finale.distToSegment(p, boatPos, dock) >= clear then
+	local ahead = wantsAhead(s, form)
+	-- Ahead first when wanted (24 tries); if the lake gives no fair spot ahead (near the dock
+	-- light), the side placement takes the slot so the clock keeps its rhythm.
+	for try = 1, if ahead then 40 else 16 do
+		local isAhead = ahead and try <= 24
+		local p = if isAhead then aheadSpot(s, boatPos, home, clear) else sideSpot(s, boatPos, home)
+		if p and onWater(cfg, p) and Finale.distToSegment(p, boatPos, dock) >= clear then
+			if isAhead then
+				s.aheadPlaced += 1
+			end
 			s.hazardCount += 1
 			local h: Hazard = { id = s.hazardCount, form = form, pos = p, age = 0, moveClock = 0 }
 			table.insert(s.hazards, h)
