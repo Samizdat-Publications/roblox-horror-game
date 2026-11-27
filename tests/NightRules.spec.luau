@@ -403,6 +403,20 @@ return function(t, Shared)
 		t.eq(s3.lastObs.alive[2], false, "rules see the departed player as gone")
 		t.eq(s3.lastObs.alive[1], true, "the present player is alive")
 		t.ok(s3.absent[2] == true, "marked absent")
+
+		-- The only player still here is taken while the other has left: the night ends.
+		local s4 = Night.new(Config, params())
+		stepFor(s4, 1, { pos = near })
+		Night.debugForce(s4, "Watcher", {})
+		local w4 = s4.rules[1].state
+		local b4 = math.atan2(w4.pos.x - near.x, w4.pos.z - near.z)
+		local e4 = {}
+		stepFor(s4, 60, function()
+			return { pos = near, players = { seat(1, b4 + math.pi), seat(2, 0, false) } }
+		end, e4)
+		t.ok(not s4.crew[1].alive, "the present player was taken")
+		local ended = find(e4, "NightFailed")
+		t.ok(ended ~= nil and ended.data.reason == "CrewLost", "the night ends: nobody left aboard")
 	end)
 
 	t.test("rules replay from the seed", function()

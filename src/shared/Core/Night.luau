@@ -273,7 +273,9 @@ end
 local function aliveCount(s: NightState): number
 	local n = 0
 	for _, id in s.order do
-		if s.crew[id].alive then
+		-- A player who left does not keep the night going: if everyone still here is
+		-- drowned, the lake has the crew.
+		if s.crew[id].alive and not s.absent[id] then
 			n += 1
 		end
 	end
