@@ -26,6 +26,7 @@ export type FishState = {
 	wrongChance: number,
 	wrongTier: number,
 	forceWrong: boolean,
+	forceSpecies: string?, -- set before the hook: this species bites, true to the book (the Finale's order)
 	-- The fish on the line (Reeling and Deciding).
 	catch: Catch?,
 	tension: number,
@@ -90,6 +91,7 @@ local function reset(f: FishState)
 	f.slackTime = 0
 	f.expired = false
 	f.forceWrong = false
+	f.forceSpecies = nil
 end
 
 local function lost(f: FishState, player: number, why: string): { Event }
@@ -137,6 +139,12 @@ local function hook(cfg: any, f: FishState, rng: Rng.RngState)
 	local species = FishTable.pick(cfg, rng, f.zone, f.hour)
 	local points = cfg.Fish[species].points
 	local wrong = f.forceWrong or (f.wrongChance > 0 and Rng.next(rng) < f.wrongChance)
+	if f.forceSpecies ~= nil and cfg.Fish[f.forceSpecies] ~= nil then
+		-- The draws above are still taken so the stream does not shift.
+		species = f.forceSpecies :: string
+		points = cfg.Fish[species].points
+		wrong = false
+	end
 	local traits, tier
 	if wrong then
 		traits = (WrongCatch.mutate(cfg, rng, species, f.wrongTier))

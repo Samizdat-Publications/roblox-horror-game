@@ -80,6 +80,38 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 
 	local mode = "ToSpot"
 	local spot = nil
+
+	-- Night 5 (the Finale): the owner wants one Steeple Cat, and they bite only by the
+	-- steeple after 3 AM. The follow and greedy crews fish the Shallows, then bank, refill and
+	-- take the motor out to the steeple's near edge to be there by 3 AM, fish for the cat
+	-- (keeping a slot for it), and at the bell motor straight home, steering clear of every
+	-- Neighbor boat and false beacon, never stopping. The blind crew does none of this.
+	local finaleNight = false
+	for _, r in params.rules do
+		if r == "Finale" then
+			finaleNight = true
+		end
+	end
+	finaleNight = finaleNight and follows
+	local F = cfg.Rules.Finale
+	local need = F.needSpecies
+	local hourSec = cfg.Night.realSeconds / (cfg.Night.endHour - cfg.Night.startHour)
+	local catAt = ((cfg.Fish[need].afterHour or cfg.Night.startHour) - cfg.Night.startHour) * hourSec
+	local bellAt = (F.hour - cfg.Night.startHour) * hourSec
+	local leaveAt = catAt - (o.steepleLead or 40)
+	local steepleSpot = nil
+	do
+		local st, dk = L.steeple, L.dockEnd
+		local dx, dz = dk.x - st.x, dk.z - st.z
+		local d = math.sqrt(dx * dx + dz * dz)
+		local r = L.steepleRadius - 15
+		steepleSpot = { x = st.x + dx / d * r, z = st.z + dz / d * r }
+	end
+	local steeplePlan = false -- heading to (or at) the steeple
+	local finaleOn = false
+	local hazards = {} -- Finale hazards by id: { form, pos }
+	local failReason = nil
+	local fdbg = {} -- night 5 timings for tuning: steepleAt, catAt, bellDist, homeAt
 	local atDockTimer = 0
 	local trips, thrownBack = 0, 0
 	local metAt = nil
@@ -145,11 +177,12 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 
 		-- Lantern.
 		local wantLantern = true
-		if humOn then
-			wantLantern = (hum.variant == "LanternLit")
-		end
 		if nbOn and nb.form == "Boat" then
 			wantLantern = false
+		end
+		if humOn then
+			-- The Hum outranks the Neighbor: it is short and it ends the moment you comply.
+			wantLantern = (hum.variant == "LanternLit")
 		end
 		local lightIt = wantLantern and not s.lantern.on and s.lantern.oil > 0 and s.lantern.forcedFor <= 0
 		if lightIt or (not wantLantern and s.lantern.on) then
@@ -157,7 +190,13 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 		end
 
 		-- Motor.
-		local wantMotor = motors and not humOn
+		local steepleRun = finaleNight
+			and (
+				finaleOn
+				or (steeplePlan and mode == "ToSpot" and spot ~= nil and LakeMap.dist(boat.pos, spot) > 60)
+				or (s.clock.elapsed >= leaveAt and not steeplePlan and (mode == "ToDock" or mode == "ToSpot"))
+			)
+		local wantMotor = (motors or steepleRun) and not humOn
 		if wantMotor ~= s.motorOn then
 			intent("ToggleMotor", lead)
 		end
@@ -205,6 +244,38 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 		local dawnClose = #s.hold > 0 and timeLeft < tripHome + 10
 		local wantHome = (#s.hold >= s.holdMax) or covers or dawnClose
 		local stopCasting = enoughCommitted or dawnClose or mode ~= "Fishing" or humOn or bailing
+		local hasCat = false
+		if finaleNight then
+			if steeplePlan and mode == "Fishing" and fdbg.steepleAt == nil then
+				fdbg.steepleAt = s.clock.elapsed
+			end
+			if finaleOn and fdbg.bellDist == nil then
+				fdbg.bellDist = LakeMap.dist(boat.pos, L.dockEnd)
+				fdbg.bellMode = mode
+			end
+			for _, list in { s.hold, s.cooler } do
+				for _, c in list do
+					if c.species == need and WrongCatch.matchesBook(cfg, c.species, c.traits) then
+						hasCat = true
+						fdbg.catAt = fdbg.catAt or s.clock.elapsed
+					end
+				end
+			end
+			local now = s.clock.elapsed
+			if steeplePlan then
+				-- At the steeple: stay until the bell; keep a slot for the cat.
+				wantHome = false
+				local full = #s.hold + inFlight >= s.holdMax
+				stopCasting = mode ~= "Fishing"
+					or humOn
+					or bailing
+					or finaleOn
+					or (hasCat and (full or now >= bellAt - 4))
+			elseif now >= leaveAt or quotaLeft <= 0 then
+				wantHome = true -- bank, refill, then out to the steeple
+				stopCasting = true
+			end
+		end
 
 		-- Boat.
 		local throttle, steer = 0, 0
@@ -221,7 +292,7 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 		end
 		local hold = humOn or bailing or (nbOn and nb.form == "FalseBeacon")
 		local away = nil
-		if nbOn and nb.form == "Boat" and nb.pos ~= nil then
+		if nbOn and nb.form == "Boat" and nb.pos ~= nil and not humOn then
 			local d = LakeMap.dist(boat.pos, nb.pos)
 			if d < cfg.Rules.Neighbor.holdDist + 50 or nb.variant == "NoWaveRowAway" then
 				-- Row away from it: straight away, else off to one side (never toward it).
@@ -277,11 +348,44 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 				end
 				pickSpot()
 				mode = "ToSpot"
+				if finaleNight and (s.clock.elapsed >= leaveAt or quotaLeft - holdValue <= 0) then
+					spot = { x = steepleSpot.x, z = steepleSpot.z }
+					steeplePlan = true
+				end
 			end
 		end
 		if away and mode == "Fishing" then
 			mode = "ToSpot" -- moved off the spot: settle again wherever it ends
 			spot = { x = away.x, z = away.z }
+		end
+
+		-- The bell: lines in, motor home, around every hazard, never stopping.
+		if finaleOn then
+			mode = "Finale"
+			for _, id in alive do
+				local ph = s.crew[id].fishing.phase
+				if ph == "Waiting" or ph == "Bite" or ph == "Reeling" then
+					intent("CutLine", id)
+				end
+			end
+			if not LakeMap.isSafe(cfg, boat.pos) then
+				local home = angleTo(boat.pos, L.dockEnd)
+				local vx, vz = math.sin(home), math.cos(home)
+				for _, h in hazards do
+					local d = LakeMap.dist(boat.pos, h.pos)
+					local reach = if h.form == "Boat" then 130 else 110
+					if d < reach and d > 1e-3 then
+						local w = 2.5 * (reach - d) / reach
+						vx += (boat.pos.x - h.pos.x) / d * w
+						vz += (boat.pos.z - h.pos.z) / d * w
+					end
+				end
+				local err = wrap(math.atan2(vx, vz) - boat.heading)
+				steer = math.clamp(err * 2, -1, 1)
+				throttle = 1
+			else
+				throttle, steer = 0, 0
+			end
 		end
 
 		-- Each angler.
@@ -334,6 +438,10 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 				if b.wait <= 0 then
 					local c = f.catch
 					local keep = keepsAll or (c ~= nil and WrongCatch.matchesBook(cfg, c.species, c.traits))
+					if keep and steeplePlan and not hasCat and c ~= nil and c.species ~= need then
+						-- Keep a slot for the owner's fish.
+						keep = #s.hold < s.holdMax - 1
+					end
 					if not keep then
 						thrownBack += 1
 					end
@@ -377,7 +485,19 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 			end
 			if kind == "QuotaMet" and metAt == nil then
 				metAt = s.quota.metAt
+			elseif kind == "EntityMoved" and e.entity == "Finale" then
+				local id = e.data.hazard
+				if id ~= nil then
+					if e.data.gone then
+						hazards[id] = nil
+					else
+						hazards[id] = { form = e.data.form, pos = e.data.pos }
+					end
+				end
 			elseif kind == "EntityCue" and e.entity ~= nil then
+				if e.entity == "Finale" and finaleNight then
+					finaleOn = true
+				end
 				if e.entity ~= "WrongCatch" then
 					contractChecks += 1
 					local prev = open[e.entity]
@@ -444,7 +564,9 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 					end
 				end
 			elseif kind == "PlayerDied" then
-				table.insert(deaths, { t = s.clock.elapsed, rule = e.data.rule, player = e.player })
+				table.insert(deaths, { t = s.clock.elapsed, rule = e.data.rule, player = e.player, text = e.data.text })
+			elseif kind == "NightFailed" then
+				failReason = e.data.reason
 			end
 		end
 		if metAt ~= nil and o.stopAtQuota then
@@ -495,6 +617,10 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 		amendments = amend,
 		contractChecks = contractChecks,
 		contractBad = contractBad,
+		result = result,
+		finalePassed = s.finalePassed,
+		finaleDebug = fdbg,
+		failReason = failReason,
 	}
 end
 

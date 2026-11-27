@@ -103,11 +103,11 @@ return function(t, Shared)
 		stepFor(s, 0.2, {}, events)
 		t.eq(s.chorus, 0, "silent")
 		t.eq(#Night.debugForce(s, "Hum", nil), 0, "never twice at once")
-		t.eq(#Night.debugForce(s, "Finale", nil), 0, "Finale waits for Core M5")
 	end)
 
 	t.test("breaking the Hum's silence: death card, hold lost, boat rocked, tally", function()
 		local s = Night.new(Config, params())
+		s.lantern.on = false -- nights start lit; this test is about the reeling alone
 		stepFor(s, 1, {})
 		Night.debugForce(s, "Hum", {})
 		local events = {}
@@ -297,6 +297,7 @@ return function(t, Shared)
 	t.test("the director teaches the night's new rule inside the band", function()
 		local p = params({ rules = { "Hum" }, newRules = { "Hum" }, real = 2, fake = 3, quietGap = 50 })
 		local s = Night.new(Config, p)
+		s.lantern.on = false -- a still, dark crew (nights start lit)
 		local events = {}
 		local cueAt = nil
 		for _ = 1, 3600 do

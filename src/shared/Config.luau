@@ -9,6 +9,9 @@ Config.TITLE = "Don't Wave Back"
 Config.TAGLINE = "Night shift on Blackwater Lake. Read the Lake Rules."
 Config.SAVE_VERSION = 1
 
+-- Profile saves (Core.SaveLogic): tries in all, and the backoff between them in seconds.
+Config.Save = { attempts = 4, baseDelay = 1, maxDelay = 8, leaderboardSize = 50 }
+
 Config.Players = { max = 4 }
 
 -- One night runs 10 PM to 5 AM in game time.
@@ -30,8 +33,27 @@ Config.Scaling = {
 }
 
 Config.Difficulty = {
-	Normal = { warning = 1.0, budget = 1.0, quiet = 1.0, amendFromNight = 5, amendOnFirstRun = false },
-	Nightmare = { warning = 0.7, budget = 1.4, quiet = 0.7, amendFromNight = 2, amendOnFirstRun = true },
+	-- amendChance: from amendFromNight, each amendable rule is amended with this chance per
+	-- night (Normal's first run instead gets exactly one amendment, on amendFromNight).
+	-- retries: failed nights the crew may play again per run (nil = no limit).
+	Normal = {
+		warning = 1.0,
+		budget = 1.0,
+		quiet = 1.0,
+		amendFromNight = 5,
+		amendOnFirstRun = false,
+		amendChance = 0.35,
+		retries = 3,
+	},
+	Nightmare = {
+		warning = 0.7,
+		budget = 1.4,
+		quiet = 0.7,
+		amendFromNight = 2,
+		amendOnFirstRun = true,
+		amendChance = 0.5,
+		retries = 2,
+	},
 }
 
 -- Story nights. `rules` accumulate: a night uses every rule introduced so far.
@@ -81,7 +103,7 @@ Config.Nights = {
 		real = 6,
 		fake = 5,
 		quietGap = 27,
-		quota = 12.4,
+		quota = 11.4,
 		maxConcurrent = 2,
 		wrongChance = 0.2,
 		wrongTier = 3,
@@ -97,11 +119,16 @@ Config.Endless = {
 	quietGapBase = 27,
 	quietGapFloor = 17,
 	quietGapStep = 2,
-	quotaBase = 26,
-	quotaPerNight = 3,
+	quotaBase = 13, -- base (four-player) quota on night 6; was 26 for 540 s nights
+	quotaPerNight = 0.5, -- was 3: an Endless night is a night 4 with more scares, not a longer one
 	maxConcurrent = 2,
 	wrongChance = 0.22,
 	wrongTier = 3,
+	rulesMin = 2, -- director rules per Endless night, drawn from the run seed
+	rulesMax = 4,
+	wrongCatchChance = 0.75, -- chance Wrong Catch is in tonight's mix
+	amendChance = 0.5, -- each amendable rule in the mix is amended with this chance
+	retries = 0, -- a failed Endless night ends the run
 }
 
 -- The lake, in studs. Origin is the lake center, +z north, +x east. The dock is on the south shore.
@@ -430,9 +457,19 @@ Config.Rules = {
 	Finale = {
 		hour = 28, -- 4 AM on night 5
 		oilSeconds = 50, -- lantern burns out this long after the bell (scaled by warning)
-		stopLimit = 4, -- seconds the boat may sit still
-		neighborEvery = 14,
+		stopLimit = 4, -- seconds the boat may sit still (scaled by warning)
+		neighborEvery = 14, -- a Neighbor boat or false beacon shows up this often (scaled by warning)
 		needSpecies = "SteepleCat", -- the owner's special order: one must be in the hold or banked
+		warn = 4, -- seconds from the bell before the lake can take anyone (scaled by warning)
+		darkEvery = 6, -- once the locked lantern runs dry on the water, the lake takes someone this often
+		hazardMin = 130, -- a hazard shows this far from the boat
+		hazardMax = 190,
+		hazardAngleMin = 0.5, -- radians off the boat's bearing to the dock (never dead ahead)
+		hazardAngleMax = 1.4,
+		boatDrift = 6, -- a Neighbor boat drifts toward the locked lantern this fast
+		beaconChance = 0.4, -- chance a hazard is a false beacon instead of a boat
+		hazardLife = 30, -- a hazard is gone after this long
+		firstOrderSure = true, -- the first fish hooked where and when needSpecies bites is one (true to the book)
 	},
 }
 

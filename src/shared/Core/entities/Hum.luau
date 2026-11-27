@@ -101,10 +101,11 @@ local function violations(s: HumState, obs: EntityObs): { { who: PlayerId?, why:
 	end
 	if s.base.variant == "LanternLit" then
 		if not obs.lanternOn and o.lanternCanLight ~= false then
-			table.insert(out, { who = aliveOr(obs, o.lastLantern), why = "LanternDark" })
+			table.insert(out, { who = aliveOr(obs, o.lastLantern) or helmOf(obs), why = "LanternDark" })
 		end
 	elseif obs.lanternOn then
-		table.insert(out, { who = aliveOr(obs, o.lastLantern), why = "LanternLit" })
+		-- Nights start lit (nobody toggled it yet): then the helm answers for the lantern.
+		table.insert(out, { who = aliveOr(obs, o.lastLantern) or helmOf(obs), why = "LanternLit" })
 	end
 	return out
 end

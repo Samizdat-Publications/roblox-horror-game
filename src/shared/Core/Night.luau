@@ -15,8 +15,17 @@
 -- Rules never touch the crew: a rule's EntityFail carries effects (kill, loseHold, rock,
 -- snuff, flood, eatBanked) and Night applies them. PlayerDied carries the rule, the
 -- variant and a death card text id "Death.<Rule>.<Cause>" (Core.Rulebook maps them, M5).
--- The Finale (night 5's clock at 4 AM) is Core M5: it is not a director rule and
--- debugForce("Finale") does nothing yet. Seam: add it to RULES and start it from step.
+-- The Finale (night 5's clock, Core M5) is not a director rule. When "Finale" is in
+-- params.rules, at cfg.Rules.Finale.hour Night rings the bell: every director rule still
+-- out is let go (it passes with data.endedBy = "Finale"), the director stops spawning and
+-- sending fake-outs, the lantern is refilled and locked on with its oil burning down in
+-- oilSeconds x warningScale, the phase becomes "Finale", and entities.Finale starts.
+-- Its EntityStrike events take a player without ending it. When it passes (home with the
+-- special order) the hold is banked at once and, if the quota is met, the night is cleared
+-- right there (the shell skips to dawn). A Finale night is never cleared without that pass:
+-- at dawn it fails with reason "SpecialOrder" (no true needSpecies fish banked) or
+-- "NotHome". Before the bell the director sees the night as ending at the bell, so its
+-- late cutoff keeps new scares away from 4 AM.
 
 local Types = require(script.Parent.Types)
 local Rng = require(script.Parent.Rng)
@@ -25,6 +34,7 @@ local NightClock = require(script.Parent.NightClock)
 local Quota = require(script.Parent.Quota)
 local Lantern = require(script.Parent.Lantern)
 local Fishing = require(script.Parent.Fishing)
+local FishTable = require(script.Parent.FishTable)
 local Attention = require(script.Parent.Attention)
 local Director = require(script.Parent.Director)
 local Fakeouts = require(script.Parent.Fakeouts)
@@ -34,6 +44,8 @@ local Neighbor = require(script.Parent.entities.Neighbor)
 local Knocking = require(script.Parent.entities.Knocking)
 local Watcher = require(script.Parent.entities.Watcher)
 local WrongCatchRule = require(script.Parent.entities.WrongCatch)
+local Finale = require(script.Parent.entities.Finale)
+local EntityBase = require(script.Parent.EntityBase)
 
 type Event = Types.Event
 type Catch = Types.Catch
@@ -115,6 +127,11 @@ export type NightState = {
 	lastObs: EntityObs?,
 	tally: { [PlayerId]: PlayerTally },
 	staring: { [PlayerId]: boolean }, -- staring at a Watcher last tick (for the tally)
+	finaleNight: boolean, -- "Finale" is in tonight's rules
+	finaleAt: number, -- seconds into the night when the bell rings
+	finaleStarted: boolean,
+	finalePassed: boolean,
+	specialGiven: boolean, -- a true special-order fish has been hooked tonight
 }
 
 local Night = {}
@@ -126,6 +143,7 @@ Night.RULES = {
 	Knocking = Knocking,
 	Watcher = Watcher,
 	WrongCatch = WrongCatchRule,
+	Finale = Finale,
 } :: { [string]: any }
 
 local function has(list: { any }, v: any): boolean
@@ -179,6 +197,10 @@ function Night.new(cfg: any, params: NightParams): NightState
 	local wrongChance, wrongTier = wrongOdds(cfg, params)
 	local ruleRng = Rng.fork(rng, "rules")
 	local R = cfg.Rules.Neighbor
+	local clock = NightClock.new(cfg)
+	-- Every night starts with the lantern lit and burning (the opening row out under it).
+	local lantern = Lantern.new(cfg, cfg.Lantern.refillsPerNight, 1)
+	lantern.on = true
 	return {
 		cfg = cfg,
 		params = params,
@@ -186,9 +208,9 @@ function Night.new(cfg: any, params: NightParams): NightState
 		fishRng = Rng.fork(rng, "fish"),
 		fakeRng = Rng.fork(rng, "fakeouts"),
 		coolerRng = Rng.fork(rng, "cooler"),
-		clock = NightClock.new(cfg),
+		clock = clock,
 		quota = Quota.new(params.quota),
-		lantern = Lantern.new(cfg, cfg.Lantern.refillsPerNight, 1),
+		lantern = lantern,
 		motorOn = false,
 		hold = {},
 		holdMax = cfg.Fishing.holdMax,
@@ -231,6 +253,11 @@ function Night.new(cfg: any, params: NightParams): NightState
 		lastObs = nil,
 		tally = tally,
 		staring = {},
+		finaleNight = has(params.rules, "Finale"),
+		finaleAt = NightClock.secondsAt(cfg, clock, cfg.Rules.Finale.hour),
+		finaleStarted = false,
+		finalePassed = false,
+		specialGiven = false,
 	}
 end
 
@@ -417,6 +444,19 @@ local function handleIntent(s: NightState, intent: Types.Intent, boatPos: Types.
 			-- Teaching night: the Nth fish hooked is wrong if none has been yet.
 			local teach = s.teachWrong and s.wrongSeen == 0 and s.hooked + 1 >= cfg.Fishing.teachWrongByCatch
 			m.fishing.forceWrong = teach or s.forceWrongNext
+			-- The owner's order: on a Finale night the first fish hooked where and when the
+			-- special species bites is one, true to the book (cfg.Rules.Finale.firstOrderSure).
+			-- "When" is the hook's hour, so a line cast just before 3 AM still counts.
+			local need = cfg.Rules.Finale.needSpecies
+			local f = m.fishing
+			if
+				s.finaleNight
+				and not s.specialGiven
+				and cfg.Rules.Finale.firstOrderSure
+				and (FishTable.weights(cfg, f.zone, hour(s))[need] or 0) > 0
+			then
+				f.forceSpecies = need
+			end
 		end
 		Fishing.reel(cfg, m.fishing, s.fishRng, intent.flag == true)
 		if before == "Bite" and m.fishing.phase == "Reeling" then
@@ -425,6 +465,9 @@ local function handleIntent(s: NightState, intent: Types.Intent, boatPos: Types.
 			local c = m.fishing.catch
 			if c ~= nil and c.wrong then
 				s.wrongSeen += 1
+			end
+			if c ~= nil and not c.wrong and c.species == cfg.Rules.Finale.needSpecies then
+				s.specialGiven = true
 			end
 		end
 	elseif kind == "CutLine" then
@@ -485,6 +528,19 @@ local function playersObs(s: NightState, given: { PlayerObs }): { PlayerObs }
 	return out
 end
 
+-- The special order (a true needSpecies fish) is in the hold or the cooler.
+local function specialAboard(s: NightState): boolean
+	local want = s.cfg.Rules.Finale.needSpecies
+	for _, list in { s.hold, s.cooler } do
+		for _, c in list do
+			if c.species == want and not c.wrong then
+				return true
+			end
+		end
+	end
+	return false
+end
+
 local function entityObs(s: NightState, dt: number, input: NightInput, players: { PlayerObs }): EntityObs
 	local alive: { [PlayerId]: boolean } = {}
 	local reeling: { [PlayerId]: boolean } = {}
@@ -508,6 +564,7 @@ local function entityObs(s: NightState, dt: number, input: NightInput, players: 
 		lanternCanLight = l.oil > 0 and l.forcedFor <= 0,
 		lastLantern = s.lastLantern,
 		lastMotor = s.lastMotor,
+		specialAboard = s.finaleNight and specialAboard(s),
 	}
 end
 
@@ -590,7 +647,13 @@ local function stepRules(s: NightState, obs: EntityObs, events: { Event })
 				if r.real then
 					s.scaresSurvived += 1
 					Director.resolved(s.director, r.id, true, s.clock.elapsed)
+				elseif r.id == "Finale" then
+					s.scaresSurvived += 1
+					s.finalePassed = true -- Night.step banks the hold right after the rules
 				end
+			elseif e.kind == "EntityStrike" then
+				-- The Finale takes someone and goes on.
+				applyFail(s, r, e, events)
 			elseif e.kind == "EntityFail" then
 				applyFail(s, r, e, events)
 				if r.real then
@@ -702,6 +765,9 @@ end
 local function eligible(s: NightState, boatPos: Types.Vec2): { RuleId }
 	local info = { elapsed = s.clock.elapsed, boatPos = boatPos, neighborEarliest = s.neighborEarliest }
 	local out: { RuleId } = {}
+	if s.finaleStarted then
+		return out
+	end
 	for _, id in Director.RULES do
 		if has(s.params.rules, id) and not ruleActive(s, id) then
 			local mod = Night.RULES[id]
@@ -714,11 +780,16 @@ local function eligible(s: NightState, boatPos: Types.Vec2): { RuleId }
 end
 
 local function stepDirector(s: NightState, dt: number, boatPos: Types.Vec2, events: { Event })
+	-- On a Finale night the director's night ends at the bell.
+	local timeLeft = NightClock.timeLeft(s.clock)
+	if s.finaleNight then
+		timeLeft = math.max(0, s.finaleAt - s.clock.elapsed)
+	end
 	local decisions = Director.step(s.director, dt, {
 		attention = s.attn.value,
 		activeReal = activeRealCount(s),
 		safe = s.safe,
-		timeLeft = NightClock.timeLeft(s.clock),
+		timeLeft = timeLeft,
 		elapsed = s.clock.elapsed,
 		eligible = eligible(s, boatPos),
 		aliveIds = aliveIds(s),
@@ -726,7 +797,7 @@ local function stepDirector(s: NightState, dt: number, boatPos: Types.Vec2, even
 	for _, d in decisions do
 		if d.kind == "Spawn" and d.rule ~= nil then
 			startRule(s, d.rule :: RuleId, { teaching = d.teaching, only = d.only }, events)
-		elseif d.kind == "Fakeout" and d.id ~= nil then
+		elseif d.kind == "Fakeout" and d.id ~= nil and not s.finaleStarted then
 			local e = Fakeouts.event(s.cfg, s.fakeRng, d.id :: string, d.only, boatPos)
 			if d.id == "ChorusDip" then
 				s.dipFor = Fakeouts.DIP_SECONDS
@@ -757,6 +828,30 @@ local function stepChorus(s: NightState, dt: number, events: { Event })
 	end
 end
 
+-- 4 AM on a Finale night: the bell. Lets every director rule go, locks the lantern on with
+-- its oil as the finale's clock, and starts the Finale.
+local function startFinale(s: NightState, events: { Event })
+	if s.finaleStarted then
+		return
+	end
+	s.finaleStarted = true
+	s.phase = "Finale"
+	local cfg = s.cfg
+	for _, r in s.rules do
+		if r.real and r.state.base.outcome == nil and r.state.base.pending == nil then
+			if EntityBase.pass(r.state.base, events, { endedBy = "Finale" }) then
+				Director.resolved(s.director, r.id, true, s.clock.elapsed)
+			end
+		end
+	end
+	local l = s.lantern
+	l.oil = 1
+	l.lowSent = false
+	l.burnMult = cfg.Rules.Finale.oilSeconds * (s.params.warningScale or 1) / cfg.Lantern.burnSeconds
+	push(events, Lantern.lockOn(l))
+	startRule(s, "Finale", {}, events)
+end
+
 local function buildResult(s: NightState, cleared: boolean): NightResult
 	local tallies: { PlayerTally } = {}
 	for _, id in s.order do
@@ -775,6 +870,7 @@ local function buildResult(s: NightState, cleared: boolean): NightResult
 		deaths = deaths,
 		keptWrong = s.keptWrong,
 		tallies = tallies,
+		bankedFish = s.quota.fish,
 	}
 end
 
@@ -847,9 +943,19 @@ function Night.step(s: NightState, input: NightInput): { Event }
 	})
 
 	stepWater(s, dt, players, events)
+	if s.finaleNight and not s.finaleStarted and s.clock.elapsed >= s.finaleAt - 1e-9 and aliveCount(s) > 0 then
+		if s.lastObs == nil then
+			s.lastObs = entityObs(s, 0, input, players)
+		end
+		startFinale(s, events)
+	end
 	local obs = entityObs(s, dt, input, players)
 	s.lastObs = obs
+	local passedBefore = s.finalePassed
 	stepRules(s, obs, events)
+	if s.finalePassed and not passedBefore then
+		bank(s, events) -- home: the owner takes the hold
+	end
 	tallyStares(s, obs)
 	stepFlood(s, dt, events)
 	if aliveCount(s) > 0 then
@@ -859,11 +965,15 @@ function Night.step(s: NightState, input: NightInput): { Event }
 
 	if aliveCount(s) == 0 then
 		finish(s, false, if s.sunk then "Sunk" else "CrewLost", events)
+	elseif s.finalePassed and not passedBefore and Quota.isMet(s.quota) then
+		finish(s, true, nil, events) -- home with the owner's fish: the shell skips to dawn
 	elseif NightClock.done(s.clock) then
-		if Quota.isMet(s.quota) then
-			finish(s, true, nil, events)
-		else
+		if not Quota.isMet(s.quota) then
 			finish(s, false, "QuotaShort", events)
+		elseif s.finaleNight and not s.finalePassed then
+			finish(s, false, if specialAboard(s) then "NotHome" else "SpecialOrder", events)
+		else
+			finish(s, true, nil, events)
 		end
 	end
 	return events
@@ -915,17 +1025,41 @@ end
 
 -- Studio scenarios and tests only: start a rule now, outside the director's schedule.
 -- opts = { variant?, teaching?, only?, form? ("Boat" | "FalseBeacon" for the Neighbor) }.
--- "WrongCatch" makes the next fish hooked a wrong one. "Finale" is Core M5 (no-op).
+-- "WrongCatch" makes the next fish hooked a wrong one. "Finale" rings the bell now (the
+-- night becomes a Finale night: it then needs the Finale's pass to clear).
 -- The rule is told to the director as active so the quiet gap still follows it.
 -- Returns the events of the rule's first step (its cue).
 function Night.debugForce(s: NightState, rule: RuleId, opts: any?): { Event }
 	local o = opts or {}
 	local events: { Event } = {}
-	if s.phase ~= "Night" then
+	if s.phase == "Cleared" or s.phase == "Failed" then
 		return events
 	end
 	if rule == "WrongCatch" then
 		s.forceWrongNext = true
+		return events
+	end
+	if rule == "Finale" then
+		-- Rings the bell now, on any night.
+		if s.lastObs == nil then
+			local dock = s.cfg.Lake.dockEnd
+			local input0: NightInput = {
+				dt = 0,
+				boat = {
+					pos = { x = dock.x, z = dock.z },
+					vel = { x = 0, z = 0 },
+					heading = 0,
+					throttle = 0,
+					steer = 0,
+				},
+				players = {},
+				intents = {},
+			}
+			s.lastObs = entityObs(s, 0, input0, playersObs(s, {}))
+		end
+		s.finaleNight = true
+		s.finaleAt = math.min(s.finaleAt, s.clock.elapsed)
+		startFinale(s, events)
 		return events
 	end
 	if Night.RULES[rule] == nil or ruleActive(s, rule) then

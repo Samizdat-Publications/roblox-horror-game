@@ -132,7 +132,8 @@ return function(t, Shared)
 	end)
 
 	t.test("quota short at dawn fails the night", function()
-		local s = Night.new(Config, params({ quota = 50 }))
+		-- No rules: a lit, idle crew must not meet a Hum before dawn.
+		local s = Night.new(Config, params({ quota = 50, rules = {}, newRules = {} }))
 		local last = {}
 		for _ = 1, Config.Night.realSeconds + 5 do
 			last = Night.step(s, input(OUT, {}, 1)) -- Night clamps dt to 1 second
@@ -236,8 +237,7 @@ return function(t, Shared)
 
 	t.test("lantern burns, refills only at the dock, motor toggles", function()
 		local s = Night.new(Config, params({ rules = {}, newRules = {} })) -- no rules: attention cannot bring a Hum
-		Night.step(s, input(OUT, { { kind = "ToggleLantern", player = 1 } }))
-		t.ok(s.lantern.on, "lit")
+		t.ok(s.lantern.on, "every night starts with the lantern lit")
 		Night.step(s, input(OUT, {}, 1))
 		for _ = 1, 300 do
 			Night.step(s, input(OUT, {}, 1))
@@ -284,7 +284,7 @@ return function(t, Shared)
 				{ kind = "Callout", player = 1, text = "HoldStill" },
 			})
 		)
-		t.ok(not s.lantern.on, "dead and unknown cannot act")
+		t.ok(s.lantern.on, "dead and unknown cannot act (it starts lit and stays lit)")
 		t.eq(kindsOf(e).Callout, 1, "callout")
 	end)
 

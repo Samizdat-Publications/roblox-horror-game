@@ -176,6 +176,7 @@ export type NightResult = {
 	deaths: { { player: PlayerId, rule: string } },
 	keptWrong: number,
 	tallies: { PlayerTally }?, -- added 11/26/2026, in crew order
+	bankedFish: number?, -- added in Core M5: fish (not points) in the cooler at the end (for Profile)
 }
 
 export type EntityStage = "Idle" | "Cue" | "Window" | "Pass" | "Fail" | "Cooldown"
@@ -196,6 +197,9 @@ export type EntityObs = {
 	lanternCanLight: boolean?, -- false when the lantern has no oil or a rule snuffed it
 	lastLantern: PlayerId?, -- the player who last toggled the lantern tonight
 	lastMotor: PlayerId?, -- the player who last toggled the motor tonight
+	-- Added in Core M5 (additive): the Finale's special order (a true
+	-- cfg.Rules.Finale.needSpecies fish) is in the hold or the cooler.
+	specialAboard: boolean?,
 }
 
 return {}

@@ -14,7 +14,7 @@ Per night and crew size:
   * greedy: survival and real scares (median), against follow's.
   * a quota hint: the median points the follow bot has banked at 70% of the night, as a
     base (four-player) quota, for tuning Config.Nights.
-Night 5's Finale is Core M5 and is not simulated here.
+Night 5 (the Finale) is played in whole runs by tools/sim/run.luau.
 Writes rules-fast.* with --fast (24 seeds). Always exits 0 (a report, not a gate).
 ]]
 
@@ -236,7 +236,7 @@ local lines = {
 	"# Rules scorecard" .. (if fast then " (fast)" else ""),
 	"",
 	string.format(
-		"Story nights 1 to 4 played to dawn, Normal, %d seeds per cell, night %d s. Bots: tools/sim/crewbot.luau. Night 5 (the Finale) is Core M5.",
+		"Story nights 1 to 4 played to dawn, Normal, %d seeds per cell, night %d s. Bots: tools/sim/crewbot.luau. Night 5 (the Finale) is in the full-run scorecard (run.md).",
 		nSeeds,
 		length
 	),

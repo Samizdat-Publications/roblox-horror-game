@@ -1,8 +1,46 @@
 # Cloud helper progress
 
-Updated 11/26/2026. Chunks M1 to M4 were built locally in the working tree on `main` (not on `claude/` branches) by Opus builders; the main session reviews and commits them. A cloud session resuming from here should start at Chunk M5.
+ALL CHUNKS DONE (M1 to M5 and M7; M6 is not a Core chunk). Updated 11/26/2026. Chunks M1 to M7 were built locally in the working tree on `main` (not on `claude/` branches) by Opus builders; the main session reviews and commits them.
 
-## Done
+## Core M5 and M7 (11/26/2026)
+
+**Core M5** (specs green)
+- `src/shared/Core/Run.luau`: night table, rules accumulate, crew and difficulty scaling (solo warns longest), retries with a fresh night seed and the same page (Normal 3, Nightmare 2 per run), RunCleared after night 5, RunOver when out of retries, Endless from night 6 (random rule mixes and amendments from the run seed, growth with caps, one life). Supplies cut: `supplyChoices` returns {}.
+- `src/shared/Core/Rulebook.luau`: rule text ids and English, the page, amendment policies (Normal first run: one amendment on night 5; later runs, Nightmare and Endless: any amendable rule any night from amendFromNight), tapes, death card ids and English for every cause.
+- `src/shared/Core/entities/Finale.luau` and Night wiring: the 4 AM bell, silence, lantern locked on with the oil as the clock, director rules let go, director stopped, Neighbor boats and false beacons on a fast clock, stopping too long, the dark, waving, `EntityStrike` (takes a player, the finale goes on), pass home with a true Steeple Cat aboard or banked (hold banked, night cleared at once), dawn without it fails "SpecialOrder" or "NotHome". The first fish hooked where and when the Steeple Cat bites is one (`Rules.Finale.firstOrderSure`).
+- Nights start with the lantern lit (Studio playtest fix).
+- Sims: `tools/sim/run.luau` (whole runs through Core.Run, three bots, Normal and Nightmare, crews 1 to 4, Endless), crewbot plays night 5 (steeple run, finale escape), pacing night 5 needs 85% reached.
+
+**Core M7** (specs green)
+- `src/shared/Core/Profile.luau`: schema (SAVE_VERSION 1), defaults, migration from version 0, repair of bad data, "Future" saves read-only, stats, sticky cosmetic unlocks exactly per DESIGN.md, equipped validated against unlocks, merge that never loses progress.
+- `src/shared/Core/Leaderboard.luau`: best Endless night order (night, then earlier, then user id), top N with shared ranks, submit, encode for an ordered store.
+- `src/shared/Core/SaveLogic.luau`: retries with backoff (store and sleep passed in), load (outage gives defaults with canSave false), save through UpdateAsync with merge, never over a future save, submitBest only raises.
+- Specs: `tests/Run.spec.luau`, `tests/Rulebook.spec.luau`, `tests/Finale.spec.luau`, `tests/Profile.spec.luau` (in-memory mock store with GetAsync, SetAsync, UpdateAsync that can be told to fail).
+
+Spec summary: `TESTS: 198 passed, 0 failed, 18 spec files`. Gate: `GATE PASS: 11 steps`.
+
+### Full-run scorecard (300 seeds per cell, first runs; `artifacts/score/run.md`)
+
+| Difficulty | Crew | Follow: run cleared | Finale passed per try | Blind: death by night 2 | Greedy: real scares per night | Follow: real scares per night |
+|---|---|---|---|---|---|---|
+| Normal | 1 | 100% | 79% | 100% | 3.60 | 2.60 |
+| Normal | 2 | 100% | 79% | 100% | 4.00 | 3.00 |
+| Normal | 3 | 100% | 85% | 100% | 4.20 | 3.00 |
+| Normal | 4 | 100% | 85% | 100% | 4.20 | 3.00 |
+| Nightmare | 1 | 98% | 82% | - | - | 3.00 |
+| Nightmare | 2 | 99% | 80% | - | - | 3.20 |
+| Nightmare | 3 | 99% | 79% | - | - | 3.40 |
+| Nightmare | 4 | 100% | 84% | - | - | 3.40 |
+
+Before tuning (10 and 40 seed probes, night 5 quota 12.4, no order guarantee): Normal run cleared 70% solo and 90% crew of 4, finale passed on 25% to 56% of tries. Endless (follow, Normal, 75 seeds): best night median 10 to 12, max 16 to 21. Nightmare clears nearly as often as Normal for this bot because retries absorb night 5; its real scares per night are higher (3.0 to 3.4 against 2.6 to 3.0). If Nightmare should be harder for careful crews, cut its retries or shorten `Rules.Finale.oilSeconds` there.
+
+### For the local session (M5 and M7)
+
+- Contract additions (additive): `EntityObs.specialAboard`, `NightResult.bankedFish`, event `EntityStrike` (entity Finale, data.effects; Night applies it like a fail but the finale goes on), Finale `EntityCue.data` { bell, oilSeconds, stopLimit, needSpecies }, Finale `EntityMoved.data` { hazard, form, pos, appear?, gone? }, `EntityPass.data.endedBy = "Finale"`, `NightFailed.data.reason` "SpecialOrder" or "NotHome", `Run.finishNight` may return "RunOver", `Run.setPlayers`, `Run.view`. None of these are in ARCHITECTURE.md yet (not edited by the helper).
+- NightService can now call `Run.new` and `Run.nightParams` at its SEAM. DataService can use `SaveLogic.load(cfg, DataStore, key, { sleep = task.wait })` and save with `allowed = result.canSave`.
+- Death card and rule English: `Rulebook.TEXT`; `Rulebook.deathCard(id)` for any `PlayerDied.data.text`.
+
+## Done (earlier chunks)
 
 **Core M1** (specs green): LakeMap, BoatModel, Lantern, SoundMix, RateLimit, Validate.
 
@@ -45,10 +83,10 @@ Design changes from the main session (11/26/2026) are applied: Neighbor rework w
 | 4 | 2 | 10 | 100% | 0.66 | 0.54 | 0.81 | yes |
 | 4 | 3 | 12 | 100% | 0.64 | 0.58 | 0.76 | yes |
 | 4 | 4 | 13 | 98% | 0.65 | 0.54 | 0.87 | yes |
-| 5 | 1 | 7 | 96% | 0.74 | 0.57 | 0.86 | yes |
-| 5 | 2 | 9 | 98% | 0.66 | 0.49 | 0.87 | yes |
-| 5 | 3 | 11 | 100% | 0.71 | 0.61 | 0.83 | yes |
-| 5 | 4 | 12 | 100% | 0.66 | 0.57 | 0.81 | yes |
+| 5 | 1 | 6 | 94% | 0.63 | 0.52 | 0.91 | yes (M5: Finale night, needs 85%) |
+| 5 | 2 | 9 | 90% | 0.63 | 0.49 | 0.91 | yes |
+| 5 | 3 | 10 | 94% | 0.64 | 0.55 | 0.91 | yes |
+| 5 | 4 | 11 | 94% | 0.63 | 0.56 | 0.91 | yes |
 
 ## Rules scorecard
 
@@ -64,4 +102,4 @@ See `artifacts/score/rules.md` (200 seeds per cell, nights 1 to 4 to dawn, three
 
 ## Next
 
-Chunk M5: `Run`, `Rulebook` (text ids incl. the death card ids above), `entities/Finale` (add it to `Night.RULES`; it is not a director rule), Endless, full-run sims. Supplies are cut. Night 5's quota (12.4) was tuned without the Finale and should be retuned with it.
+Nothing left in the brief. Open questions for the orchestrator are flagged ASSUMED in `docs/CLOUD-DECISIONS.md` (retry limits, Blue Hour as night 10, pacing night 5 at 85%, new text lines in Rulebook).

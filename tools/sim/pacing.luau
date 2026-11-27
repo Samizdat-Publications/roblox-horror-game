@@ -5,7 +5,8 @@ Pacing simulation: the rule-following crew bot plays Story nights 1 to 5 for cre
     lune run tools/sim/pacing.luau [--fast] [--seeds N]
 
 Target (docs/CLOUD-BRIEF.md, Core M2): the bot reaches quota at 60 to 80 percent of the
-night (median), and reaches it at all on nearly every seed.
+night (median), and reaches it at all on nearly every seed. Night 5 (the Finale, Core M5)
+needs 85% (80% fast): its whole-night success is the full-run sim's job.
 Full run: 200 seeds per cell, strict band 0.60 to 0.80, quota reached in at least 95%.
 --fast (the gate): 24 seeds per cell, loose band 0.55 to 0.85 (small samples are noisy),
 quota reached in at least 90%.
@@ -42,6 +43,7 @@ end
 local nSeeds = seeds or (if fast then 24 else 200)
 local bandLo, bandHi = if fast then 0.55 else 0.6, if fast then 0.85 else 0.8
 local minReached = if fast then 0.9 else 0.95
+local finaleMinReached = if fast then 0.8 else 0.85
 
 local Shared, req = loader.load()
 local cfg = req(Shared.Config)
@@ -103,7 +105,13 @@ for night = 1, 5 do
 			trips = trips / nSeeds,
 			thrownBack = wrongBack / nSeeds,
 		}
-		local ok = cell.reached >= minReached and cell.median ~= nil and cell.median >= bandLo and cell.median <= bandHi
+		-- Night 5 is the Finale night: the crew leaves the Shallows for the steeple before 3 AM
+		-- and a night it does not finish there (no Steeple Cat, or late) never banks its last
+		-- hold. Its success is scored by the full-run sim (tools/sim/run.luau); here it only
+		-- needs the quota to land in the band on finaleMinReached of seeds.
+		local need = if cfg.Nights[night].newRules[1] == "Finale" then finaleMinReached else minReached
+		cell.minReached = need
+		local ok = cell.reached >= need and cell.median ~= nil and cell.median >= bandLo and cell.median <= bandHi
 		cell.ok = ok
 		if not ok then
 			table.insert(misses, string.format("night %d crew %d", night, crew))
@@ -121,10 +129,11 @@ local lines = {
 	"# Pacing scorecard" .. (if fast then " (fast)" else ""),
 	"",
 	string.format(
-		"Rule-following crew bot, Story nights 1 to 5, Normal, %d seeds per cell, night %d s. Target: quota reached in at least %d%% of seeds, median time to quota between %.2f and %.2f of the night.",
+		"Rule-following crew bot, Story nights 1 to 5, Normal, %d seeds per cell, night %d s. Target: quota reached in at least %d%% of seeds (%d%% on the Finale night, scored by tools/sim/run.luau), median time to quota between %.2f and %.2f of the night.",
 		nSeeds,
 		length,
 		math.floor(minReached * 100 + 0.5),
+		math.floor(finaleMinReached * 100 + 0.5),
 		bandLo,
 		bandHi
 	),
