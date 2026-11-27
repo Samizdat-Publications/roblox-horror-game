@@ -2,6 +2,10 @@
 
 Last updated 11/27/2026, late morning, by the local session (Opus 5.5, orchestrating; Fable 5.2 designed it).
 
+## Paused (11/27/2026)
+
+Stewart paused this game until the fishing game is done. When it resumes: fix the two bugs at the top of "Known issues", then the private publish (HUMAN_TODO item 4, after-the-run section).
+
 ## Morning summary for Stewart
 
 The overnight run is finished: M0 to M8 are built, and the final self-review and its audit are done (`docs/SELF-REVIEW.md`, `docs/AUDIT-11-27-2026.md`). Everything is committed and pushed. The build log has the pictures: https://claude.ai/artifact/GQrZM4KSA6mkBg4XUWYN7T
@@ -55,6 +59,8 @@ To play: double-click `C:\Users\stewa\Documents\Claude\Roblox\dead-calm\DeadCalm
 - [ ] When Stewart says "verified" or "credits are topped up": upload per `audio/UPLOAD-PRIORITY.md`; generate the 18 missing sounds.
 
 ## Known issues
+
+- **Found by Stewart's first hands-on play (11/27/2026), fix first when work resumes:** (1) the oars stay still while the boat rows forward; (2) pressing Space to cast shows no line or bobber, yet the game treats the line as in the water (the "press X to reel" prompt appears). Both read as missing client visuals, not broken rules: check the oar animation and the cast/line/bobber presentation in the client fx against the hero-model boat (M9 swapped the boat mesh, which may have orphaned the oar and rod attachments).
 
 - Up close the strange boat's figure is still blocky (Neon "creepy" 5 of 10); a Blender figure like the M9 Watcher would fix it.
 - `tools/critic/critic.py consult` returns empty answers on Neon; use `tools/critic/ask.py` (streaming). Studio video capture stops at 30 s per recording; start recordings after a scenario's reset.

@@ -5,7 +5,7 @@ Nothing here blocks the build. Each item says why it matters and the exact steps
 ## Before or during the run
 
 1. **Keep this PC on and online when you can.** The local half of the build only moves while the hotspot is home. If the session looks idle after you reconnect, type `continue` in it.
-2. **Upload folder.** In Roblox Studio: Assistant panel, the "..." menu, Settings, MCP Permissions. Make sure `C:\Users\stewa\Documents\Claude\Roblox` is in the approved upload folders. If uploads from the new folder are refused, also add `C:\Users\stewa\Documents\Claude\Roblox\dead-calm`.
+2. **(No longer needed 11/27/2026: every sound is uploaded.) Upload folder.** In Roblox Studio: Assistant panel, the "..." menu, Settings, MCP Permissions. Make sure `C:\Users\stewa\Documents\Claude\Roblox` is in the approved upload folders. If uploads from the new folder are refused, also add `C:\Users\stewa\Documents\Claude\Roblox\dead-calm`.
 
 3. **(No longer needed.) Cloud sessions.** The local session built everything the cloud sessions were meant to; the briefs stay in `docs/` for reference.
 
