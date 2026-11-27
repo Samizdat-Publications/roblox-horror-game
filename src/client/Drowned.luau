@@ -176,8 +176,7 @@ local function updateTag()
 	end
 	local left = Config.Ghost.bellCooldown - (os.clock() - lastBell)
 	if left <= 0 then
-		local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-		t.Text = if touch then "Tap Bell  Ring the bell" else "Click or Space  Ring the bell"
+		t.Text = if Input.touch() then "Tap Bell  Ring the bell" else "Click or Space  Ring the bell"
 	else
 		t.Text = string.format("The bell rings again in %d", math.ceil(left))
 	end

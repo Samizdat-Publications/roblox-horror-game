@@ -390,9 +390,12 @@ local function build()
 	b.Visible = false
 	b.Parent = g
 	buttons = b
-	local keep = Paper.button(b, "Keep", "Keep  (E)", UDim2.fromOffset(180, 56))
+	-- No key hints on a phone (found in the Device Simulator, 11/26/2026).
+	local touch = Input.touch()
+	local keep = Paper.button(b, "Keep", if touch then "Keep" else "Keep  (E)", UDim2.fromOffset(180, 56))
 	keep.Position = UDim2.fromOffset(0, 0)
-	local back = Paper.button(b, "ThrowBack", "Throw back  (X)", UDim2.fromOffset(180, 56))
+	local back =
+		Paper.button(b, "ThrowBack", if touch then "Throw back" else "Throw back  (X)", UDim2.fromOffset(180, 56))
 	back.Position = UDim2.fromOffset(200, 0)
 	keep.Activated:Connect(function()
 		decide(true)
