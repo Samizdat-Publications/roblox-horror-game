@@ -249,6 +249,7 @@ function Title.init()
 	name.TextColor3 = Look.Palette.paper
 	name.TextWrapped = false
 	name.TextScaled = false
+	name.TextYAlignment = Enum.TextYAlignment.Top
 	name.Rotation = -2
 	local nameStroke = Instance.new("UIStroke")
 	nameStroke.Color = Look.Palette.silhouette
@@ -257,14 +258,15 @@ function Title.init()
 	nameStroke.Parent = name
 	local subSize = Paper.fit(17, 11, 20)
 	local sub = Paper.text(safe, "Sub", "Night shift on Blackwater Lake. Fill the cooler. Follow the rules.", subSize)
-	sub.Position = UDim2.fromOffset(8, big + 4)
+	-- Studio 11/26/2026: the tagline overlapped the name; give it clear space below.
+	sub.Position = UDim2.fromOffset(8, big + 14)
 	sub.Size = UDim2.new(0.62, 0, 0, subSize + 6)
 	sub.TextColor3 = Look.Palette.paper
 	sub.TextWrapped = false
 	sub.TextTruncate = Enum.TextTruncate.AtEnd
 	sub.TextStrokeColor3 = Look.Palette.silhouette
 	sub.TextStrokeTransparency = 0.3
-	local top = big + subSize + 18
+	local top = big + subSize + 28
 	-- Keep the name clear of Roblox's own buttons at the top left (GuiService.TopbarInset is
 	-- the free area right of them; its Min.X is where they end).
 	local function clearTopbar()
@@ -274,7 +276,9 @@ function Title.init()
 		local left = if ok and typeof(inset) == "Rect" then math.max(0, inset.Min.X - 12) else 0
 		local h = if ok and typeof(inset) == "Rect" then inset.Height else 0
 		-- Only when the buttons would sit on the lettering (it starts near the top).
-		name.Position = UDim2.fromOffset(4 + (if h > 0 then left else 0), 0)
+		local shift = if h > 0 then left else 0
+		name.Position = UDim2.fromOffset(4 + shift, 0)
+		sub.Position = UDim2.fromOffset(8 + shift, big + 14)
 	end
 	clearTopbar()
 	pcall(function()
