@@ -1037,6 +1037,46 @@ local function endFinale(fade: number)
 	AudioDirector.hush(Finale.KEY, false)
 end
 
+-- At the first toll the view eases round to face home (the dock beacon) over `seconds`, so every
+-- player, on a phone too, knows which way to go. Found 11/26/2026: the crew is usually looking
+-- at its bobber off the side of the boat when the bell rings, and Neon read the run home as
+-- "no direction home". The player's own look takes over again as soon as it finishes.
+local function faceHome(seconds: number)
+	local cam = Workspace.CurrentCamera
+	if cam == nil then
+		return
+	end
+	local e = Config.Lake.dockEnd
+	local start = os.clock()
+	local name = "DeadCalmFaceHome"
+	pcall(function()
+		RunService:UnbindFromRenderStep(name)
+	end)
+	RunService:BindToRenderStep(name, Enum.RenderPriority.Camera.Value + 2, function()
+		local t = math.clamp((os.clock() - start) / seconds, 0, 1)
+		local cf = cam.CFrame
+		local pos = cf.Position
+		local lv = cf.LookVector
+		local curYaw = math.atan2(-lv.X, -lv.Z)
+		local toX, toZ = e.x - pos.X, e.z - pos.Z
+		local goalYaw = math.atan2(-toX, -toZ)
+		local d = goalYaw - curYaw
+		if d > math.pi then
+			d -= 2 * math.pi
+		elseif d < -math.pi then
+			d += 2 * math.pi
+		end
+		-- Ease: cover a growing share of the remaining turn each frame, all of it at the end.
+		local k = if t >= 1 then 1 else math.min(1, 0.08 + 0.25 * t)
+		local yaw = curYaw + d * k
+		local pitch = math.rad(-6)
+		cam.CFrame = CFrame.new(pos) * CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0)
+		if t >= 1 then
+			RunService:UnbindFromRenderStep(name)
+		end
+	end)
+end
+
 local function onCue(data: { [string]: any })
 	active = true
 	phase = "Silence"
@@ -1062,6 +1102,7 @@ local function onCue(data: { [string]: any })
 		phase = "Bell"
 		ringBell()
 		showCaption(Finale.CAPTION, F.captionHold)
+		faceHome(1.2)
 		task.delay((F.bellStrokes - 1) * F.bellGap + F.afterBell, function()
 			if cueToken ~= my or not active then
 				return

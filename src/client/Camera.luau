@@ -113,6 +113,46 @@ function Camera.init()
 		task.spawn(onCharacter, player.Character)
 	end
 
+	-- The view turns with the boat. Without this, a seated first-person camera keeps its world
+	-- direction when the boat turns, so after turning for home the player stares at the side of
+	-- the boat (found in Studio and by Neon on the finale, 11/26/2026). Each frame, after the
+	-- default camera has run, the camera is turned by however much the seat turned. The player's
+	-- own mouse or touch look still works on top of it.
+	local lastSeat: BasePart? = nil
+	local lastYaw = 0
+	local function seatYaw(seat: BasePart): number
+		local lv = seat.CFrame.LookVector
+		return math.atan2(-lv.X, -lv.Z)
+	end
+	RunService:BindToRenderStep("DeadCalmBoatYaw", Enum.RenderPriority.Camera.Value + 1, function()
+		local seatName = BoatClient.mySeat()
+		local found = if seatName then BoatClient.part(seatName) else nil
+		local seat: BasePart? = if found and found:IsA("BasePart") then found else nil
+		if shotActive or seat == nil then
+			lastSeat = nil
+			return
+		end
+		local yaw = seatYaw(seat)
+		if lastSeat ~= seat then
+			lastSeat = seat
+			lastYaw = yaw
+			return
+		end
+		local delta = yaw - lastYaw
+		lastYaw = yaw
+		if delta > math.pi then
+			delta -= 2 * math.pi
+		elseif delta < -math.pi then
+			delta += 2 * math.pi
+		end
+		if math.abs(delta) < 1e-5 or math.abs(delta) > 1 then
+			return -- no turn, or a teleport: leave the view alone
+		end
+		local cam = camera()
+		local cf = cam.CFrame
+		cam.CFrame = CFrame.new(cf.Position) * CFrame.Angles(0, delta, 0) * cf.Rotation
+	end)
+
 	local acc = 0
 	local gap = 1 / Config.Net.gazeHz
 	RunService.Heartbeat:Connect(function(dt)
