@@ -27,6 +27,8 @@ local DeathCard = require(script.Parent:WaitForChild("DeathCard"))
 local AudioDirector = require(client:WaitForChild("AudioDirector"))
 local ViewState = require(client:WaitForChild("ViewState"))
 local LobbyClient = require(client:WaitForChild("LobbyClient"))
+local HUD = require(script.Parent:WaitForChild("HUD"))
+local Finale = require(client:WaitForChild("fx"):WaitForChild("Finale"))
 
 local NightCards = {}
 
@@ -34,6 +36,21 @@ local NightCards = {}
 -- the night's end card, when the local player is one of the drowned.
 NightCards.DROWNED_BEAT = 4
 NightCards.START_SECONDS = 4 -- the night start strip
+-- Polish round 2 (Neon finale v7: tiny cramped text on the end screens, the HUD back on top of
+-- the victory card, the card over the dock at once):
+--   * the end cards size to their text: a width that fits the screen (CARD_WIDTH), the height
+--     from the text (AutomaticSize); no UIScale shrinking them on phones any more;
+--   * body text is Paper.fit(BODY_TEXT): at least 18 px on the 705 by 338 phone, larger on
+--     big screens; on short screens (under COMPACT_BELOW px tall) the stat lines pair up;
+--   * the gameplay HUD hides while any end card is up (HUD key HUD_KEY);
+--   * the run-cleared card waits for the dawn banner, then Look.Dawn.runCardAfterBanner more
+--     seconds of the dock in daylight; the banner is put away as the card comes in.
+NightCards.BODY_TEXT = { 20, 18, 24 } -- Paper.fit(base, lo, hi)
+NightCards.HEAD_TEXT = { 32, 22, 40 }
+NightCards.CARD_WIDTH = { share = 0.9, min = 300, max = 640 }
+NightCards.COMPACT_BELOW = 450
+NightCards.HUD_KEY = "EndCard"
+NightCards.BANNER_WAIT = 12 -- at most this long waiting for the dawn banner before the run card
 
 NightCards.FAIL_TEXT = {
 	QuotaShort = "Five o'clock and the cooler is short.",
@@ -71,6 +88,40 @@ local function plural(n: number, one: string, many: string): string
 		return (string.gsub(many, "%%d times", word))
 	end
 	return string.format(many, n)
+end
+
+local function compactScreen(): boolean
+	local cam = workspace.CurrentCamera
+	return cam ~= nil and cam.ViewportSize.Y < NightCards.COMPACT_BELOW
+end
+
+-- On short screens the stat lines pair up ("A   B") so the card fits the screen.
+function NightCards.pairLines(lines: { string }): { string }
+	local out = {}
+	local i = 1
+	while i <= #lines do
+		local a, b = lines[i], lines[i + 1]
+		if b ~= nil and a ~= "" and b ~= "" then
+			table.insert(out, a .. "   " .. b)
+			i += 2
+		else
+			table.insert(out, a)
+			i += 1
+		end
+	end
+	return out
+end
+
+-- Sizes an end card to the screen and its text: the width from the viewport, text sizes from
+-- Paper.fit, the height from the text itself.
+local function fitCard(card: Frame, head: TextLabel, body: TextLabel)
+	local cam = workspace.CurrentCamera
+	local vw = if cam then cam.ViewportSize.X else 800
+	local W = NightCards.CARD_WIDTH
+	card.Size = UDim2.fromOffset(math.floor(math.clamp(vw * W.share, W.min, W.max)), 0)
+	local H, B = NightCards.HEAD_TEXT, NightCards.BODY_TEXT
+	head.TextSize = Paper.fit(H[1], H[2], H[3])
+	body.TextSize = Paper.fit(B[1], B[2], B[3])
 end
 
 -- Dry lines about one player's night. Empty list for a quiet night.
@@ -165,12 +216,15 @@ local function showEnd(cleared: boolean, reason: string?, result: any, s: LobbyC
 		table.insert(lines, NightCards.FAIL_TEXT[reason or ""] or "The night got away from you.")
 	end
 	if type(result) == "table" then
-		table.insert(
-			lines,
-			string.format("Banked %s of %s.", tostring(result.banked or 0), tostring(result.quota or 0))
-		)
-		table.insert(lines, string.format("Fish landed: %s.", tostring(result.caught or 0)))
-		table.insert(lines, "")
+		local banked = string.format("Banked %s of %s.", tostring(result.banked or 0), tostring(result.quota or 0))
+		local landed = string.format("Fish landed: %s.", tostring(result.caught or 0))
+		if compactScreen() then
+			table.insert(lines, banked .. " " .. landed)
+		else
+			table.insert(lines, banked)
+			table.insert(lines, landed)
+			table.insert(lines, "")
+		end
 		for _, t in (if type(result.tallies) == "table" then result.tallies else {}) do
 			if type(t) == "table" then
 				local tl = NightCards.tallyLines(t)
@@ -190,6 +244,7 @@ local function showEnd(cleared: boolean, reason: string?, result: any, s: LobbyC
 		table.insert(lines, "The lake gives you this night again.")
 	end
 	body.Text = table.concat(lines, "\n")
+	fitCard(card, head, body)
 	card.Visible = true
 end
 
@@ -216,11 +271,17 @@ local function showRun(cleared: boolean, s: LobbyClient.State)
 				else "The first Endless night took you. It is not like the others."
 		)
 		table.insert(lines, "")
-		table.insert(lines, string.format("Fish banked: %s", tostring(t.fishBanked or 0)))
-		table.insert(lines, string.format("Scares lived through: %s", tostring(t.scaresSurvived or 0)))
-		table.insert(lines, string.format("Taken by the lake: %s", tostring(t.deaths or 0)))
+		local stats = {
+			string.format("Fish banked: %s", tostring(t.fishBanked or 0)),
+			string.format("Scares lived through: %s", tostring(t.scaresSurvived or 0)),
+			string.format("Taken by the lake: %s", tostring(t.deaths or 0)),
+		}
+		for _, l in (if compactScreen() then NightCards.pairLines(stats) else stats) do
+			table.insert(lines, l)
+		end
 		body.Text = table.concat(lines, "\n")
 		btn.Visible = LobbyClient.isHost()
+		fitCard(card, head, body)
 		card.Visible = true
 		AudioDirector.play("night-failed-sting")
 		return
@@ -231,16 +292,19 @@ local function showRun(cleared: boolean, s: LobbyClient.State)
 		table.insert(lines, "Five nights is a long time on this lake. Start again from night one.")
 	end
 	table.insert(lines, "")
-	table.insert(
-		lines,
-		string.format("Nights cleared: %s of %s", tostring(t.nightsCleared or 0), tostring(s.nights or 5))
-	)
-	table.insert(lines, string.format("Fish banked: %s", tostring(t.fishBanked or 0)))
-	table.insert(lines, string.format("Scares lived through: %s", tostring(t.scaresSurvived or 0)))
-	table.insert(lines, string.format("Taken by the lake: %s", tostring(t.deaths or 0)))
-	table.insert(lines, string.format("Difficulty: %s", tostring(t.difficulty or s.difficulty)))
+	local stats = {
+		string.format("Nights cleared: %s of %s", tostring(t.nightsCleared or 0), tostring(s.nights or 5)),
+		string.format("Fish banked: %s", tostring(t.fishBanked or 0)),
+		string.format("Scares lived through: %s", tostring(t.scaresSurvived or 0)),
+		string.format("Taken by the lake: %s", tostring(t.deaths or 0)),
+		string.format("Difficulty: %s", tostring(t.difficulty or s.difficulty)),
+	}
+	for _, l in (if compactScreen() then NightCards.pairLines(stats) else stats) do
+		table.insert(lines, l)
+	end
 	body.Text = table.concat(lines, "\n")
 	btn.Visible = LobbyClient.isHost()
+	fitCard(card, head, body)
 	card.Visible = true
 	if cleared then
 		AudioDirector.play("run-cleared")
@@ -392,45 +456,59 @@ function NightCards.init()
 	end)
 
 	-- Night end.
-	local e = Paper.sheet(gui, "End", UDim2.fromOffset(520, 340), UDim2.fromScale(0.5, 0.45), Vector2.new(0.5, 0.5), 18)
+	-- Sized to its text (fitCard on show): a width from the screen, AutomaticSize Y.
+	local function stack(card: Frame, gap: number)
+		card.AutomaticSize = Enum.AutomaticSize.Y
+		local list = Instance.new("UIListLayout")
+		list.SortOrder = Enum.SortOrder.LayoutOrder
+		list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		list.Padding = UDim.new(0, gap)
+		list.Parent = card
+	end
+	local function autoText(t: TextLabel, order: number)
+		t.LayoutOrder = order
+		t.Size = UDim2.fromScale(1, 0)
+		t.AutomaticSize = Enum.AutomaticSize.Y
+	end
+	local e = Paper.sheet(gui, "End", UDim2.fromOffset(520, 0), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), 18)
 	e.BackgroundTransparency = 0.03
 	e.Rotation = 0.8
 	e.Visible = false
-	local eScale = Instance.new("UIScale")
-	eScale.Scale = math.clamp(Paper.fit(100, 55, 100) / 100, 0.55, 1)
-	eScale.Parent = e
+	stack(e, 8)
 	endCard = e
 	local h = Paper.text(e, "Head", "", 30, Paper.hand())
-	h.Size = UDim2.new(1, 0, 0, 40)
+	autoText(h, 1)
 	endHead = h
 	local b = Paper.text(e, "Body", "", 18)
-	b.Position = UDim2.fromOffset(0, 50)
-	b.Size = UDim2.new(1, 0, 1, -50)
+	autoText(b, 2)
 	endBody = b
 
 	-- The run's end.
-	local r = Paper.sheet(gui, "Run", UDim2.fromOffset(560, 400), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), 20)
+	local r = Paper.sheet(gui, "Run", UDim2.fromOffset(560, 0), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), 18)
 	r.BackgroundTransparency = 0.02
 	r.Rotation = -0.6
 	r.Visible = false
-	local rScale = Instance.new("UIScale")
-	rScale.Scale = math.clamp(Paper.fit(100, 55, 100) / 100, 0.55, 1)
-	rScale.Parent = r
+	stack(r, 8)
 	runCard = r
 	local rh = Paper.text(r, "Head", "", 34, Paper.hand())
-	rh.Size = UDim2.new(1, 0, 0, 44)
+	autoText(rh, 1)
 	runHead = rh
 	local rb = Paper.text(r, "Body", "", 18)
-	rb.Position = UDim2.fromOffset(0, 52)
-	rb.Size = UDim2.new(1, 0, 1, -110)
+	autoText(rb, 2)
 	runBody = rb
-	local btn = Paper.button(r, "Title", "Back to the title", UDim2.fromOffset(240, 44))
-	btn.AnchorPoint = Vector2.new(0.5, 1)
-	btn.Position = UDim2.fromScale(0.5, 1)
+	local btn = Paper.button(r, "Title", "Back to the title", UDim2.fromOffset(240, 40))
+	btn.LayoutOrder = 3
 	btn.Activated:Connect(function()
 		LobbyClient.send("Title")
 	end)
 	runButton = btn
+
+	-- The gameplay HUD stays hidden while any end card is up.
+	local function syncHud()
+		HUD.setHidden(NightCards.HUD_KEY, e.Visible or r.Visible)
+	end
+	e:GetPropertyChangedSignal("Visible"):Connect(syncHud)
+	r:GetPropertyChangedSignal("Visible"):Connect(syncHud)
 
 	-- The finale's bell: nothing on screen but the bell and its line.
 	Events.on("EntityCue", function(ev)
@@ -472,8 +550,22 @@ function NightCards.init()
 		afterDeathCard(function()
 			local s = awaitOutcome(2)
 			if s.outcome == "RunCleared" then
-				-- The finale's dawn first (fx/Finale: the sunrise and its banner), then the run card.
-				task.wait(5)
+				-- The finale's dawn first (fx/Finale: the sunrise and its banner), then a few
+				-- seconds of the dock in daylight, then the run card (the banner goes as it comes).
+				local my = endToken
+				local t0 = os.clock()
+				while Finale.bannerShownAt() == nil and os.clock() - t0 < NightCards.BANNER_WAIT do
+					task.wait(0.1)
+				end
+				local shownAt = Finale.bannerShownAt()
+				local left = if shownAt then shownAt + Look.Dawn.runCardAfterBanner - os.clock() else 3
+				if left > 0 then
+					task.wait(left)
+				end
+				if endToken ~= my then
+					return
+				end
+				Finale.dismissBanner(0.6)
 				showRun(true, LobbyClient.get())
 			else
 				showEnd(true, nil, data.result, s)

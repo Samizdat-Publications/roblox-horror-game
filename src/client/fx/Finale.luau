@@ -35,8 +35,9 @@
 --   toll is heard; no music on the run home (the pursuit layer is only a low pulse, and
 --   finale-chase-under is gone), the water stays silent until dawn; the shaft and the sky
 --   column are gone: home is a modest light post with a small halo at the dock end, and false
---   beacons wear the same halo but blink wrong (steady or one flicker); the wake is thin faint
---   streaks; the real Steeple Cat lies on the hold lid while it is aboard.
+--   beacons wear the same halo but blink wrong (steady or one flicker); the wake is soft
+--   foam behind the stern (polish round 2; it was thin streaks ahead of the bow); the real
+--   Steeple Cat lies on the hold lid while it is aboard.
 -- M8 polish (Neon finale-v6 3/10, docs/M8-POLISH.md items 6 to 8): the dawn eases in by hand
 --   over 3 s in stages (horizon, then fog, then the banner); the Steeple Cat lies on the floor
 --   boards clear of the rods and stays in the boat through the dawn; the HUD hides under the
@@ -67,24 +68,32 @@ local HUD = require(client:WaitForChild("ui"):WaitForChild("HUD"))
 local Finale = {}
 
 Finale.WAVE_PERIOD = 3.6 -- the Neighbor's wave: a little too slow
+-- Polish round 2: a strange boat's figure stands on its floor boards 2.2 studs behind the bow
+-- post (the lantern hangs ahead of it at 4 studs up), and the lantern sways slowly.
+Finale.HAZARD_FIGURE = CFrame.new(0, 0.35, -3.6)
+Finale.HAZARD_SWAY = { speed = 0.9, angle = 0.22 }
 Finale.FOLLOW = 4 -- how quickly a drawn hazard closes on where it should be drawn
 Finale.KEY = "Finale" -- AudioDirector mute and hush key
 Finale.CAPTION = "The bell. Go home."
 Finale.BANNER = "Dawn. You made it home."
--- Wake streaks (finale v6): thin (width), soft (alpha is the most opaque they get, 0.3), and
--- gone `behind` studs behind the boat.
+-- Polish round 2 (Neon finale v7: "flat green streaks sliding across the water", seen in
+-- the orchestrator's frames as thin bright green and white diagonals): those were the v6
+-- wake streaks, pale SmoothPlastic slivers scattered 7 to 38 studs AHEAD of the bow in the
+-- lantern cone, tinted green by the night grade. Gone. The wake is now soft low-contrast foam
+-- left on the water behind the stern: a ParticleEmitter on an invisible strip at the transom,
+-- flat on the water (engine smoke texture, not an uploaded id), lit by the scene so it stays
+-- dim, more of it the faster the boat goes.
 Finale.WAKE = {
-	count = 26,
-	every = 0.08,
-	life = 1.4,
-	ahead = { 7, 38 },
+	behind = 6.4, -- studs behind the hull center (the transom is at about 5.5)
+	width = 3.2,
 	minSpeed = 3,
-	width = 0.08,
-	length = { 1.8, 3.4 },
-	alpha = 0.3,
-	fadeIn = 0.25,
-	behind = 5,
-	color = Color3.fromRGB(196, 192, 180),
+	fullSpeed = 12, -- the most foam at and above this speed
+	rate = 9, -- particles a second at full speed
+	color = Color3.fromRGB(150, 160, 156),
+	transparency = { 0.7, 1 },
+	size = { 1.1, 3.4 },
+	lifetime = { 1.6, 2.6 },
+	texture = "rbxasset://textures/particles/smoke_main.dds",
 }
 Finale.CAPTION_COLOR = Color3.fromRGB(255, 238, 228)
 
@@ -133,9 +142,9 @@ local lastHullPos: Vector3? = nil
 local stillFor = 0
 local fear = 0 -- 0..1, smoothed
 
--- Wake flecks.
-local wake: { { part: BasePart, born: number } } = {}
-local wakeT = 0
+-- The stern foam (the wake).
+local wakeStrip: BasePart? = nil
+local wakeFoam: ParticleEmitter? = nil
 
 -- Screen.
 local gui: ScreenGui? = nil
@@ -286,8 +295,38 @@ local function hideCaption()
 	end
 end
 
+local bannerAt: number? = nil -- os.clock() when the dawn banner went up (nil when it is not)
+
+-- When the dawn banner went up (os.clock()), or nil. NightCards waits on it for the run card.
+function Finale.bannerShownAt(): number?
+	return bannerAt
+end
+
+-- Puts the dawn banner away now, fading over `fade` seconds (the run card is coming in).
+function Finale.dismissBanner(fade: number)
+	local b, t = banner, bannerText
+	if b == nil or t == nil or not b.Visible then
+		return
+	end
+	local st = b:FindFirstChildOfClass("UIStroke")
+	local info = TweenInfo.new(fade)
+	TweenService:Create(b, info, { BackgroundTransparency = 1 }):Play()
+	TweenService:Create(t, info, { TextTransparency = 1 }):Play()
+	if st then
+		TweenService:Create(st, info, { Transparency = 1 }):Play()
+	end
+	local at = bannerAt
+	task.delay(fade, function()
+		if b.Visible and bannerAt == at then
+			b.Visible = false
+			HUD.setHidden(Finale.KEY, false)
+		end
+	end)
+end
+
 local function showBanner()
 	screen()
+	bannerAt = os.clock()
 	local b, t = banner, bannerText
 	if b == nil or t == nil then
 		return
@@ -321,6 +360,7 @@ local function showBanner()
 end
 
 local function hideBanner()
+	bannerAt = nil
 	local b = banner
 	if b then
 		b.Visible = false
@@ -530,64 +570,84 @@ local function clearLock()
 end
 
 ----------------------------------------------------------------------------------------
--- Wake flecks: pale bits on the water in the cone that the boat passes, so speed reads.
+-- The wake: soft foam left on the water behind the stern while the boat runs.
 
-local function stepWake(dt: number, alive: boolean)
-	local hull = BoatClient.hull()
+local function buildWake(): ParticleEmitter
 	local W = Finale.WAKE
-	local keep = {}
-	-- Finale v6 (Neon: "flat white rectangles"): thin, soft, faint streaks. Each fades in, then
-	-- fades out with age and fully by the time it is a few studs behind the boat.
-	local look0 = if hull then flat(hull.CFrame.LookVector) else Vector3.zero
-	for _, w in wake do
-		local age = clock - w.born
-		if age >= W.life or w.part.Parent == nil then
-			w.part:Destroy()
-		else
-			local u = age / W.life
-			local fadeIn = math.clamp(age / W.fadeIn, 0, 1)
-			local alpha = W.alpha * fadeIn * (1 - u)
-			if hull and look0.Magnitude > 1e-3 then
-				local along = (flat(w.part.Position) - flat(hull.Position)):Dot(look0.Unit)
-				if along < 0 then
-					alpha *= math.clamp(1 + along / W.behind, 0, 1)
-				end
-			end
-			w.part.Transparency = 1 - alpha
-			table.insert(keep, w)
-		end
-	end
-	wake = keep
-	if hull == nil or not alive or speed < W.minSpeed or ViewState.get().lanternOn ~= true then
-		return
-	end
-	wakeT -= dt
-	if wakeT > 0 or #wake >= W.count then
-		return
-	end
-	wakeT = W.every
-	local look = flat(hull.CFrame.LookVector)
-	look = if look.Magnitude > 1e-3 then look.Unit else Vector3.new(0, 0, 1)
-	local right = look:Cross(Vector3.new(0, 1, 0))
-	local d = W.ahead[1] + math.random() * (W.ahead[2] - W.ahead[1])
-	local side = (math.random() * 2 - 1) * (2 + d * 0.35)
-	local pos = flat(hull.Position) + look * d + right * side + Vector3.new(0, Config.Lake.waterY + 0.07, 0)
-	local p = Common.part(
-		"FinaleWake",
-		Vector3.new(W.width, 0.02, W.length[1] + math.random() * (W.length[2] - W.length[1])),
-		CFrame.lookAt(pos, pos + look),
-		W.color,
-		Enum.Material.SmoothPlastic,
+	local strip = Common.part(
+		"FinaleWakeStrip",
+		Vector3.new(W.width, 0.05, 0.6),
+		CFrame.new(),
+		Color3.new(),
+		nil,
 		{ transparency = 1 }
 	)
-	table.insert(wake, { part = p, born = clock })
+	local pe = Instance.new("ParticleEmitter")
+	pe.Name = "SternFoam"
+	pe.Texture = W.texture
+	pe.Color = ColorSequence.new(W.color)
+	pe.Size = NumberSequence.new(W.size[1], W.size[2])
+	pe.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.15, W.transparency[1]),
+		NumberSequenceKeypoint.new(1, W.transparency[2]),
+	})
+	pe.Lifetime = NumberRange.new(W.lifetime[1], W.lifetime[2])
+	-- Flat on the water: a slow upward emission with the sprite facing its velocity.
+	pe.EmissionDirection = Enum.NormalId.Top
+	pe.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+	pe.Speed = NumberRange.new(0.04, 0.08)
+	pe.SpreadAngle = Vector2.new(0, 0)
+	pe.Rotation = NumberRange.new(0, 360)
+	pe.RotSpeed = NumberRange.new(-15, 15)
+	pe.LightInfluence = 1
+	pe.LightEmission = 0
+	pe.LockedToPart = false
+	pe.Rate = 0
+	pe.Parent = strip
+	wakeStrip = strip
+	wakeFoam = pe
+	return pe
+end
+
+local function stepWake(_dt: number, alive: boolean)
+	local hull = BoatClient.hull()
+	local W = Finale.WAKE
+	if hull == nil then
+		local old = wakeFoam
+		if old then
+			old.Rate = 0
+		end
+		return
+	end
+	local current, old = wakeStrip, wakeFoam
+	local pe: ParticleEmitter = if current and current.Parent and old then old else buildWake()
+	local strip = wakeStrip
+	if strip == nil then
+		return
+	end
+	local look = flat(hull.CFrame.LookVector)
+	look = if look.Magnitude > 1e-3 then look.Unit else Vector3.new(0, 0, -1)
+	local at = flat(hull.Position) - look * W.behind + Vector3.new(0, Config.Lake.waterY + 0.08, 0)
+	strip.CFrame = CFrame.lookAt(at, at + look)
+	local k = math.clamp((speed - W.minSpeed) / math.max(0.1, W.fullSpeed - W.minSpeed), 0, 1)
+	local on = alive and speed >= W.minSpeed
+	pe.Rate = if on then W.rate * (0.35 + 0.65 * k) else 0
 end
 
 local function clearWake()
-	for _, w in wake do
-		w.part:Destroy()
+	local strip = wakeStrip
+	wakeStrip, wakeFoam = nil, nil
+	if strip then
+		-- Let the foam already on the water fade on its own.
+		local pe = strip:FindFirstChildOfClass("ParticleEmitter")
+		if pe then
+			pe.Rate = 0
+		end
+		task.delay(Finale.WAKE.lifetime[2] + 0.2, function()
+			strip:Destroy()
+		end)
 	end
-	wake = {}
 end
 
 ----------------------------------------------------------------------------------------
@@ -711,7 +771,12 @@ local function buildBoat(pos: Vector3): Hazard
 	local m = Instance.new("Model")
 	m.Name = "FinaleNeighbor"
 	m.Parent = Common.folder()
-	local dark = Look.Palette.silhouette:Lerp(Look.Palette.boatTrim, 0.35)
+	-- Polish round 2 (Neon finale v7: "tiny yellow specks"): a readable silhouette. The hull is
+	-- dark wood (lighter than before so its own lantern can pick it out), the lantern's
+	-- PointLight is short (Look.Finale.hazardLightRange, about 20) and bright so it lights this
+	-- boat and its still standing figure, not the lake; the lantern sways slowly on its hook
+	-- and the boat creaks as you pass (finale-hazard-creak). Distances are Core's, unchanged.
+	local dark = Look.Palette.silhouette:Lerp(Look.Palette.boatTrim, Look.Finale.hazardHullTone)
 	local parts = {}
 	local function piece(name: string, size: Vector3, offset: CFrame, color: Color3, mat: Enum.Material?): BasePart
 		local p = Common.part(name, size, CFrame.new(pos) * offset, color, mat, { parent = m })
@@ -738,10 +803,12 @@ local function buildBoat(pos: Vector3): Hazard
 	light.Brightness = Look.Finale.hazardLightBrightness
 	light.Shadows = false
 	light.Parent = glow
-	local fig = Common.figure("Rower", { height = 6.4, width = 1.7, seated = true })
+	-- A still standing figure at the bow, under its lantern, facing you: a silhouette with pin
+	-- eyes (DESIGN.md palette), nothing more.
+	local fig = Common.figure("Stander", { height = 5.6, width = 1.6, eyes = true })
 	fig.model.Parent = m
 	Common.outline(m)
-	local snd = AudioDirector.loop("neighbor-oarlock-loop", hullPart)
+	local snd = AudioDirector.loop("finale-hazard-creak", hullPart)
 	return {
 		form = "Boat",
 		model = m,
@@ -865,14 +932,16 @@ local function stepHazards(dt: number)
 		end
 		local fig = h.figure
 		if fig then
-			local wave = math.sin((clock + h.phase) * 2 * math.pi / Finale.WAVE_PERIOD) * 0.35
-			Common.placeFigure(fig, root * CFrame.new(0, 0.4, 0.5), math.rad(150), wave)
+			-- Standing still at the bow, just behind the lantern post, facing the player's boat
+			-- (the root faces it; a figure faces its root's -Z). No wave: it only watches.
+			Common.placeFigure(fig, root * Finale.HAZARD_FIGURE)
 		end
 		local lamp, light = h.lamp, h.light
 		if h.form == "Boat" and lamp and h.lanternPost then
-			-- A swaying lantern on a short hook.
-			local sway = math.sin(clock * 1.7 + h.phase) * 0.35
-			local sway2 = math.sin(clock * 1.2 + h.phase * 2) * 0.2
+			-- A slow sway on a short hook.
+			local S = Finale.HAZARD_SWAY
+			local sway = math.sin(clock * S.speed + h.phase) * S.angle
+			local sway2 = math.sin(clock * S.speed * 0.7 + h.phase * 2) * S.angle * 0.55
 			lamp.CFrame = root * (h.lanternPost :: CFrame) * CFrame.Angles(sway, 0, sway2) * CFrame.new(0, -0.9, 0)
 		elseif h.form == "FalseBeacon" and lamp and light then
 			-- It blinks wrong: steady (a faint shimmer, never dark) or one dark flicker per
@@ -1261,6 +1330,7 @@ local function endFinale(fade: number, keepCat: boolean?)
 	setVignette(0)
 	cutToll(0.6)
 	AudioDirector.hush(Finale.KEY, false)
+	AudioDirector.boostLayer("motorIdle", 1)
 end
 
 -- At the first toll the view eases round to face home (the dock beacon) over `seconds`, so every
@@ -1351,6 +1421,7 @@ local function onCue(data: { [string]: any })
 			end
 			phase = "Run"
 			AudioDirector.hush(Finale.KEY, false)
+			AudioDirector.boostLayer("motorIdle", Look.Finale.runMotorBoost)
 			startChase()
 		end)
 	end)
@@ -1451,7 +1522,7 @@ function Finale.debugState(): { [string]: any }
 		halo = halo ~= nil and (halo :: BillboardGui).Enabled,
 		tolls = tolls,
 		tollPlaying = toll ~= nil and (toll :: Sound).Parent ~= nil,
-		wake = #wake,
+		wake = if wakeFoam then (wakeFoam :: ParticleEmitter).Rate else 0,
 		deckCat = deckCat ~= nil,
 		chase = drone ~= nil,
 		speed = math.floor(speed * 10 + 0.5) / 10,

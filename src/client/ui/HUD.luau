@@ -206,6 +206,45 @@ local function render(view: NightView)
 	fitPaper()
 end
 
+-- Polish round 2 (Neon finale v7: "at 4 AM the oil jumps from about 75 percent orange to full
+-- red"). Both changes are real: Core refills the lantern at the bell and the finale paints the
+-- bar red. Before, a gap over 0.25 snapped the fill in one frame and the colour flipped with
+-- the phase. Now a jump (a refill, a new night) eases over OIL_EASE seconds, and the colour
+-- crosses from amber to red over the same time.
+HUD.OIL_EASE = 0.8
+HUD.OIL_JUMP = 0.08 -- a change this big between two frames is a jump, not the drain
+local oilEase: { from: number, to: number, t: number }? = nil
+local lastOilTarget: number? = nil
+local redMix = 0 -- 0 amber (night), 1 red (finale), eased
+
+-- Smoothstep, 0..1.
+function HUD.ease(u: number): number
+	local x = math.clamp(u, 0, 1)
+	return x * x * (3 - 2 * x)
+end
+
+-- The drawn oil level this frame: follows the drain, eases over OIL_EASE across a jump.
+local function stepOilLevel(target: number, dt: number): number
+	local last = lastOilTarget
+	lastOilTarget = target
+	if last ~= nil and math.abs(target - last) > HUD.OIL_JUMP then
+		oilEase = { from = shownOil, to = target, t = 0 }
+	end
+	local e = oilEase
+	if e then
+		e.to = target -- the drain goes on while it eases
+		e.t += dt
+		local u = e.t / HUD.OIL_EASE
+		shownOil = e.from + (e.to - e.from) * HUD.ease(u)
+		if u >= 1 then
+			oilEase = nil
+		end
+	else
+		shownOil += (target - shownOil) * math.clamp(dt * 6, 0, 1)
+	end
+	return shownOil
+end
+
 -- Every frame: the oil bar pulses red while it matters.
 local function stepPulse(dt: number)
 	local fill, bar = oilFill, oilBar
@@ -214,19 +253,19 @@ local function stepPulse(dt: number)
 	end
 	local view = ViewState.get()
 	-- The drain shows: the fill eases toward the oil level instead of jumping with each update.
-	local target = math.clamp(view.oil, 0, 1)
-	shownOil += (target - shownOil) * math.clamp(dt * 6, 0, 1)
-	if math.abs(target - shownOil) > 0.25 then
-		shownOil = target -- a refill or a new night: no slow climb
-	end
-	fill.Size = UDim2.fromScale(shownOil, 1)
-	local p = HUD.oilPulse(view)
+	fill.Size = UDim2.fromScale(stepOilLevel(math.clamp(view.oil, 0, 1), dt), 1)
 	local red = view.phase == "Finale"
+	redMix = math.clamp(redMix + (if red then 1 else -1) * dt / HUD.OIL_EASE, 0, 1)
+	local k = HUD.ease(redMix)
+	local fillBase = HUD.OIL_FILL:Lerp(HUD.PULSE_RED, k)
+	local trackBase = Look.UI.ink:Lerp(HUD.PULSE_RED, k)
+	local trackAlpha = 0.8 - 0.02 * k
+	local p = HUD.oilPulse(view)
 	if p <= 0 then
-		-- In the finale the bar is red all along (the oil is the clock); otherwise ink.
-		fill.BackgroundColor3 = if red then HUD.PULSE_RED else HUD.OIL_FILL
-		bar.BackgroundColor3 = if red then HUD.PULSE_RED else Look.UI.ink
-		bar.BackgroundTransparency = if red then 0.78 else 0.8
+		-- In the finale the bar is red all along (the oil is the clock); otherwise amber.
+		fill.BackgroundColor3 = fillBase
+		bar.BackgroundColor3 = trackBase
+		bar.BackgroundTransparency = trackAlpha
 		fill.BackgroundTransparency = 0
 		return
 	end
@@ -236,10 +275,10 @@ local function stepPulse(dt: number)
 	local w = 0.5 + 0.5 * math.sin(pulseClock)
 	if red then
 		-- Red throughout; the pulse flashes it toward a bright warning red and back.
-		fill.BackgroundColor3 = HUD.PULSE_RED:Lerp(HUD.PULSE_BRIGHT, w * p)
+		fill.BackgroundColor3 = fillBase:Lerp(HUD.PULSE_BRIGHT, w * p)
 		fill.BackgroundTransparency = 0.25 * (1 - w) * p
 	else
-		fill.BackgroundColor3 = HUD.OIL_FILL:Lerp(HUD.PULSE_RED, w * p)
+		fill.BackgroundColor3 = fillBase:Lerp(HUD.PULSE_RED, w * p)
 		fill.BackgroundTransparency = 0
 	end
 	bar.BackgroundColor3 = HUD.PULSE_RED

@@ -91,11 +91,14 @@ function BoatHull.build(ctx: any, at: CFrame): Built
 	-- The lantern on a post at the bow.
 	-- The post, arm and cap cast no shadow: from the lantern they threw a black wedge straight
 	-- down the middle of the boat, right where the helm looks (Studio 11/26/2026).
-	piece("LanternPost", Vector3.new(0.3, 4.4, 0.3), p(0, 2.4, -7.4), trim, Enum.Material.Wood, { shadow = false })
+	-- Polish round 2 (Neon finale v7: the lantern sat dead centre on the horizon in the seated
+	-- view): the post is 1 stud shorter (foot unchanged) and the arm, cap and glass come down
+	-- with it, so the lantern sits just below the horizon line. Light and shadows unchanged.
+	piece("LanternPost", Vector3.new(0.3, 3.4, 0.3), p(0, 1.9, -7.4), trim, Enum.Material.Wood, { shadow = false })
 	piece(
 		"LanternArm",
 		Vector3.new(0.25, 0.25, 1.3),
-		p(0, 4.5, -7.95),
+		p(0, 3.5, -7.95),
 		pal.metal,
 		Enum.Material.Metal,
 		{ shadow = false }
@@ -103,7 +106,7 @@ function BoatHull.build(ctx: any, at: CFrame): Built
 	piece(
 		"LanternCap",
 		Vector3.new(0.9, 0.2, 0.9),
-		p(0, 4.35, -8.55),
+		p(0, 3.35, -8.55),
 		pal.metal,
 		Enum.Material.Metal,
 		{ shadow = false }
@@ -111,7 +114,7 @@ function BoatHull.build(ctx: any, at: CFrame): Built
 	local glow = piece(
 		"LanternGlow",
 		Vector3.new(0.75, 0.75, 0.75),
-		p(0, 3.85, -8.55),
+		p(0, 2.85, -8.55),
 		-- A deeper orange than the light itself: Neon plus bloom washes a lantern-colored ball to
 		-- lemon yellow (seen in Studio 11/26/2026).
 		Color3.fromRGB(255, 118, 36),

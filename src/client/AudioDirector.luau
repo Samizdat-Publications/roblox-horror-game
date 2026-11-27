@@ -479,6 +479,13 @@ function AudioDirector.hush(key: string, on: boolean)
 	hushKeys[key] = if on then true else nil
 end
 
+-- Polish round 2 (Neon finale v7 heard no motor on the run home): a multiplier on one
+-- layer's mix target, by layer key (fx/Finale lifts "motorIdle" for the run home). 1 clears.
+local layerBoost: { [string]: number } = {}
+function AudioDirector.boostLayer(key: string, mult: number)
+	layerBoost[key] = if math.abs(mult - 1) < 1e-3 then nil else mult
+end
+
 -- A sound that ducks the ambience while it plays (Rule group unless duck = false).
 local function trackDuck(name: string, s: Sound)
 	local entry = SoundRegistry.get(name)
@@ -593,7 +600,7 @@ local function stepLayers(dt: number)
 	local targets = mixFor(ViewState.get(), level)
 	for _, layer in layers do
 		local def = layer.def
-		local target = (targets[def.key] or 0) * (Look.Mix.layers[def.base] or 1)
+		local target = (targets[def.key] or 0) * (Look.Mix.layers[def.base] or 1) * (layerBoost[def.key] or 1)
 		if tapePlaying and DUCKED[def.key] then
 			target *= Look.Mix.tape.duck
 		end
@@ -1275,6 +1282,7 @@ function AudioDirector.debugState(): { [string]: any }
 	out.duck = duckLevel
 	out.mute = muteLevel
 	out.hush = hushLevel
+	out.motorBoost = layerBoost.motorIdle or 1
 	return out
 end
 

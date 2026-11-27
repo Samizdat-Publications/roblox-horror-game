@@ -2,8 +2,9 @@
 -- Rule 1, the Hum, on screen. The chorus dying is the view's job (chorus band 0, fireflies
 -- freeze). This adds the hum itself:
 --   EntityCue           a beat of dead quiet; the drowned see a vast shape under the hull
---   EntityStage Window  hum-rise with hum-hold-loop and hum-hull-resonance (the mid-range
---                       layer phones can play) swelling in at once; the lantern flame
+--   EntityStage Window  hum-rise with hum-hold-loop and hum-hull-resonance swelling in at
+--                       once, and hum-mid-voice (250 to 500 Hz, for phone speakers) rising
+--                       with it a beat later; the lantern flame
 --                       shivers, the floorboards buzz, the camera rattles and rings spread
 --                       on the water around the hull, building over a few seconds
 --   EntityPass          the loop sinks away, hum-pass; buzz and shiver settle
@@ -29,9 +30,16 @@ Hum.SHAPE_AFTER_FAIL = 20 -- the drowned keep seeing the shape this long after a
 
 Hum.LOOP_FADE_IN = 1.0 -- the hold loop starts with the rise (Scare polish 2: no 2.2 s wait)
 Hum.MID_FADE_IN = 1.6 -- the mid-range hull resonance (phones) swells in over the rise
+-- Polish round 2: the hum's mid-range voice (hum-mid-voice, about 250 to 500 Hz) rises with it
+-- so phone speakers carry it. It waits VOICE_DELAY after the stage opens (Core already holds
+-- Config.Rules.Hum.silence, 1.3 s, of dead chorus before that) and swells over VOICE_FADE_IN,
+-- so at least a second of near silence always sits between the frogs stopping and the hum.
+Hum.VOICE_DELAY = 0.3
+Hum.VOICE_FADE_IN = 2.4
 
 local loop: Sound? = nil
 local mid: Sound? = nil
+local voice: Sound? = nil
 local shape: BasePart? = nil
 local token = 0
 local plungeToken = 0
@@ -50,13 +58,16 @@ local function fadeOutSound(l: Sound, fade: number)
 end
 
 local function stopLoop(fade: number)
-	local l, m = loop, mid
-	loop, mid = nil, nil
+	local l, m, v = loop, mid, voice
+	loop, mid, voice = nil, nil, nil
 	if l then
 		fadeOutSound(l, fade)
 	end
 	if m then
 		fadeOutSound(m, fade * 0.8)
+	end
+	if v then
+		fadeOutSound(v, fade * 0.8)
 	end
 	BoatFx.rings(false)
 end
@@ -143,6 +154,11 @@ function Hum.handle(e: any)
 		if mid == nil then
 			mid = swell("hum-hull-resonance", Hum.MID_FADE_IN)
 		end
+		task.delay(Hum.VOICE_DELAY, function()
+			if token == my and voice == nil then
+				voice = swell("hum-mid-voice", Hum.VOICE_FADE_IN)
+			end
+		end)
 		BoatFx.rings(true)
 		-- Build the visual tells over the rise, then hold.
 		task.spawn(function()

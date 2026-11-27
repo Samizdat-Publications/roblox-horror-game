@@ -90,6 +90,38 @@ BoatFx.MOTOR_RUMBLE = 0.012 -- camera rumble while the outboard runs (was 0.008)
 BoatFx.MOTOR_SHAKE = 0.08 -- the outboard copy's jitter in studs (was 0.06)
 BoatFx.MOTOR_PARTS = { "Motor", "MotorShaft", "Tiller" } -- the stern pieces that vibrate
 BoatFx.MOTOR_CHURN = { rate = 14, speed = { 2, 5 }, size = { 0.3, 0.08 }, lifetime = { 0.4, 0.8 } }
+-- Polish round 2 (Neon hum-fail v4: "the motor state hides in tiny HUD text"): small dark
+-- exhaust puffs rise from the top of the outboard while it runs (engine smoke texture, not an
+-- uploaded id), drifting up and aft.
+BoatFx.MOTOR_EXHAUST = {
+	rate = 7,
+	color = { Color3.fromRGB(46, 47, 49), Color3.fromRGB(84, 86, 88) },
+	size = { 0.3, 1.5 },
+	transparency = { 0.35, 1 },
+	lifetime = { 1.1, 1.8 },
+	speed = { 1.4, 2.4 },
+	rise = 1.6, -- upward acceleration, studs per second squared
+	aft = 0.8, -- drift toward the stern, studs per second squared
+}
+-- Polish round 2 (orchestrator frames: a huge pail and a white disc filled the lower left at
+-- the capsize). Debris starts at the gunwale away from the camera and is thrown outward; no
+-- item's center comes closer than `minCamDist` plus its own radius. The splashes and the foam
+-- are thin low-contrast rings of segments (the old ones were filled discs, a flat Cylinder,
+-- which the rolled camera saw edge on as a bright white disc), and a segment or a spray burst
+-- within `minCamDist` of the camera is not drawn.
+BoatFx.DEBRIS = { minCamDist = 6, gunwale = 2.4, lift = 1.6, out = { 8, 11 }, up = { 11, 14 }, away = 3 }
+BoatFx.FOAM_RING = {
+	from = 4,
+	to = 15,
+	life = 1.3,
+	segments = 24,
+	color = Color3.fromRGB(150, 164, 164),
+	alpha = 0.32,
+	width = 0.45,
+	edge = Color3.fromRGB(150, 164, 164),
+	edgeAlpha = 0,
+	edgeWidth = 0.1,
+}
 
 local buzzLevel = 0
 local buzzTarget = 0
@@ -174,17 +206,34 @@ function BoatFx.rings(on: boolean)
 	rings = on
 end
 
-local function spawnRing(hull: BasePart)
-	-- A murky ripple: a ring of short flat dark segments on the water, with a faint pale edge
-	-- just outside it, growing slowly and fading. It eases in, so it never pops.
-	local R = BoatFx.RINGS
-	local center = Vector3.new(hull.Position.X, Config.Lake.waterY + 0.06, hull.Position.Z)
+type RingSpec = {
+	from: number,
+	to: number,
+	life: number,
+	segments: number,
+	color: Color3,
+	alpha: number,
+	width: number,
+	edge: Color3,
+	edgeAlpha: number,
+	edgeWidth: number,
+}
+
+local function cameraPos(): Vector3?
+	local cam = Workspace.CurrentCamera
+	return if cam then cam.CFrame.Position else nil
+end
+
+-- A ring on the water at `center` (diameter R.from to R.to over R.life): short flat segments
+-- with an optional faint edge just outside, growing and fading, easing in so it never pops.
+-- `clearCam`: segments within BoatFx.DEBRIS.minCamDist of the camera are not drawn.
+local function waterRing(name: string, center: Vector3, R: RingSpec, clearCam: boolean?)
 	local n = R.segments
 	local dark: { BasePart } = {}
 	local edge: { BasePart } = {}
 	for i = 1, n do
 		dark[i] = Common.part(
-			"HumRing",
+			name,
 			Vector3.new(1, 0.04, R.width),
 			CFrame.new(center),
 			R.color,
@@ -192,7 +241,7 @@ local function spawnRing(hull: BasePart)
 			{ transparency = 1 }
 		)
 		edge[i] = Common.part(
-			"HumRingEdge",
+			name .. "Edge",
 			Vector3.new(1, 0.04, R.edgeWidth),
 			CFrame.new(center + Vector3.new(0, 0.01, 0)),
 			R.edge,
@@ -208,17 +257,20 @@ local function spawnRing(hull: BasePart)
 			local rEdge = r + R.width * 0.5 + R.edgeWidth
 			-- In over the first fifth, then out.
 			local k = math.min(1, t / 0.2) * (1 - t)
+			local cam = if clearCam then cameraPos() else nil
+			local near = BoatFx.DEBRIS.minCamDist
 			for i = 1, n do
 				local a = (i - 1) * 2 * math.pi / n
 				local turn = CFrame.Angles(0, -a + math.pi / 2, 0)
 				local dir = Vector3.new(math.cos(a), 0, math.sin(a))
 				local d, e = dark[i], edge[i]
+				local hide = cam ~= nil and ((center + dir * r) - cam).Magnitude < near
 				d.Size = Vector3.new(2 * math.pi * r / n * 1.08, 0.04, R.width)
 				d.CFrame = CFrame.new(center + dir * r) * turn
-				d.Transparency = 1 - R.alpha * k
+				d.Transparency = if hide then 1 else 1 - R.alpha * k
 				e.Size = Vector3.new(2 * math.pi * rEdge / n * 1.08, 0.04, R.edgeWidth)
 				e.CFrame = CFrame.new(center + dir * rEdge + Vector3.new(0, 0.01, 0)) * turn
-				e.Transparency = 1 - R.edgeAlpha * k
+				e.Transparency = if hide or R.edgeAlpha <= 0 then 1 else 1 - R.edgeAlpha * k
 			end
 			task.wait()
 		end
@@ -227,6 +279,12 @@ local function spawnRing(hull: BasePart)
 			edge[i]:Destroy()
 		end
 	end)
+end
+
+-- The Hum's murky ripple around the hull.
+local function spawnRing(hull: BasePart)
+	local center = Vector3.new(hull.Position.X, Config.Lake.waterY + 0.06, hull.Position.Z)
+	waterRing("HumRing", center, BoatFx.RINGS)
 end
 
 -- A short burst of small soft droplets (a ParticleEmitter Emit) at `cf`, thrown along the
@@ -323,6 +381,35 @@ local function setMotorCopies(on: boolean)
 				pe.LightInfluence = 0.7
 				pe.Rate = C.rate
 				pe.Parent = att
+			elseif name == "Motor" then
+				-- Exhaust: small dark puffs from the top of the outboard, drifting up and aft.
+				local X = BoatFx.MOTOR_EXHAUST
+				local att = Instance.new("Attachment")
+				att.Name = "ExhaustPort"
+				att.Position = Vector3.new(0, real.Size.Y / 2 + 0.1, real.Size.Z * 0.25)
+				att.Parent = p
+				local pe = Instance.new("ParticleEmitter")
+				pe.Name = "Exhaust"
+				pe.Texture = BoatFx.SPRAY.texture
+				pe.Color = ColorSequence.new(X.color[1], X.color[2])
+				pe.Size = NumberSequence.new(X.size[1], X.size[2])
+				pe.Transparency = NumberSequence.new({
+					NumberSequenceKeypoint.new(0, 1),
+					NumberSequenceKeypoint.new(0.12, X.transparency[1]),
+					NumberSequenceKeypoint.new(1, X.transparency[2]),
+				})
+				pe.Lifetime = NumberRange.new(X.lifetime[1], X.lifetime[2])
+				pe.Speed = NumberRange.new(X.speed[1], X.speed[2])
+				pe.SpreadAngle = Vector2.new(18, 18)
+				pe.EmissionDirection = Enum.NormalId.Top
+				pe.Acceleration = real.CFrame.LookVector * -X.aft + Vector3.new(0, X.rise, 0)
+				pe.Drag = 0.8
+				pe.Rotation = NumberRange.new(0, 360)
+				pe.RotSpeed = NumberRange.new(-40, 40)
+				pe.LightInfluence = 0.6
+				pe.LightEmission = 0
+				pe.Rate = X.rate
+				pe.Parent = att
 			end
 		end
 	end
@@ -352,6 +439,13 @@ local function stepMotor()
 		if churn and churn:IsA("ParticleEmitter") then
 			churn.Enabled = not hidden
 		end
+		local exhaust = c.part:FindFirstChild("Exhaust", true)
+		if exhaust and exhaust:IsA("ParticleEmitter") then
+			exhaust.Enabled = not hidden
+			-- Up and aft in the world as the boat turns (Acceleration is in world space).
+			exhaust.Acceleration = c.real.CFrame.LookVector * -BoatFx.MOTOR_EXHAUST.aft
+				+ Vector3.new(0, BoatFx.MOTOR_EXHAUST.rise, 0)
+		end
 	end
 end
 
@@ -374,26 +468,26 @@ local function endCapsize()
 end
 
 local function splash(at: Vector3, size: number)
-	-- A pale ring spreading on the water and a short burst of droplets (no spheres).
-	local ring = Common.part(
-		"Splash",
-		Vector3.new(0.12, size, size),
-		CFrame.new(at.X, Config.Lake.waterY + 0.05, at.Z) * CFrame.Angles(0, 0, math.rad(90)),
-		Look.Palette.water:Lerp(Color3.new(1, 1, 1), 0.45),
-		Enum.Material.SmoothPlastic,
-		{ shape = Enum.PartType.Cylinder, transparency = 0.45 }
-	)
-	spray(CFrame.new(at.X, Config.Lake.waterY + 0.1, at.Z), math.floor(6 + size * 3), 0.6 + size * 0.12)
-	task.spawn(function()
-		local t0 = os.clock()
-		while os.clock() - t0 < 0.9 do
-			local t = (os.clock() - t0) / 0.9
-			ring.Size = Vector3.new(0.12, size * (1 + t * 2.5), size * (1 + t * 2.5))
-			ring.Transparency = 0.45 + t * 0.55
-			task.wait()
-		end
-		ring:Destroy()
-	end)
+	-- A thin low-contrast ring spreading on the water and a short burst of droplets (no discs,
+	-- no spheres). Nothing is drawn within BoatFx.DEBRIS.minCamDist of the camera.
+	local R = BoatFx.FOAM_RING
+	local spec: RingSpec = {
+		from = size,
+		to = size * 3.5,
+		life = 0.9,
+		segments = 18,
+		color = R.color,
+		alpha = R.alpha,
+		width = 0.3,
+		edge = R.edge,
+		edgeAlpha = 0,
+		edgeWidth = R.edgeWidth,
+	}
+	waterRing("Splash", Vector3.new(at.X, Config.Lake.waterY + 0.05, at.Z), spec, true)
+	local cam = cameraPos()
+	if cam == nil or (at - cam).Magnitude >= BoatFx.DEBRIS.minCamDist then
+		spray(CFrame.new(at.X, Config.Lake.waterY + 0.1, at.Z), math.floor(6 + size * 3), 0.6 + size * 0.12)
+	end
 	AudioDirector.play("hold-lost-splash", at)
 end
 
@@ -419,8 +513,27 @@ local function placeItem(item: Instance, cf: CFrame)
 	end
 end
 
+-- Pushes an item's center out to at least BoatFx.DEBRIS.minCamDist plus its radius from the
+-- camera (the camera rolls with the throw, so this is checked every frame).
+local function clearOfCamera(pos: Vector3, radius: number): Vector3
+	local cam = cameraPos()
+	if cam == nil then
+		return pos
+	end
+	local d = pos - cam
+	local m = BoatFx.DEBRIS.minCamDist + radius
+	if d.Magnitude >= m then
+		return pos
+	end
+	local dir = if d.Magnitude > 1e-3 then d.Unit else Vector3.new(0, 1, 0)
+	return cam + dir * m
+end
+
 -- Something thrown over the gunwale (a part or a model): flies, spins, splashes, sinks.
-local function throwItem(item: Instance, from: CFrame, vel: Vector3, spin: Vector3)
+-- `radius` is the item's half length: its center keeps that much more than minCamDist away
+-- from the camera.
+local function throwItem(item: Instance, from: CFrame, vel: Vector3, spin: Vector3, radius: number)
+	from = CFrame.new(clearOfCamera(from.Position, radius)) * from.Rotation
 	placeItem(item, from)
 	local parts = itemParts(item)
 	task.spawn(function()
@@ -434,6 +547,7 @@ local function throwItem(item: Instance, from: CFrame, vel: Vector3, spin: Vecto
 				splashed = true
 				splash(pos, 2.4)
 			end
+			pos = clearOfCamera(pos, radius)
 			if splashed then
 				pos = Vector3.new(pos.X, math.max(pos.Y, Config.Lake.waterY - 2), pos.Z)
 				fade = math.min(1, fade + 0.06)
@@ -483,15 +597,16 @@ local function thrownFish(species: string, at: CFrame): Instance
 	)
 end
 
--- A bait bucket: an upright pail, a darker rim and a wire handle.
+-- A bait bucket at real size (about 1.2 studs tall, handle up): an upright pail, a darker
+-- rim and a wire handle. `at` is the middle of the pail body.
 local function thrownBucket(at: CFrame): Model
 	local m = Instance.new("Model")
 	m.Name = "ThrownBucket"
-	local tin = Look.Palette.metal:Lerp(Color3.new(1, 1, 1), 0.4)
+	local tin = Look.Palette.metal:Lerp(Color3.new(1, 1, 1), 0.25)
 	local up = CFrame.Angles(0, 0, math.rad(90)) -- a Cylinder's axis is X: stand it up
 	local body = Common.part(
 		"Pail",
-		Vector3.new(1.15, 1.05, 1.05),
+		Vector3.new(0.95, 0.85, 0.85),
 		at * up,
 		tin,
 		Enum.Material.Metal,
@@ -499,16 +614,16 @@ local function thrownBucket(at: CFrame): Model
 	)
 	Common.part(
 		"Rim",
-		Vector3.new(0.1, 1.2, 1.2),
-		at * CFrame.new(0, 0.55, 0) * up,
+		Vector3.new(0.08, 0.92, 0.92),
+		at * CFrame.new(0, 0.46, 0) * up,
 		tin:Lerp(Color3.new(0, 0, 0), 0.35),
 		Enum.Material.Metal,
 		{ shape = Enum.PartType.Cylinder, parent = m }
 	)
 	local wire = tin:Lerp(Color3.new(0, 0, 0), 0.5)
-	Common.part("HandleL", Vector3.new(0.06, 0.6, 0.06), at * CFrame.new(-0.55, 0.85, 0), wire, nil, { parent = m })
-	Common.part("HandleR", Vector3.new(0.06, 0.6, 0.06), at * CFrame.new(0.55, 0.85, 0), wire, nil, { parent = m })
-	Common.part("HandleTop", Vector3.new(1.16, 0.06, 0.06), at * CFrame.new(0, 1.15, 0), wire, nil, { parent = m })
+	Common.part("HandleL", Vector3.new(0.05, 0.24, 0.05), at * CFrame.new(-0.44, 0.58, 0), wire, nil, { parent = m })
+	Common.part("HandleR", Vector3.new(0.05, 0.24, 0.05), at * CFrame.new(0.44, 0.58, 0), wire, nil, { parent = m })
+	Common.part("HandleTop", Vector3.new(0.9, 0.05, 0.05), at * CFrame.new(0, 0.7, 0), wire, nil, { parent = m })
 	m.PrimaryPart = body
 	return m
 end
@@ -547,46 +662,71 @@ local function thrownOar(at: CFrame): Model
 	return m
 end
 
-local function launchHold(hull: BasePart, fishCount: number)
-	local base = hull.CFrame * CFrame.new(0, 1.9, 1.6)
-	local side = if rnd:NextNumber() < 0.5 then -1 else 1
-	for i = 1, fishCount do
-		local fish = thrownFish(FISH_SPECIES[(i - 1) % #FISH_SPECIES + 1], base)
-		local out = hull.CFrame.RightVector * side * rnd:NextNumber(7, 11)
-			+ hull.CFrame.LookVector * rnd:NextNumber(-3, 3)
-		task.delay((i - 1) * 0.12, function()
-			throwItem(fish, base, out + Vector3.new(0, rnd:NextNumber(13, 17), 0), Vector3.new(9, 3, 4))
-		end)
-		side = -side
+-- The gunwale away from the camera (+1 starboard, -1 port), and the end of the boat away
+-- from it (+1 stern, -1 bow), in the hull's frame.
+local function farFrom(hull: BasePart): (number, number)
+	local cam = cameraPos()
+	local randomSide = if rnd:NextNumber() < 0.5 then -1 else 1
+	if cam == nil then
+		return randomSide, -1
 	end
-	-- The bait bucket goes too.
-	local bucketAt = hull.CFrame * CFrame.new(0, 1.6, 3.4)
+	local l = hull.CFrame:PointToObjectSpace(cam)
+	local side = if math.abs(l.X) < 0.3 then randomSide elseif l.X > 0 then -1 else 1
+	return side, if l.Z > 0 then -1 else 1
+end
+
+local function launchHold(hull: BasePart, fishCount: number)
+	local D = BoatFx.DEBRIS
+	local side, endZ = farFrom(hull)
+	local right = hull.CFrame.RightVector * side
+	-- A spot on the far gunwale `z` studs along the boat toward the end away from the camera.
+	local function onGunwale(z: number, lift: number?): CFrame
+		return hull.CFrame * CFrame.new(side * D.gunwale, lift or D.lift, endZ * z)
+	end
+	-- Outward from the far gunwale, a little away from the camera too, and up.
+	local function outward(from: CFrame): Vector3
+		local cam = cameraPos()
+		local away = Vector3.zero
+		if cam then
+			local d = from.Position - cam
+			d = Vector3.new(d.X, 0, d.Z)
+			if d.Magnitude > 1e-3 then
+				away = d.Unit * D.away
+			end
+		end
+		return right * rnd:NextNumber(D.out[1], D.out[2]) + away + Vector3.new(0, rnd:NextNumber(D.up[1], D.up[2]), 0)
+	end
+	for i = 1, fishCount do
+		local at = onGunwale(1.5 + (i - 1) * 1.1, D.lift + 0.3)
+		local fish = thrownFish(FISH_SPECIES[(i - 1) % #FISH_SPECIES + 1], at)
+		task.delay((i - 1) * 0.12, function()
+			throwItem(fish, at, outward(at), Vector3.new(9, 3, 4), 1.1)
+		end)
+	end
+	-- The bait bucket goes too (real size).
+	local bucketAt = onGunwale(2.4)
 	local bucket = thrownBucket(bucketAt)
 	bucket.Parent = Common.folder()
 	task.delay(0.08, function()
-		throwItem(bucket, bucketAt, hull.CFrame.RightVector * side * 9 + Vector3.new(0, 15, 0), Vector3.new(6, 2, 8))
+		throwItem(bucket, bucketAt, outward(bucketAt), Vector3.new(6, 2, 8), 0.7)
 	end)
-	-- Loose gear: an oar and the tackle box.
-	local oarAt = hull.CFrame * CFrame.new(-side * 1.4, 1.8, -1)
+	-- Loose gear: an oar (lying along the far gunwale) and the tackle box.
+	local oarAt = onGunwale(1.2, D.lift + 0.2)
 	local oar = thrownOar(oarAt)
 	oar.Parent = Common.folder()
 	task.delay(0.15, function()
-		throwItem(oar, oarAt, hull.CFrame.RightVector * -side * 8 + Vector3.new(0, 14, 0), Vector3.new(2, 7, 1))
+		throwItem(oar, oarAt, outward(oarAt), Vector3.new(2, 7, 1), 3.3)
 	end)
+	local boxAt = onGunwale(3.6, D.lift - 0.1)
 	local box = Common.part(
 		"ThrownTackle",
 		Vector3.new(1.4, 0.8, 0.9),
-		base,
+		boxAt,
 		Color3.fromRGB(196, 92, 60),
 		Enum.Material.SmoothPlastic
 	)
 	task.delay(0.22, function()
-		throwItem(
-			box,
-			hull.CFrame * CFrame.new(side * 1, 1.5, -2.5),
-			hull.CFrame.RightVector * side * 7 + hull.CFrame.LookVector * 3 + Vector3.new(0, 16, 0),
-			Vector3.new(7, 5, 3)
-		)
+		throwItem(box, boxAt, outward(boxAt), Vector3.new(7, 5, 3), 0.8)
 	end)
 end
 
@@ -594,10 +734,16 @@ end
 -- foam on the water on each side.
 local function foamBurst(hull: BasePart)
 	local F = BoatFx.FOAM
+	local near = BoatFx.DEBRIS.minCamDist
 	for _, side in { -1, 1 } do
 		for i = 1, F.bursts do
 			local z = -5 + (i - 1) * (10 / math.max(1, F.bursts - 1))
 			local at = hull.CFrame * CFrame.new(side * 2.4, 0.3, z)
+			-- Never a burst right in front of the camera.
+			local cam = cameraPos()
+			if cam and (at.Position - cam).Magnitude < near then
+				continue
+			end
 			-- Tilted out over the side so the droplets fly away from the boat.
 			-- The emitter's Top face points up and out (about 30 degrees off vertical).
 			local up = (hull.CFrame.UpVector + hull.CFrame.RightVector * side * 0.58).Unit
@@ -606,25 +752,9 @@ local function foamBurst(hull: BasePart)
 				spray(cf, F.count)
 			end)
 		end
-		local at = hull.Position + hull.CFrame.RightVector * side * 3
-		local ring = Common.part(
-			"FoamRing",
-			Vector3.new(0.12, 6, 6),
-			CFrame.new(at.X, Config.Lake.waterY + 0.06, at.Z) * CFrame.Angles(0, 0, math.rad(90)),
-			F.color,
-			Enum.Material.SmoothPlastic,
-			{ shape = Enum.PartType.Cylinder, transparency = 0.5 }
-		)
-		task.spawn(function()
-			local t0 = os.clock()
-			while ring.Parent and os.clock() - t0 < F.life * 1.3 do
-				local t = (os.clock() - t0) / (F.life * 1.3)
-				ring.Size = Vector3.new(0.12, 6 + t * 12, 6 + t * 12)
-				ring.Transparency = 0.5 + t * 0.5
-				task.wait()
-			end
-			ring:Destroy()
-		end)
+		-- A thin pale ring of foam on the water on each side (segments near the camera hidden).
+		local at = hull.Position + hull.CFrame.RightVector * side * 4
+		waterRing("FoamRing", Vector3.new(at.X, Config.Lake.waterY + 0.06, at.Z), BoatFx.FOAM_RING, true)
 	end
 end
 

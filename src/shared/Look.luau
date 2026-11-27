@@ -95,6 +95,9 @@ Look.Dawn = {
 	clockFrom = 5.2,
 	fogDelay = 0.25,
 	bannerHold = 4.5, -- seconds the banner stays before it fades (the HUD is hidden under it)
+	-- Polish round 2: the run-cleared card comes this long after the banner, so the dock is
+	-- seen in daylight first (the banner is put away as the card comes in).
+	runCardAfterBanner = 3,
 	ClockTime = 6.3,
 	Brightness = 2.4,
 	Ambient = Color3.fromRGB(118, 98, 86),
@@ -162,12 +165,20 @@ Look.Finale = {
 	-- Hazards are drawn closer than Core holds them so they read through the fog: the gap
 	-- beyond the kill radius is scaled by `pull` (the kill distance itself is unchanged).
 	pull = 0.5,
-	hazardLightRange = 44,
-	hazardLightBrightness = 3.2,
+	-- Polish round 2: each strange boat's lantern lights its own hull and figure (range about
+	-- 20, bright), not the lake around it (was 44 at 3.2). hazardHullTone lifts the dark hull
+	-- toward the boat trim so the light has something to show.
+	hazardLightRange = 20,
+	hazardLightBrightness = 5,
+	hazardHullTone = 0.6,
 	-- The pursuit layer under the motor; its pulse quickens as the boat slows.
 	pulseCalm = 1.6, -- Hz at speed
 	pulseScared = 4.5, -- Hz when the boat is nearly stopped
 	vignetteMax = 0.85,
+	-- Polish round 2 (Neon finale v7: "no motor rumble" on the run home). Nothing stopped the
+	-- loop after the bell, but it came back under the hazards' loud Rule sounds; on the run
+	-- home the motor layer is lifted this much (about +3.5 dB) until the finale ends.
+	runMotorBoost = 1.5,
 	oilWarn = 0.35, -- below this the oil bar pulses red
 	oilWarnFinale = 0.25, -- in the finale the bar is red all along and pulses below this
 }

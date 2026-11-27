@@ -487,6 +487,28 @@ local sounds: { [string]: SoundEntry } = {
 			},
 		},
 	},
+	-- Polish round 2 (Neon hum-fail v4: "on phone speakers that sub-bass hum will barely
+	-- register", it blends into the motor): a mid-range voice of the hum that rises with it.
+	-- Three octaves up puts the sub-bass fundamental (about 40 to 60 Hz) near 320 to 480 Hz;
+	-- the highs are cut hard and the upper mids trimmed so it sits around 250 to 500 Hz, a
+	-- slow tremolo keeps it from reading as the motor's steady drone.
+	["hum-mid-voice"] = {
+		id = 0,
+		volume = 0.6,
+		looped = true,
+		spatial = false,
+		group = "Rule",
+		derive = {
+			from = "hum-hold-loop",
+			effects = {
+				{ class = "PitchShiftSoundEffect", props = { Octave = 2, Priority = 5 } },
+				{ class = "PitchShiftSoundEffect", props = { Octave = 2, Priority = 4 } },
+				{ class = "PitchShiftSoundEffect", props = { Octave = 2, Priority = 3 } },
+				{ class = "EqualizerSoundEffect", props = { LowGain = 3, MidGain = -6, HighGain = -36, Priority = 2 } },
+				{ class = "TremoloSoundEffect", props = { Frequency = 0.7, Depth = 0.35, Priority = 1 } },
+			},
+		},
+	},
 	["hum-pass"] = { id = 127034738461551, volume = 0.7, looped = false, spatial = false, group = "Rule" },
 	["hum-fail"] = { id = 97194209521825, volume = 0.7, looped = false, spatial = false, group = "Rule" },
 	["hold-lost-splash"] = {
@@ -1086,6 +1108,29 @@ local sounds: { [string]: SoundEntry } = {
 					props = { LowGain = -30, MidGain = 0, HighGain = -10, Priority = 1 },
 				},
 				{ class = "ReverbSoundEffect", props = { DecayTime = 4, DryLevel = -4, WetLevel = -2 } },
+			},
+		},
+	},
+	-- Polish round 2 (Neon finale v7: no strange boat reads): each strange boat creaks as you
+	-- pass it, a slowed hull creak every few seconds, close and dry enough to place (minDist 22,
+	-- so it is near full level only when the boat is near). Replaces neighbor-oarlock-loop on
+	-- the finale's boats, whose minDist 160 put every boat at full level anywhere on the lake.
+	["finale-hazard-creak"] = {
+		id = 0,
+		volume = 1.5,
+		looped = true,
+		spatial = true,
+		minDist = 22,
+		maxDist = 240,
+		group = "Rule",
+		duck = false,
+		derive = {
+			from = "hull-creak",
+			speed = 0.78,
+			repeatEvery = 2.8,
+			effects = {
+				{ class = "EqualizerSoundEffect", props = { LowGain = 3, HighGain = -10, MidGain = 0 } },
+				{ class = "ReverbSoundEffect", props = { DecayTime = 2.2, DryLevel = -2, WetLevel = -9 } },
 			},
 		},
 	},
