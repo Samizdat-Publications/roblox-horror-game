@@ -147,7 +147,7 @@ function Fakeouts.handle(e: any)
 			fishJump(Vector3.new(at.X, 0, at.Z))
 		end
 	elseif id == "SingleKnock" then
-		AudioDirector.play("fake-single-knock", hull)
+		AudioDirector.play("fake-single-knock", AudioDirector.under() or hull)
 		BoatFx.shake(0.18, 0.3)
 	elseif id == "BuoyClank" then
 		AudioDirector.play("fake-buoy-clank", pos)

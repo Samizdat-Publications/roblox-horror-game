@@ -216,7 +216,29 @@ local function buildWheel(gui: ScreenGui)
 		end)
 		table.insert(buttons, b)
 	end
+	-- The wheel is about 380 px across: scale it down to fit the smallest phone (338 tall).
+	local fitScale = Instance.new("UIScale")
+	local function fit()
+		local c = workspace.CurrentCamera
+		local hgt = if c then c.ViewportSize.Y else 600
+		fitScale.Scale = math.clamp((hgt - 30) / 400, 0.6, 1)
+	end
+	fit()
+	fitScale.Parent = w
+	local viewCam = workspace.CurrentCamera
+	if viewCam then
+		viewCam:GetPropertyChangedSignal("ViewportSize"):Connect(fit)
+	end
 	wheel = w
+end
+
+-- MobileButtons: keep the feed above the left column of touch buttons (pixels from the
+-- bottom of the screen to the feed's bottom edge).
+function Callouts.setFeedBottom(px: number)
+	local f = feed
+	if f then
+		f.Position = UDim2.new(0, 16, 1, -math.max(110, px))
+	end
 end
 
 function Callouts.init()

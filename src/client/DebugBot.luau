@@ -32,12 +32,21 @@
 --                                        person, the bot's helm and head let go, the tape cut;
 --                                        tapes = false mutes tapes until { cmd = "tapes" }
 --   { cmd = "tapes", on }                tapes allowed again (on = true) or muted
---   { cmd = "play_sound", name, seconds } listening test: plays any SoundRegistry name on
+--   { cmd = "book", page }               opens the rulebook ("rules"), the Field Guide
+--                                        ("guide") or the Lake Rules ("lake"), or shuts
+--                                        the book (page "none"), through BookState
+--   { cmd = "play_sound", name, seconds, ambience }
+--                                        listening test: plays any SoundRegistry name on
 --                                        this client through AudioDirector (real, library
---                                        stand-in or derived alike), at the hull when
---                                        spatial; loops stop after `seconds` (default 8).
---                                        The ack carries played = true/false
---   { cmd = "stop_sound" }               stops every play_sound sound
+--                                        stand-in or derived alike) the way the real fx do:
+--                                        same place relative to the boat (the Neighbor 200
+--                                        studs off the bow, the Watcher on the nearest shore,
+--                                        knocks under the keel; AudioDirector.auditionSpot),
+--                                        same group, same ambience ducking. ambience = true
+--                                        holds the full band-3 chorus underneath. Loops stop
+--                                        after `seconds` (default 8). The ack carries
+--                                        played = true/false and spot
+--   { cmd = "stop_sound" }               stops every play_sound sound and the held chorus
 -- Each command is answered with { ack = cmd, seat = <seat name or nil> }.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -55,6 +64,7 @@ local ui = script.Parent:WaitForChild("ui")
 local Callouts = require(ui:WaitForChild("Callouts"))
 local DeathCard = require(ui:WaitForChild("DeathCard"))
 local NightCards = require(ui:WaitForChild("NightCards"))
+local BookState = require(ui:WaitForChild("BookState"))
 local AudioDirector = require(script.Parent:WaitForChild("AudioDirector"))
 local BoatFx = require(script.Parent:WaitForChild("BoatFx"))
 local Camera = require(script.Parent:WaitForChild("Camera"))
@@ -172,6 +182,7 @@ local function clean(tapesOn: boolean)
 	DeathCard.hold = false
 	DeathCard.close()
 	NightCards.hide()
+	BookState.close()
 	Callouts.setOpen(false)
 	RulesFx.resetAll()
 	BoatFx.clearCamera()
@@ -226,16 +237,27 @@ function DebugBot.init()
 				return
 			end
 			if msg.cmd == "play_sound" and type(msg.name) == "string" then
-				local played =
-					AudioDirector.audition(msg.name, if type(msg.seconds) == "number" then msg.seconds else nil)
+				local played, spot = AudioDirector.audition(
+					msg.name,
+					if type(msg.seconds) == "number" then msg.seconds else nil,
+					{ ambience = msg.ambience == true }
+				)
 				print(
 					string.format(
-						"[DebugBot] play_sound %s: %s",
+						"[DebugBot] play_sound %s: %s (at %s%s)",
 						msg.name,
-						if played then "playing" else "nothing to play"
+						if played then "playing" else "nothing to play",
+						tostring(spot),
+						if msg.ambience == true then ", full chorus under it" else ""
 					)
 				)
-				remote:FireServer({ ack = msg.cmd, seat = BoatClient.mySeat(), name = msg.name, played = played })
+				remote:FireServer({
+					ack = msg.cmd,
+					seat = BoatClient.mySeat(),
+					name = msg.name,
+					played = played,
+					spot = spot,
+				})
 				return
 			elseif msg.cmd == "stop_sound" then
 				AudioDirector.stopAuditions()
@@ -280,6 +302,16 @@ function DebugBot.init()
 					}
 				else
 					lookAt = nil
+				end
+			elseif msg.cmd == "book" then
+				if msg.page == "none" then
+					BookState.close()
+				elseif type(msg.page) == "string" then
+					-- The night's page reaches the client on LobbyState; give it a moment.
+					local t0 = os.clock()
+					while not BookState.open(msg.page) and os.clock() - t0 < 2 do
+						task.wait(0.1)
+					end
 				end
 			elseif msg.cmd == "cardhold" then
 				DeathCard.hold = msg.on == true

@@ -96,6 +96,69 @@ function Paper.button(parent: Instance, name: string, text: string, size: UDim2)
 	return b
 end
 
+-- A text size that reads on the smallest phone (338 px tall) and does not shout on a
+-- monitor: `base` at 600 px of screen height, scaled with the height, clamped.
+function Paper.fit(base: number, lo: number?, hi: number?): number
+	local cam = workspace.CurrentCamera
+	local h = if cam then cam.ViewportSize.Y else 600
+	return math.floor(math.clamp(base * h / 600, lo or 12, hi or base * 1.3))
+end
+
+-- An open book page that covers most of the view (the rulebook, the Field Guide, the Lake
+-- Rules): a full-screen dim behind a large sheet, a heading, and a Close button. Returns
+-- the gui, the sheet, the body frame (fill it) and the close button.
+function Paper.bookPage(name: string, order: number, heading: string): (ScreenGui, Frame, Frame, TextButton)
+	local gui = Paper.gui(name, order)
+	gui.IgnoreGuiInset = true
+	gui.Enabled = false
+	local dim = Instance.new("TextButton")
+	dim.Name = "Dim"
+	dim.Text = ""
+	dim.AutoButtonColor = false
+	dim.Size = UDim2.fromScale(1, 1)
+	dim.BackgroundColor3 = Color3.new(0, 0, 0)
+	dim.BackgroundTransparency = 0.45
+	dim.BorderSizePixel = 0
+	dim.Selectable = false
+	dim.Parent = gui
+	local sheet =
+		Paper.sheet(gui, "Sheet", UDim2.fromScale(0.92, 0.9), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), 12)
+	sheet.BackgroundTransparency = 0.02
+	sheet.Rotation = -0.6
+	local limit = Instance.new("UISizeConstraint")
+	limit.MaxSize = Vector2.new(820, 680)
+	limit.Parent = sheet
+	local head = Paper.text(sheet, "Heading", heading, Paper.fit(30, 18, 34), Paper.hand())
+	head.Size = UDim2.new(1, -110, 0, Paper.fit(30, 18, 34) + 8)
+	local close = Paper.button(sheet, "Close", "Close", UDim2.fromOffset(96, 40))
+	close.AnchorPoint = Vector2.new(1, 0)
+	close.Position = UDim2.fromScale(1, 0)
+	close.TextSize = Paper.fit(18, 14, 20)
+	local body = Instance.new("Frame")
+	body.Name = "Body"
+	body.BackgroundTransparency = 1
+	local top = Paper.fit(30, 18, 34) + 14
+	body.Position = UDim2.fromOffset(0, top)
+	body.Size = UDim2.new(1, 0, 1, -top)
+	body.Parent = sheet
+	return gui, sheet, body, close
+end
+
+-- A strip of tape (a translucent pale rectangle, a little crooked) on a corner of `parent`.
+function Paper.tape(parent: Instance, anchor: Vector2, fresh: boolean)
+	local t = Instance.new("Frame")
+	t.Name = "Tape"
+	t.AnchorPoint = Vector2.new(0.5, 0.5)
+	t.Position = UDim2.fromScale(anchor.X, anchor.Y)
+	t.Size = UDim2.fromOffset(46, 14)
+	t.Rotation = if anchor.X < 0.5 then -32 else 28
+	t.BackgroundColor3 = if fresh then Color3.fromRGB(246, 238, 200) else Color3.fromRGB(214, 200, 160)
+	t.BackgroundTransparency = if fresh then 0.25 else 0.45
+	t.BorderSizePixel = 0
+	t.ZIndex = 3
+	t.Parent = parent
+end
+
 -- "10:42 PM" from game hours (22.0 is 10 PM, 29.0 is 5 AM).
 function Paper.clockText(hours: number): string
 	local h = math.floor(hours) % 24

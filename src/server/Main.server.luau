@@ -1,7 +1,7 @@
 --!strict
 -- Server entry point: builds the world and the night look, opens the remotes, launches the
--- boat and the fishing gear, seats every player who joins (there is no lobby until S4), and
--- runs the night (NightService) once the first player is seated.
+-- boat and the fishing gear, seats every player who joins, and opens the lobby: the title
+-- screen until the host presses Play, then the five nights (LobbyService, NightService).
 -- Prints exactly one line in normal operation; anything else is a warning or an error.
 
 local Players = game:GetService("Players")
@@ -16,6 +16,7 @@ local Net = require(server:WaitForChild("Net"))
 local FishingService = require(server:WaitForChild("FishingService"))
 local NightService = require(server:WaitForChild("NightService"))
 local EntityPresenter = require(server:WaitForChild("EntityPresenter"))
+local LobbyService = require(server:WaitForChild("LobbyService"))
 
 local startupWarnings: { string } = {}
 
@@ -27,6 +28,7 @@ Net.init()
 BoatService.init(WorldBuilder.context())
 FishingService.init()
 EntityPresenter.init()
+LobbyService.init()
 
 -- Seat a fresh character in the first free seat. Seat:Sit can miss while the character is
 -- still loading, so retry a few times and say so loudly if it never works.
@@ -90,8 +92,8 @@ end
 RunService.Heartbeat:Connect(function(dt: number)
 	BoatService.step(dt)
 	NightService.tick(dt)
+	LobbyService.tick(dt)
 end)
-NightService.startWhenReady(15)
 
 print("[DeadCalm] server up")
 

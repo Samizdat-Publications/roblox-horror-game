@@ -6,6 +6,7 @@
 local client = script.Parent
 local Events = require(client:WaitForChild("Events"))
 local BoatFx = require(client:WaitForChild("BoatFx"))
+local LobbyClient = require(client:WaitForChild("LobbyClient"))
 local fx = client:WaitForChild("fx")
 
 local RulesFx = {}
@@ -23,7 +24,8 @@ local modules: { [string]: Fx } = {
 local Fakeouts = require(fx:WaitForChild("Fakeouts"))
 local Watcher = require(fx:WaitForChild("Watcher"))
 
-local ENTITY_KINDS = { "EntityCue", "EntityStage", "EntityMoved", "EntityPass", "EntityFail" }
+-- EntityStrike: the Finale takes someone and goes on (Core M5).
+local ENTITY_KINDS = { "EntityCue", "EntityStage", "EntityMoved", "EntityPass", "EntityFail", "EntityStrike" }
 
 function RulesFx.resetAll()
 	for _, m in modules do
@@ -58,6 +60,12 @@ function RulesFx.init()
 	end)
 	Events.on("NightStarted", function()
 		RulesFx.resetAll()
+	end)
+	-- Back on the title screen (after the run): no leftovers, no dawn tint.
+	LobbyClient.onChange(function(s)
+		if s.phase == "Title" then
+			RulesFx.resetAll()
+		end
 	end)
 end
 

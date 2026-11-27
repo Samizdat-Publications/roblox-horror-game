@@ -113,15 +113,28 @@ Look.Window = {
 -- Mix: SoundGroup volumes and the base level of each ambience layer (0..1, multiplied by
 -- the registry entry's own volume).
 Look.Mix = {
+	-- Scare polish 2 (11/26/2026, Neon's listening test: the ambience buried every rule cue).
+	-- Ambience is the base level below chorus band 2; band3Trim takes it down further as the
+	-- chorus climbs to band 3 (0.75 * 0.6 = 0.45, about 6 dB under the old 0.9). The Rule
+	-- group is up about 4 dB. SoundGroup.Volume ranges 0..10 (creator docs).
 	groups = {
-		Ambience = 0.9,
+		Ambience = 0.75,
 		Boat = 0.8,
 		Fishing = 0.8,
-		Rule = 1.0,
+		Rule = 1.6,
 		UI = 0.6,
 		Music = 0.6,
 		Voice = 1.0,
 	},
+	band3Trim = 0.6, -- Ambience group multiplier at chorus band 3 (eases in from band 2)
+	-- While any rule cue sounds (a Rule-group sound playing, or for cueHold seconds after an
+	-- EntityCue) the Ambience group ducks by this much: 0.4 is about -8 dB. The Boat group's
+	-- random creaks are held back meanwhile.
+	cueDuck = 0.4,
+	cueHold = 3,
+	duckAttack = 0.12, -- seconds to reach the duck
+	duckRelease = 1.0, -- seconds to come back
+	muteFade = 0.3, -- seconds to mute the ambience (death card)
 	layers = {
 		hullLap = 0.7,
 		lakeAir = 0.6,
@@ -132,7 +145,7 @@ Look.Mix = {
 		radioStatic = 0.25,
 		dockWater = 0.6,
 		lanternFlame = 0.5,
-		motorIdle = 0.8,
+		motorIdle = 1.0,
 		reel = 0.6,
 	},
 	fadePerSecond = 1.5, -- how fast a layer moves toward its target volume

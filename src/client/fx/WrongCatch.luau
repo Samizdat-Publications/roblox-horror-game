@@ -57,12 +57,21 @@ function WrongCatch.handle(e: any)
 		token += 1
 		local my = token
 		task.spawn(function()
+			-- The registry plays cooler-knock-inside three times (`repeat`); here at
+			-- KNOCK_GAP so the jumps line up (it used to start three times: nine knocks).
+			local knock = AudioDirector.play(
+				"cooler-knock-inside",
+				cooler() or BoatClient.hull(),
+				{ repeatGap = WrongCatch.KNOCK_GAP }
+			)
 			for i = 1, 3 do
 				if token ~= my then
+					if knock and knock.Parent then
+						knock:Destroy()
+					end
 					break
 				end
 				local cc = cooler()
-				AudioDirector.play("cooler-knock-inside", cc or BoatClient.hull())
 				if cc then
 					jump(cc, 1 + i * 0.25)
 					if nearCooler(cc) then

@@ -102,7 +102,8 @@ local function knocks(sound: string, gap: number, strength: number)
 	token += 1
 	local my = token
 	stopKnocks()
-	knockSound = AudioDirector.play(sound, BoatClient.hull(), { repeatGap = gap })
+	-- From just under the keel, close and dry (the registry adds the low thump layer).
+	knockSound = AudioDirector.play(sound, AudioDirector.under() or BoatClient.hull(), { repeatGap = gap })
 	task.spawn(function()
 		for _ = 1, 3 do
 			if token ~= my then
@@ -133,7 +134,7 @@ function Knocking.handle(e: any)
 		end
 	elseif e.kind == "EntityPass" then
 		setWindow(false)
-		AudioDirector.play("knock-pass", BoatClient.hull())
+		AudioDirector.play("knock-pass", AudioDirector.under() or BoatClient.hull())
 		BoatFx.shake(0.05, 0.4)
 		task.delay(1.5, hideShape)
 	elseif e.kind == "EntityFail" then

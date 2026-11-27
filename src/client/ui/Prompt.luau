@@ -13,7 +13,9 @@ local client = script.Parent.Parent
 local ViewState = require(client:WaitForChild("ViewState"))
 local BoatClient = require(client:WaitForChild("BoatClient"))
 local Knocking = require(client:WaitForChild("fx"):WaitForChild("Knocking"))
+local BoatFx = require(client:WaitForChild("BoatFx"))
 local Paper = require(script.Parent:WaitForChild("Paper"))
+local DeathCard = require(script.Parent:WaitForChild("DeathCard"))
 
 local Prompt = {}
 
@@ -62,6 +64,13 @@ function Prompt.init()
 	t.TextStrokeTransparency = 0.35
 	local acc = 0
 	RunService.Heartbeat:Connect(function(dt)
+		-- The moment a fail lands (the boat thrown) or the death card is up, no hint at all
+		-- (Neon saw "Hold to cast" stay on through the Hum fail, 11/26/2026).
+		if BoatFx.capsizing() or BoatFx.plunging() or DeathCard.showing() then
+			t.Text = ""
+			acc = 0
+			return
+		end
 		acc += dt
 		if acc < 0.2 then
 			return

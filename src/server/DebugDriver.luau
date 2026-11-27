@@ -45,6 +45,11 @@ S3 scenarios (the rules on screen) are in DebugRules.luau: <rule>_pass and <rule
 Hum, WrongCatch, Neighbor, Knocking and Watcher, "fakeouts", "death_card" and "reset" (the
 clean start every rule scenario begins with). Rule scenarios mute the owner's tapes;
 "night_start" and "quiet_night" turn them back on.
+
+S4 scenarios (the front and back of a run) are in DebugRun.luau: "title", "rulebook",
+"full_run" and "finale". Nights started here (night_start, quiet_night, the rule scenarios)
+are outside the run: when they end nothing advances. "night_start" with opts.run = true
+starts a run at that night instead (auto advance then plays the rest of the run).
 ]]
 
 local Players = game:GetService("Players")
@@ -566,6 +571,18 @@ scenarios.night_start = function(opts: Opts)
 	if opts.autoAdvance ~= nil then
 		NightService.autoAdvance = opts.autoAdvance == true
 	end
+	if opts.run == true then
+		local LobbyService = require(script.Parent:WaitForChild("LobbyService")) :: any
+		LobbyService.startRun({
+			night = tonumber(opts.night),
+			seed = tonumber(opts.seed),
+			seconds = tonumber(opts.seconds),
+			quota = tonumber(opts.quota),
+			difficulty = opts.difficulty,
+		})
+		local rp = NightService.params()
+		return { started = rp ~= nil, run = NightService.runView(), night = rp and rp.night, quota = rp and rp.quota }
+	end
 	local p = NightService.start({
 		night = tonumber(opts.night),
 		seed = tonumber(opts.seed),
@@ -805,6 +822,7 @@ function DebugDriver.init()
 		end)
 	end
 	require(script.Parent:WaitForChild("DebugRules")).register(DebugDriver)
+	require(script.Parent:WaitForChild("DebugRun")).register(DebugDriver)
 	local bot = Net.debugRemote("DebugBot")
 	if bot then
 		bot.OnServerEvent:Connect(function(player: Player, msg: any)

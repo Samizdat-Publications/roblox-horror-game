@@ -218,10 +218,11 @@ function Neighbor.handle(e: any)
 		built = buildBoat(at)
 		ensureLoop()
 		step(0)
-		-- The creak goes on quieter once you can see the boat.
+		-- The creak goes on a little quieter once you can see the boat (0.8, Scare polish 2:
+		-- it has to stay above the ambience).
 		local c = creak
 		if c then
-			c.Volume *= 0.6
+			c.Volume *= 0.8
 		end
 	elseif e.kind == "EntityMoved" then
 		if pos then

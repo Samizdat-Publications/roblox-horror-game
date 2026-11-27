@@ -29,6 +29,22 @@ local folder: Folder? = nil
 local debugFolder: Folder? = nil
 local intents: { Intent } = {}
 local gaze: { [number]: number } = {}
+-- Whether each player has the rulebook or the Field Guide open (Lobby "Book" action). The
+-- night reads it as PlayerObs.bookOpen; a player with the book open has no hands.
+local bookOpen: { [number]: boolean } = {}
+-- Whether each player plays on a touch screen (Lobby "Touch"; the Watcher's cones are wider).
+local touch: { [number]: boolean } = {}
+-- Intents that need hands: refused while the book covers the view (letting go of the reel
+-- or the bail is always allowed, so nothing stays held).
+local HANDS: { [string]: boolean } = {
+	ToggleLantern = true,
+	ToggleMotor = true,
+	Cast = true,
+	Bank = true,
+	RefillOil = true,
+	Knock = true,
+	CatchDecision = true,
+}
 
 ----------------------------------------------------------------------------------------
 -- SEAM: Core.Validate, Core.RateLimit
@@ -103,6 +119,7 @@ local LIMITS: { [string]: { rate: number, burst: number } } = {
 	Gaze = { rate = Config.Net.gazeHz, burst = Config.Net.gazeHz },
 	Intent = { rate = Config.Net.intentPerSec, burst = Config.Net.intentBurst },
 	Lobby = { rate = 2, burst = 4 },
+	Book = { rate = 4, burst = 6 },
 	Cosmetic = { rate = 2, burst = 4 },
 	DebugBot = { rate = 10, burst = 10 },
 	DebugCamera = { rate = 10, burst = 10 },
@@ -164,6 +181,10 @@ function Net.handlers.BoatInput(player: Player, throttle: any, steer: any): bool
 		count(Net.stats.rejected, "BoatInput")
 		return false
 	end
+	if bookOpen[player.UserId] then
+		-- Reading, not steering: the helm goes slack.
+		throttle, steer = 0, 0
+	end
 	if not BoatService.setHelmInput(player, throttle, steer) then
 		count(Net.stats.rejected, "BoatInput")
 		return false
@@ -192,6 +213,10 @@ function Net.handlers.Intent(player: Player, kind: any, num: any, flag: any, tex
 		count(Net.stats.rejected, "Intent")
 		return false
 	end
+	if HANDS[intent.kind] and bookOpen[player.UserId] then
+		count(Net.stats.rejected, "Intent")
+		return false
+	end
 	if (intent.kind == "Bank" or intent.kind == "RefillOil") and not boatAtDock() then
 		count(Net.stats.rejected, "Intent")
 		return false
@@ -201,14 +226,49 @@ function Net.handlers.Intent(player: Player, kind: any, num: any, flag: any, tex
 	return true
 end
 
--- Lobby and Cosmetic have no service until S4 and S5: type check, rate limit, drop.
+function Net.touchOf(userId: number): boolean
+	return touch[userId] == true
+end
+
+function Net.bookOpenOf(userId: number): boolean
+	return bookOpen[userId] == true
+end
+
+-- LobbyService sets this: what a valid Lobby message does (difficulty, start).
+Net.onLobby = function(_player: Player, _action: string, _value: any) end
+
+-- Lobby actions: "Difficulty" (value "Normal" | "Nightmare"), "Start", "Title", "Hello",
+-- "Book" (value 1 open, 0 closed), "Touch" (value 1 on a touch screen, else 0). Type check and rate limit here; LobbyService decides.
 function Net.handlers.Lobby(player: Player, action: any, value: any): boolean
 	local ok = allow(player, "Lobby")
 		and type(action) == "string"
 		and #action <= 24
-		and (value == nil or type(value) == "string" or finite(value))
+		and (value == nil or (type(value) == "string" and #value <= 24) or finite(value))
+	-- The book flag changes often (open, close): it has its own small bucket.
+	if not ok and type(action) == "string" and action == "Book" and finite(value) then
+		ok = allow(player, "Book")
+	end
 	count(if ok then Net.stats.accepted else Net.stats.rejected, "Lobby")
-	return ok
+	if not ok then
+		return false
+	end
+	if action == "Touch" then
+		touch[player.UserId] = if value == 1 then true else nil
+		return true
+	end
+	if action == "Book" then
+		local open = value == 1
+		local was = bookOpen[player.UserId] == true
+		bookOpen[player.UserId] = open or nil
+		if open and not was then
+			-- Hands off: let go of the reel and the bail at once.
+			table.insert(intents, { kind = "ReelHold" :: any, player = player.UserId, flag = false })
+			table.insert(intents, { kind = "BailHold" :: any, player = player.UserId, flag = false })
+		end
+		return true
+	end
+	Net.onLobby(player, action, value)
+	return true
 end
 
 function Net.handlers.Cosmetic(player: Player, slot: any, id: any): boolean
@@ -264,6 +324,8 @@ function Net.init()
 	Players.PlayerRemoving:Connect(function(player)
 		buckets[player] = nil
 		gaze[player.UserId] = nil
+		bookOpen[player.UserId] = nil
+		touch[player.UserId] = nil
 	end)
 end
 

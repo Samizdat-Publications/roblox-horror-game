@@ -27,6 +27,11 @@
 --   layers       more pieces, each a table of the fields above
 -- `["repeat"] = { count, gap }` (any entry, real or derived) plays the whole sound `count`
 -- times, `gap` seconds apart (library knocks are single thuds).
+-- Scare polish 2 (11/26/2026):
+--   with   other entry names started together with this one, at the same place and with
+--          the same options (the knocks' low thump layer); they stop when it is destroyed
+--   duck   false keeps a Rule-group sound from ducking the ambience (every other Rule sound
+--          ducks it while it plays, see Look.Mix.cueDuck)
 
 export type Group = "Ambience" | "Boat" | "Fishing" | "Rule" | "UI" | "Music" | "Voice"
 
@@ -58,6 +63,8 @@ export type SoundEntry = {
 	maxDist: number?,
 	derive: Derive?,
 	["repeat"]: RepeatSpec?,
+	with: { string }?,
+	duck: boolean?,
 }
 
 local SoundRegistry = {}
@@ -230,14 +237,16 @@ local sounds: { [string]: SoundEntry } = {
 		minDist = 4,
 		maxDist = 90,
 	},
+	-- Scare polish 2: Neon could not hear the motor in two clips. Louder, and full level
+	-- anywhere in the boat (minDist 12).
 	["motor-idle-loop"] = {
 		id = 112605178204236,
-		volume = 0.7,
+		volume = 1.4,
 		looped = true,
 		spatial = true,
 		group = "Boat",
-		minDist = 4,
-		maxDist = 90,
+		minDist = 12,
+		maxDist = 140,
 	},
 	["motor-stop"] = {
 		id = 92446962847841,
@@ -456,8 +465,27 @@ local sounds: { [string]: SoundEntry } = {
 		maxDist = 90,
 	},
 	["quota-met"] = { id = 74964876913374, volume = 0.7, looped = false, spatial = false, group = "Fishing" },
-	["hum-rise"] = { id = 93285128856151, volume = 0.7, looped = false, spatial = false, group = "Rule" },
-	["hum-hold-loop"] = { id = 139783212326514, volume = 0.7, looped = true, spatial = false, group = "Rule" },
+	["hum-rise"] = { id = 93285128856151, volume = 0.9, looped = false, spatial = false, group = "Rule" },
+	["hum-hold-loop"] = { id = 139783212326514, volume = 0.9, looped = true, spatial = false, group = "Rule" },
+	-- Scare polish 2: the hum's mid-range layer for phone speakers. Two octaves up puts the
+	-- sub-bass fundamental near 150 to 250 Hz (inside LowGain, which is below 400 Hz); mids
+	-- and highs are cut so it stays a hull resonance, a touch of distortion adds the buzz.
+	["hum-hull-resonance"] = {
+		id = 0,
+		volume = 0.55,
+		looped = true,
+		spatial = false,
+		group = "Rule",
+		derive = {
+			from = "hum-hold-loop",
+			effects = {
+				{ class = "PitchShiftSoundEffect", props = { Octave = 2, Priority = 4 } },
+				{ class = "PitchShiftSoundEffect", props = { Octave = 2, Priority = 3 } },
+				{ class = "DistortionSoundEffect", props = { Level = 0.18, Priority = 2 } },
+				{ class = "EqualizerSoundEffect", props = { LowGain = 2, MidGain = -9, HighGain = -30, Priority = 1 } },
+			},
+		},
+	},
 	["hum-pass"] = { id = 127034738461551, volume = 0.7, looped = false, spatial = false, group = "Rule" },
 	["hum-fail"] = { id = 97194209521825, volume = 0.7, looped = false, spatial = false, group = "Rule" },
 	["hold-lost-splash"] = {
@@ -481,7 +509,14 @@ local sounds: { [string]: SoundEntry } = {
 		minDist = 4,
 		maxDist = 90,
 	},
-	["ghost-loop"] = { id = 94730476572844, volume = 0.7, looped = true, spatial = false, group = "Rule" },
+	["ghost-loop"] = {
+		id = 94730476572844,
+		volume = 0.7,
+		looped = true,
+		spatial = false,
+		group = "Rule",
+		duck = false,
+	},
 	["wrong-blink"] = {
 		id = 0,
 		volume = 0.35,
@@ -512,15 +547,15 @@ local sounds: { [string]: SoundEntry } = {
 	},
 	["cooler-knock-inside"] = {
 		id = 0,
-		volume = 0.6,
+		volume = 1.1,
 		looped = false,
 		spatial = true,
-		minDist = 4,
-		maxDist = 90,
+		minDist = 30,
+		maxDist = 300,
 		group = "Rule",
 		derive = {
 			from = "knock-answer",
-			effects = { { class = "EqualizerSoundEffect", props = { HighGain = -35, MidGain = -12 } } },
+			effects = { { class = "EqualizerSoundEffect", props = { LowGain = 4, HighGain = -30, MidGain = -8 } } },
 		},
 		["repeat"] = { count = 3, gap = 0.9 },
 	},
@@ -538,31 +573,34 @@ local sounds: { [string]: SoundEntry } = {
 			layers = { { from = "fish-land-thud", delay = 0.2, volume = 0.9 } },
 		},
 	},
+	-- Scare polish 2: distance comes from the reverb and a gentle high cut, not from volume.
+	-- minDist covers the Neighbor's real distance (Config appearDist 200, holdDist 90), so
+	-- the rolloff no longer takes 15 dB off at the spot where it actually plays.
 	["neighbor-oarlock-loop"] = {
 		id = 0,
-		volume = 0.55,
+		volume = 1.3,
 		looped = true,
 		spatial = true,
-		minDist = 20,
-		maxDist = 400,
+		minDist = 160,
+		maxDist = 900,
 		group = "Rule",
 		derive = {
 			from = "oarlock-creak",
 			speed = 0.8,
 			repeatEvery = 2,
 			effects = {
-				{ class = "EqualizerSoundEffect", props = { HighGain = -30, MidGain = -8 } },
-				{ class = "ReverbSoundEffect", props = { DecayTime = 4, DryLevel = -10, WetLevel = 0 } },
+				{ class = "EqualizerSoundEffect", props = { HighGain = -12, MidGain = -2 } },
+				{ class = "ReverbSoundEffect", props = { DecayTime = 3.5, DryLevel = -4, WetLevel = -3 } },
 			},
 		},
 	},
 	["neighbor-pass"] = {
 		id = 0,
-		volume = 0.55,
+		volume = 1.3,
 		looped = false,
 		spatial = true,
-		minDist = 20,
-		maxDist = 400,
+		minDist = 160,
+		maxDist = 900,
 		group = "Rule",
 		derive = {
 			from = "oarlock-creak",
@@ -571,8 +609,8 @@ local sounds: { [string]: SoundEntry } = {
 			duration = 6,
 			fadeOut = 6,
 			effects = {
-				{ class = "EqualizerSoundEffect", props = { HighGain = -30, MidGain = -8 } },
-				{ class = "ReverbSoundEffect", props = { DecayTime = 4, DryLevel = -10, WetLevel = 0 } },
+				{ class = "EqualizerSoundEffect", props = { HighGain = -12, MidGain = -2 } },
+				{ class = "ReverbSoundEffect", props = { DecayTime = 3.5, DryLevel = -4, WetLevel = -3 } },
 			},
 		},
 	},
@@ -584,24 +622,63 @@ local sounds: { [string]: SoundEntry } = {
 		group = "Rule",
 		derive = { from = "lantern-off", layers = { { from = "hull-creak", delay = 0.8, speed = 0.7, volume = 1.2 } } },
 	},
+	-- Scare polish 2: knocks are close and dry, played from just under the hull (AudioDirector
+	-- "under" anchor) at full volume anywhere in the boat (minDist 14), each with a short low
+	-- thump under it (`with`).
 	["knock-three-soft"] = {
 		id = 9120885468,
-		volume = 0.7,
+		volume = 1.3,
 		looped = false,
 		spatial = true,
 		group = "Rule",
-		minDist = 4,
-		maxDist = 90,
+		minDist = 14,
+		maxDist = 120,
 		["repeat"] = { count = 3, gap = 1.1 },
+		with = { "knock-thump-soft" },
 	},
 	["knock-three-hard"] = {
 		id = 9126267413,
-		volume = 0.7,
+		volume = 2,
 		looped = false,
 		spatial = true,
 		group = "Rule",
-		minDist = 4,
-		maxDist = 90,
+		minDist = 14,
+		maxDist = 120,
+		["repeat"] = { count = 3, gap = 1.1 },
+		with = { "knock-thump-hard" },
+	},
+	["knock-thump-soft"] = {
+		id = 0,
+		volume = 0.8,
+		looped = false,
+		spatial = true,
+		minDist = 14,
+		maxDist = 120,
+		group = "Rule",
+		derive = {
+			from = "fish-land-thud",
+			speed = 0.55,
+			duration = 0.35,
+			fadeOut = 0.15,
+			effects = { { class = "EqualizerSoundEffect", props = { LowGain = 6, MidGain = -8, HighGain = -30 } } },
+		},
+		["repeat"] = { count = 3, gap = 1.1 },
+	},
+	["knock-thump-hard"] = {
+		id = 0,
+		volume = 1.3,
+		looped = false,
+		spatial = true,
+		minDist = 14,
+		maxDist = 120,
+		group = "Rule",
+		derive = {
+			from = "fish-land-thud",
+			speed = 0.45,
+			duration = 0.45,
+			fadeOut = 0.2,
+			effects = { { class = "EqualizerSoundEffect", props = { LowGain = 8, MidGain = -6, HighGain = -30 } } },
+		},
 		["repeat"] = { count = 3, gap = 1.1 },
 	},
 	["knock-answer"] = {
@@ -615,11 +692,11 @@ local sounds: { [string]: SoundEntry } = {
 	},
 	["knock-pass"] = {
 		id = 0,
-		volume = 0.6,
+		volume = 0.9,
 		looped = false,
 		spatial = true,
-		minDist = 4,
-		maxDist = 90,
+		minDist = 14,
+		maxDist = 120,
 		group = "Rule",
 		derive = {
 			from = "hull-creak",
@@ -670,38 +747,42 @@ local sounds: { [string]: SoundEntry } = {
 		derive = {
 			from = "hum-hold-loop",
 			effects = {
+				-- Scare polish 2: the second shift is 1.8, not 2 (about two semitones lower), to
+				-- sit apart from the insects' chirps (Neon).
 				{ class = "PitchShiftSoundEffect", props = { Octave = 2, Priority = 4 } },
-				{ class = "PitchShiftSoundEffect", props = { Octave = 2, Priority = 3 } },
+				{ class = "PitchShiftSoundEffect", props = { Octave = 1.8, Priority = 3 } },
 				{ class = "EqualizerSoundEffect", props = { LowGain = -40, HighGain = -18, Priority = 2 } },
 				{ class = "TremoloSoundEffect", props = { Frequency = 0.4, Depth = 0.6, Duty = 0.5, Priority = 1 } },
 			},
 		},
 	},
+	-- Scare polish 2: the Watcher stands on a shore up to Config shoreRange (260) away, so
+	-- minDist 150 keeps its steps near full level there; distance is the reverb and high cut.
 	["watcher-step"] = {
 		id = 0,
-		volume = 0.5,
+		volume = 1.3,
 		looped = false,
 		spatial = true,
-		minDist = 40,
-		maxDist = 700,
+		minDist = 150,
+		maxDist = 900,
 		group = "Rule",
 		derive = {
 			from = "dock-creak",
 			region = { 0, 0.6 },
 			speed = 0.7,
 			effects = {
-				{ class = "EqualizerSoundEffect", props = { HighGain = -30, MidGain = -8 } },
-				{ class = "ReverbSoundEffect", props = { DecayTime = 2, DryLevel = -4, WetLevel = -6 } },
+				{ class = "EqualizerSoundEffect", props = { LowGain = 3, HighGain = -12, MidGain = -2 } },
+				{ class = "ReverbSoundEffect", props = { DecayTime = 2.5, DryLevel = -3, WetLevel = -5 } },
 			},
 		},
 	},
 	["watcher-lunge"] = {
 		id = 0,
-		volume = 0.8,
+		volume = 1.5,
 		looped = false,
 		spatial = true,
-		minDist = 40,
-		maxDist = 700,
+		minDist = 150,
+		maxDist = 900,
 		group = "Rule",
 		derive = {
 			from = "dock-creak",
@@ -784,12 +865,12 @@ local sounds: { [string]: SoundEntry } = {
 	},
 	["fake-single-knock"] = {
 		id = 9126267639,
-		volume = 0.7,
+		volume = 1.2,
 		looped = false,
 		spatial = true,
 		group = "Rule",
-		minDist = 4,
-		maxDist = 90,
+		minDist = 14,
+		maxDist = 120,
 	},
 	["fake-buoy-clank"] = {
 		id = 9126005978,

@@ -107,21 +107,44 @@ local tapeOpenUntil = -math.huge -- Tape events are taken until this time (night
 local tapeQueue: { string } = {}
 local reeling = false
 
+-- Scare polish 2 mix state. Any Rule-group sound playing (unless its entry says duck = false)
+-- ducks the Ambience group; so does an EntityCue for Look.Mix.cueHold seconds.
+local duckers: { [Sound]: boolean } = {}
+local duckHoldUntil = -math.huge
+local duckLevel = 1 -- current Ambience duck multiplier (1 = none)
+local muteKeys: { [string]: boolean } = {}
+local muteLevel = 1
+local chorusOverrideUntil = -math.huge -- listening test: hold the chorus at band 3
+local ambienceBase = Look.Mix.groups.Ambience or 1 -- the group level before trim, duck, mute
+local ambienceLastSet = ambienceBase
+local ambienceLastFactor = 1
+local underPart: BasePart? = nil -- follows the hull, just under the keel (knocks)
+local auditionPart: BasePart? = nil -- listening test: where a far cue plays
+
+-- The chorus level this client mixes with: the real one, or 3 while a listening test holds
+-- the full chorus underneath.
+local function chorusLevel(): number
+	if os.clock() < chorusOverrideUntil then
+		return 3
+	end
+	return Chorus.level()
+end
+
 ----------------------------------------------------------------------------------------
 -- SEAM: Core.SoundMix
 -- Target level 0..1 for every layer, from a NightView and the chorus level. Mix rules
 -- (DESIGN.md): the chorus density follows the director; the motor ducks the chorus; silence
 -- is used on purpose (the beds drop to Config.Mix.bedSilent when the chorus is dead).
-local function mixFor(view: NightView, chorusLevel: number): { [string]: number }
+local function mixFor(view: NightView, level: number): { [string]: number }
 	local motorMask = if view.motorOn then Config.Boat.motorSoundMask else 0
 	local duck = 1 - motorMask
-	local bed = if chorusLevel <= 0 then Config.Mix.bedSilent / Config.Mix.bed else 1
+	local bed = if level <= 0 then Config.Mix.bedSilent / Config.Mix.bed else 1
 	return {
 		hullLap = bed,
 		lakeAir = bed,
 		windTrees = 1,
-		chorusFull = math.clamp(chorusLevel - 2, 0, 1) * duck,
-		crickets = math.clamp(chorusLevel / 2, 0, 1) * duck,
+		chorusFull = math.clamp(level - 2, 0, 1) * duck,
+		crickets = math.clamp(level / 2, 0, 1) * duck,
 		dockWater = 1,
 		lanternFlame = if view.lanternOn then 1 else 0,
 		motorIdle = if view.motorOn then 1 else 0,
@@ -429,6 +452,79 @@ local function anchorFor(where: Where): (Instance?, string?)
 	return nil, nil
 end
 
+-- A part that follows the hull just under the keel: knocks play from here (close and dry).
+function AudioDirector.under(): BasePart?
+	return underPart
+end
+
+-- True while the ambience is ducked for a rule cue.
+function AudioDirector.ducking(): boolean
+	return duckLevel < 0.98
+end
+
+-- Mutes the Ambience group (frogs, chorus, beds) while any key is on: the death card.
+function AudioDirector.muteAmbience(key: string, on: boolean)
+	muteKeys[key] = if on then true else nil
+end
+
+-- A sound that ducks the ambience while it plays (Rule group unless duck = false).
+local function trackDuck(name: string, s: Sound)
+	local entry = SoundRegistry.get(name)
+	if entry == nil or entry.group ~= "Rule" or entry.duck == false then
+		return
+	end
+	duckers[s] = true
+	s.Destroying:Once(function()
+		duckers[s] = nil
+	end)
+end
+
+local function anyDucker(): boolean
+	for s in duckers do
+		if s.Parent == nil then
+			duckers[s] = nil
+		elseif s.IsPlaying and s.Volume > 0.02 then
+			return true
+		end
+	end
+	return false
+end
+
+-- Ambience group level: base, eased down toward band 3, ducked for cues, muted for cards.
+local function stepGroups(dt: number)
+	local g = groups.Ambience
+	if g == nil then
+		return
+	end
+	local M = Look.Mix
+	local band3 = math.clamp(chorusLevel() - 2, 0, 1)
+	local trim = 1 + (M.band3Trim - 1) * band3
+	local wantDuck = if anyDucker() or os.clock() < duckHoldUntil then M.cueDuck else 1
+	if wantDuck < duckLevel then
+		duckLevel = math.max(wantDuck, duckLevel - dt * (1 - M.cueDuck) / M.duckAttack)
+	else
+		duckLevel = math.min(wantDuck, duckLevel + dt * (1 - M.cueDuck) / M.duckRelease)
+	end
+	local wantMute = if next(muteKeys) ~= nil then 0 else 1
+	local k = dt / M.muteFade
+	muteLevel += math.clamp(wantMute - muteLevel, -k, k)
+	-- fx/Finale tweens this group's Volume itself (the water goes silent at 4 AM). A change
+	-- made by someone else since the last frame moves the base, so this mix rides on top of
+	-- that tween instead of fighting it.
+	if math.abs(g.Volume - ambienceLastSet) > 1e-4 and ambienceLastFactor > 0.01 then
+		ambienceBase = g.Volume / ambienceLastFactor
+	end
+	local factor = trim * duckLevel * muteLevel
+	g.Volume = math.clamp(ambienceBase * factor, 0, 10)
+	ambienceLastSet = g.Volume
+	ambienceLastFactor = factor
+	local u = underPart
+	local hull = BoatClient.hull()
+	if u and hull then
+		u.CFrame = hull.CFrame * CFrame.new(0, -1.6, 0)
+	end
+end
+
 -- Create layer sounds that are missing (id nonzero and anchor present). Cheap to repeat.
 local function ensureLayers()
 	for _, layer in layers do
@@ -473,15 +569,15 @@ local function ensureLayers()
 end
 
 local function stepLayers(dt: number)
-	local chorusLevel = Chorus.level()
-	local targets = mixFor(ViewState.get(), chorusLevel)
+	local level = chorusLevel()
+	local targets = mixFor(ViewState.get(), level)
 	for _, layer in layers do
 		local def = layer.def
 		local target = (targets[def.key] or 0) * (Look.Mix.layers[def.base] or 1)
 		if tapePlaying and DUCKED[def.key] then
 			target *= Look.Mix.tape.duck
 		end
-		if CHORUS_KEYS[def.key] and chorusLevel <= 0 then
+		if CHORUS_KEYS[def.key] and level <= 0 then
 			layer.volume = 0 -- the drop to silence is instant
 		else
 			local rate = if CHORUS_KEYS[def.key] then Look.Mix.chorusFadePerSecond else Look.Mix.fadePerSecond
@@ -533,6 +629,7 @@ function AudioDirector.play(name: string, at: (BasePart | Vector3)?, opts: PlayO
 	end
 	-- Destroyed when every piece is over (one piece for a plain sound: when it ends).
 	startPlayback(name, s, true, opts and opts.repeatGap)
+	trackDuck(name, s)
 	-- A sound that never loads never ends; clean it up anyway.
 	task.delay(90, function()
 		if s.Parent then
@@ -540,6 +637,20 @@ function AudioDirector.play(name: string, at: (BasePart | Vector3)?, opts: PlayO
 		end
 	end)
 	s:Play()
+	-- Companions (`with`): same place, same options, stopped with this one.
+	local entry = SoundRegistry.get(name)
+	if entry and entry.with then
+		for _, other in entry.with do
+			local c = AudioDirector.play(other, at, opts)
+			if c then
+				s.Destroying:Once(function()
+					if c.Parent then
+						c:Destroy()
+					end
+				end)
+			end
+		end
+	end
 	return s
 end
 
@@ -558,41 +669,132 @@ function AudioDirector.loop(name: string, at: BasePart?, volume: number?): Sound
 		s.Volume *= volume
 	end
 	startPlayback(name, s, false)
+	trackDuck(name, s)
 	s:Play()
 	return s
 end
 
--- Studio listening test (DebugBot "play_sound"): plays any registry sound by name on this
--- client, at the hull for spatial entries. Loops stop after `seconds` (default 8). Returns
--- false when the name has nothing to play.
+----------------------------------------------------------------------------------------
+-- Studio listening test (DebugBot "play_sound")
+
+-- Where the real fx play a cue (Scare polish 2: the first test played everything at the
+-- hull, which is not where the Neighbor or the Watcher are heard in a night). Returns the
+-- anchor kind and a short label for the log.
+--   far    the Neighbor: Config.Rules.Neighbor.appearDist off the bow, 40 degrees to one side
+--   shore  the Watcher and the shore fake-outs: the nearest shore point
+--   buoy   a buoy clank: 150 studs off to port
+--   under  knocks and water in the boat: just under the keel
+--   cooler the dock cooler (WrongCatch), else the hull
+--   lantern, motor  those boat parts
+--   hull   every other spatial cue; nil plays 2D
+function AudioDirector.auditionSpot(name: string): string?
+	local entry = SoundRegistry.get(name)
+	if entry == nil or not entry.spatial then
+		return nil
+	end
+	if string.sub(name, 1, 9) == "neighbor-" then
+		return "far"
+	elseif string.sub(name, 1, 8) == "watcher-" or name == "fake-branch-snap" or name == "fake-loon-scream" then
+		return "shore"
+	elseif name == "fake-buoy-clank" then
+		return "buoy"
+	elseif
+		string.sub(name, 1, 6) == "knock-"
+		or name == "fake-single-knock"
+		or name == "flood-in-loop"
+		or name == "bail-scoop"
+	then
+		return "under"
+	elseif string.sub(name, 1, 7) == "cooler-" then
+		return "cooler"
+	elseif string.sub(name, 1, 8) == "lantern-" or name == "fake-lantern-flicker" then
+		return "lantern"
+	elseif string.sub(name, 1, 6) == "motor-" then
+		return "motor"
+	end
+	return "hull"
+end
+
+local function placeAudition(pos: Vector3): BasePart?
+	local p = auditionPart
+	if p == nil or p.Parent == nil then
+		p = emitterPart("Audition", pos)
+		auditionPart = p
+	end
+	local ap = p :: BasePart
+	ap.CFrame = CFrame.new(pos)
+	return ap
+end
+
+local function auditionAnchor(kind: string?): BasePart?
+	local hull = BoatClient.hull()
+	if kind == nil then
+		return nil
+	elseif kind == "under" then
+		return underPart or hull
+	elseif kind == "lantern" then
+		return BoatClient.part("LanternGlow") or hull
+	elseif kind == "motor" then
+		return BoatClient.part("Motor") or hull
+	elseif kind == "cooler" then
+		return BoatClient.find("Dock", "DockCooler") or hull
+	elseif hull == nil then
+		return nil
+	end
+	local y = Config.Lake.waterY + 0.5
+	if kind == "far" then
+		local d = Config.Rules.Neighbor.appearDist
+		local dir = (hull.CFrame * CFrame.Angles(0, math.rad(-40), 0)).LookVector
+		return placeAudition(Vector3.new(hull.Position.X + dir.X * d, y + 2, hull.Position.Z + dir.Z * d))
+	elseif kind == "buoy" then
+		local dir = -hull.CFrame.RightVector
+		return placeAudition(Vector3.new(hull.Position.X + dir.X * 150, y + 1, hull.Position.Z + dir.Z * 150))
+	elseif kind == "shore" then
+		local near = LakeMap.nearestShorePoint(Config, { x = hull.Position.X, z = hull.Position.Z })
+		return placeAudition(Vector3.new(near.x, y + 6, near.z))
+	end
+	return hull
+end
+
+-- Plays any registry sound by name on this client the way the real fx would: at the same
+-- place relative to the boat (auditionSpot), through the same group, so it ducks the
+-- ambience like a real cue. Loops stop after `seconds` (default 8). opts.ambience = true
+-- holds the full band-3 chorus (loop, crickets, single frogs) under it, so the test is
+-- honest. Returns whether it played, and where.
 local auditions: { Sound } = {}
-function AudioDirector.audition(name: string, seconds: number?): boolean
+function AudioDirector.audition(name: string, seconds: number?, opts: { ambience: boolean? }?): (boolean, string?)
 	if not SoundRegistry.available(name) then
-		return false
+		return false, nil
+	end
+	local secs = seconds or 8
+	if opts and opts.ambience then
+		-- Long enough to bridge the gap to the next cue in a sequence (no drop to silence).
+		chorusOverrideUntil = math.max(chorusOverrideUntil, os.clock() + secs + 6)
 	end
 	local entry = SoundRegistry.get(name)
-	local hull = BoatClient.hull()
+	local kind = AudioDirector.auditionSpot(name)
+	local at = auditionAnchor(kind)
 	local s: Sound?
 	if entry and entry.looped then
-		s = AudioDirector.loop(name, hull)
+		s = AudioDirector.loop(name, at)
 		local loopSound = s
 		if loopSound then
-			task.delay(seconds or 8, function()
+			task.delay(secs, function()
 				if loopSound.Parent then
 					loopSound:Destroy()
 				end
 			end)
 		end
 	else
-		s = AudioDirector.play(name, hull)
+		s = AudioDirector.play(name, at)
 	end
 	if s then
 		table.insert(auditions, s)
 	end
-	return s ~= nil
+	return s ~= nil, kind or "2d"
 end
 
--- Stops every sound started by audition.
+-- Stops every sound started by audition and lets the chorus go back to the night's level.
 function AudioDirector.stopAuditions()
 	for _, s in auditions do
 		if s.Parent then
@@ -600,6 +802,7 @@ function AudioDirector.stopAuditions()
 		end
 	end
 	auditions = {}
+	chorusOverrideUntil = -math.huge
 end
 
 -- The registry volume for a name (fx modules fade loops relative to it).
@@ -665,7 +868,7 @@ end
 local function startFrogs()
 	local timer = 0.5
 	RunService.Heartbeat:Connect(function(dt)
-		local level = Chorus.level()
+		local level = chorusLevel()
 		local lo, hi = AudioDirector.frogGap(level)
 		if lo == nil or hi == nil then
 			timer = rnd:NextNumber(0.3, 1.2) -- the first call after a silence comes quickly
@@ -894,8 +1097,10 @@ local function onEvent(e: Events.Event)
 		AudioDirector.stopTape(false)
 		tapeOpenUntil = os.clock() + AudioDirector.TAPE_WINDOW
 	elseif kind == "EntityCue" then
-		-- Rule cues duck everything else: the tape is cut so it never talks over a cue.
+		-- Rule cues duck everything else: the tape is cut so it never talks over a cue, and the
+		-- ambience ducks at once (the cue's own sounds keep it down while they play).
 		AudioDirector.stopTape(true)
+		duckHoldUntil = os.clock() + Look.Mix.cueHold
 	end
 	-- NightFailed: the sting and the "Rough night" tape come with the end card (NightCards).
 end
@@ -964,14 +1169,17 @@ local function startIncidentals()
 			creakT -= dt
 			if creakT <= 0 then
 				creakT = rnd:NextNumber(Look.Mix.hullCreakMin, Look.Mix.hullCreakMax)
-				AudioDirector.play("hull-creak", hull)
+				-- No random creak over a rule cue (it masked the knocks).
+				if not AudioDirector.ducking() then
+					AudioDirector.play("hull-creak", hull)
+				end
 			end
 		end
 
 		wildT -= dt
 		if wildT <= 0 then
 			wildT = rnd:NextNumber(Look.Mix.wildlifeMin, Look.Mix.wildlifeMax)
-			if Chorus.band() >= 2 and #shoreEmitters > 0 then
+			if chorusLevel() >= 2 and #shoreEmitters > 0 and not AudioDirector.ducking() then
 				local calls = { "loon-call", "loon-tremolo", "owl-hoot" }
 				local spot = shoreEmitters[rnd:NextInteger(1, #shoreEmitters)]
 				AudioDirector.play(calls[rnd:NextInteger(1, #calls)], spot.Position)
@@ -999,6 +1207,7 @@ function AudioDirector.init()
 	for i = 1, 12 do
 		table.insert(frogPool, emitterPart("Frog" .. i, Vector3.new(0, lake.waterY, 0)))
 	end
+	underPart = emitterPart("UnderKeel", Vector3.new(0, lake.waterY - 1, 0))
 
 	for _, def in LAYERS do
 		table.insert(layers, { def = def, sounds = {}, volume = 0, parentKey = nil })
@@ -1011,6 +1220,7 @@ function AudioDirector.init()
 			acc = 0
 			ensureLayers()
 		end
+		stepGroups(dt)
 		stepLayers(dt)
 	end)
 	startIncidentals()
@@ -1028,13 +1238,22 @@ function AudioDirector.debugState(): { [string]: any }
 		out[layer.def.key] = {
 			sounds = #layer.sounds,
 			volume = layer.volume,
+			soundVolume = if s then s.Volume else nil,
 			playing = s ~= nil and s.IsPlaying,
 			loaded = s ~= nil and s.IsLoaded,
 			parent = if s and s.Parent then s.Parent.Name else nil,
+			group = if s and s.SoundGroup then s.SoundGroup.Name else nil,
 		}
 	end
-	out.chorusLevel = Chorus.level()
+	out.chorusLevel = chorusLevel()
 	out.tapePlaying = tapePlaying
+	local gv = {}
+	for name, g in groups do
+		gv[name] = g.Volume
+	end
+	out.groups = gv
+	out.duck = duckLevel
+	out.mute = muteLevel
 	return out
 end
 

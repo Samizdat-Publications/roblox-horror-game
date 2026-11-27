@@ -1,9 +1,23 @@
 --!strict
--- The night's title card at the start, and the clear or fail card at the end, with a short
--- dry tally per player from NightResult. Simple for now (S2); the rulebook, the tapes on
--- screen and the full end-of-night card come in S4.
+-- The night's cards (S4):
+--   * Night start: "Night N" in the owner's hand, which try it is, the quota, the rule taped
+--     in tonight, "the book changed" in his second ink when there is an amendment, and the
+--     words of tonight's tape (Rulebook.TEXT, for players with the sound off). It goes after
+--     a few seconds, or on a tap or click.
+--   * Night end: cleared or failed, banked, fish landed, a dry tally line per player, then
+--     what comes next from Core.Run's outcome (next night, the same night again with the
+--     tries left, or the run is over).
+--   * The run's end: the run-cleared card (with the owner's run-cleared tape) or the
+--     run-over card, the run's totals, and for the host a button back to the title.
+-- The death card goes first: the end card waits for it, then a few seconds of the drowned
+-- view for a drowned player.
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Look = require(Shared:WaitForChild("Look"))
+local Rulebook = require(Shared:WaitForChild("Core"):WaitForChild("Rulebook")) :: any
 
 local client = script.Parent.Parent
 local Events = require(client:WaitForChild("Events"))
@@ -11,27 +25,39 @@ local Paper = require(script.Parent:WaitForChild("Paper"))
 local DeathCard = require(script.Parent:WaitForChild("DeathCard"))
 local AudioDirector = require(client:WaitForChild("AudioDirector"))
 local ViewState = require(client:WaitForChild("ViewState"))
+local LobbyClient = require(client:WaitForChild("LobbyClient"))
 
 local NightCards = {}
 
 -- Seconds of the drowned view (the boat from above, the outlines) between a death card and
--- the night's end card, when the local player is one of the drowned. Solo, this is the
--- only look at the drowned view before the night restarts.
+-- the night's end card, when the local player is one of the drowned.
 NightCards.DROWNED_BEAT = 4
+NightCards.START_SECONDS = 9 -- the night start card (longer when it carries the tape's words)
 
 NightCards.FAIL_TEXT = {
 	QuotaShort = "Five o'clock and the cooler is short.",
 	CrewLost = "The lake has the whole crew.",
 	Sunk = "The boat went down.",
+	SpecialOrder = "Dawn, and no Steeple Cat. The owner wanted one fish.",
+	NotHome = "Dawn caught you on the water with the owner's fish.",
 } :: { [string]: string }
 
+local TRY = { [2] = "Second try.", [3] = "Third try.", [4] = "Fourth try." }
+
 local endCard: Frame? = nil
-local titleCard: Frame? = nil
-local endToken = 0
 local endHead: TextLabel? = nil
 local endBody: TextLabel? = nil
+local startCard: Frame? = nil
+local startHead: TextLabel? = nil
+local startBody: TextLabel? = nil
+local startTape: TextLabel? = nil
+local runCard: Frame? = nil
+local runHead: TextLabel? = nil
+local runBody: TextLabel? = nil
+local runButton: TextButton? = nil
 local nightNumber = 1
-local titleToken = 0
+local endToken = 0
+local startToken = 0
 
 local TIMES = { [2] = "twice", [3] = "three times", [4] = "four times", [5] = "five times" }
 
@@ -82,7 +108,45 @@ local function nameOf(id: any): string
 	return if p then p.DisplayName else "A crewman"
 end
 
-local function showEnd(cleared: boolean, reason: string?, result: any)
+-- What comes after this night, in one line, from Core.Run's outcome.
+function NightCards.nextLine(outcome: string?, run: { [string]: any }?, nights: number?): string?
+	if outcome == "NextNight" then
+		local n = if run then tonumber(run.night) else nil
+		if n and nights and n >= nights then
+			return "Last night next. The owner has a special order."
+		end
+		return if n then string.format("Night %d next.", n) else "The next night is coming."
+	elseif outcome == "RetryNight" then
+		local left = if run then tonumber(run.retriesLeft) else nil
+		if left == nil then
+			return "The lake gives you this night again."
+		elseif left == 0 then
+			return "The lake gives you this night again. That was the last one it gives."
+		end
+		return string.format(
+			"The lake gives you this night again. %s left after this.",
+			if left == 1 then "One more try" else tostring(left) .. " more tries"
+		)
+	elseif outcome == "RunOver" then
+		return "No more tries. The run is over."
+	end
+	return nil
+end
+
+-- Waits (at most `seconds`) for the lobby to report this night's outcome.
+local function awaitOutcome(seconds: number): LobbyClient.State
+	local t0 = os.clock()
+	while os.clock() - t0 < seconds do
+		local s = LobbyClient.get()
+		if s.outcome ~= nil or not s.runNight then
+			return s
+		end
+		task.wait(0.1)
+	end
+	return LobbyClient.get()
+end
+
+local function showEnd(cleared: boolean, reason: string?, result: any, s: LobbyClient.State)
 	local card, head, body = endCard, endHead, endBody
 	if card == nil or head == nil or body == nil then
 		return
@@ -111,7 +175,11 @@ local function showEnd(cleared: boolean, reason: string?, result: any)
 			end
 		end
 	end
-	if not cleared then
+	local nextLine = if s.runNight then NightCards.nextLine(s.outcome, s.run, s.nights) else nil
+	if nextLine then
+		table.insert(lines, "")
+		table.insert(lines, nextLine)
+	elseif not cleared and not s.runNight then
 		table.insert(lines, "")
 		table.insert(lines, "The lake gives you this night again.")
 	end
@@ -119,36 +187,181 @@ local function showEnd(cleared: boolean, reason: string?, result: any)
 	card.Visible = true
 end
 
--- Hides every card and cancels a pending end card (Studio scenario reset).
-function NightCards.hide()
-	endToken += 1
-	titleToken += 1
-	local e, t = endCard, titleCard
+-- The run's end: cleared (the owner's run-cleared tape) or over.
+local function showRun(cleared: boolean, s: LobbyClient.State)
+	local card, head, body, btn = runCard, runHead, runBody, runButton
+	if card == nil or head == nil or body == nil or btn == nil then
+		return
+	end
+	local e = endCard
 	if e then
 		e.Visible = false
 	end
-	if t then
-		t.Visible = false
+	head.Text = if cleared then "Dawn. The run is cleared." else "The run is over."
+	local t = s.totals or {}
+	local lines = {}
+	if cleared then
+		table.insert(lines, Rulebook.TEXT["Tape.RunCleared"] or "")
+	else
+		table.insert(lines, "Five nights is a long time on this lake. Start again from night one.")
 	end
+	table.insert(lines, "")
+	table.insert(
+		lines,
+		string.format("Nights cleared: %s of %s", tostring(t.nightsCleared or 0), tostring(s.nights or 5))
+	)
+	table.insert(lines, string.format("Fish banked: %s", tostring(t.fishBanked or 0)))
+	table.insert(lines, string.format("Scares lived through: %s", tostring(t.scaresSurvived or 0)))
+	table.insert(lines, string.format("Taken by the lake: %s", tostring(t.deaths or 0)))
+	table.insert(lines, string.format("Difficulty: %s", tostring(t.difficulty or s.difficulty)))
+	body.Text = table.concat(lines, "\n")
+	btn.Visible = LobbyClient.isHost()
+	card.Visible = true
+	if cleared then
+		AudioDirector.play("run-cleared")
+		task.delay(1.5, function()
+			if card.Visible then
+				AudioDirector.playTape("tape-run-cleared")
+			end
+		end)
+	else
+		AudioDirector.play("night-failed-sting")
+	end
+end
+
+-- Hides every card and cancels a pending end card (Studio scenario reset, the title).
+function NightCards.hide()
+	endToken += 1
+	startToken += 1
+	for _, c in { endCard, startCard, runCard } do
+		if c then
+			c.Visible = false
+		end
+	end
+end
+
+local function showStart(night: number)
+	local card, head, body, tape = startCard, startHead, startBody, startTape
+	if card == nil or head == nil or body == nil or tape == nil then
+		return
+	end
+	startToken += 1
+	local token = startToken
+	-- The lobby's page for this night may land a moment after NightStarted.
+	local t0 = os.clock()
+	local s = LobbyClient.get()
+	while (s.night == nil or s.night.night ~= night) and os.clock() - t0 < 1 do
+		task.wait(0.1)
+		s = LobbyClient.get()
+	end
+	if token ~= startToken then
+		return
+	end
+	local info = if s.night and s.night.night == night then s.night else nil
+	head.Text = string.format("Night %d", night)
+	local lines = {}
+	local run = s.run
+	if s.runNight and run then
+		local attempt = tonumber(run.attempt) or 1
+		local first = string.format("Night %d of %d.", night, s.nights or 5)
+		if attempt > 1 then
+			first ..= " " .. (TRY[attempt] or "Another try.")
+		end
+		table.insert(lines, first)
+	end
+	local quota = if info then info.quota else ViewState.get().quota
+	if quota then
+		table.insert(lines, string.format("Quota: %d.", quota))
+	end
+	local amended = false
+	if info then
+		for _, r in info.newRules do
+			local n = Rulebook.NUMBERS[r]
+			if n then
+				table.insert(lines, string.format("Taped in tonight: Rule %d.", n))
+			end
+		end
+		amended = next(info.amendments) ~= nil
+	end
+	local rich = {}
+	for _, l in lines do
+		table.insert(rich, l)
+	end
+	if amended then
+		table.insert(
+			rich,
+			string.format(
+				'<font color="#%s">The owner changed the book. Read it again (R).</font>',
+				Look.Palette.amendInk:ToHex()
+			)
+		)
+	end
+	body.Text = table.concat(rich, "\n")
+	local tapeId = if info and info.mode == "Endless" then "Tape.Endless" else "Tape.Night" .. tostring(night)
+	local words = Rulebook.TEXT[tapeId]
+	if amended and Rulebook.TEXT["Tape.Amendment"] then
+		words = (words or "") .. " " .. Rulebook.TEXT["Tape.Amendment"]
+	end
+	tape.Text = if words then '"' .. words .. '"' else ""
+	tape.Visible = words ~= nil
+	card.Visible = true
+	task.delay(NightCards.START_SECONDS + (if words then 5 else 0), function()
+		if startToken == token then
+			card.Visible = false
+		end
+	end)
 end
 
 function NightCards.init()
 	local gui = Paper.gui("DeadCalmNightCards", 10)
 
-	local t =
-		Paper.sheet(gui, "Title", UDim2.fromOffset(300, 64), UDim2.fromScale(0.5, 0.22), Vector2.new(0.5, 0.5), 10)
-	t.Rotation = -1.5
-	t.Visible = false
-	titleCard = t
-	local tt = Paper.text(t, "Text", "", 30, Paper.hand())
-	tt.Size = UDim2.fromScale(1, 1)
-	tt.TextXAlignment = Enum.TextXAlignment.Center
-	tt.TextYAlignment = Enum.TextYAlignment.Center
+	-- Night start: top middle, tap to put away.
+	local st = Paper.sheet(gui, "Start", UDim2.fromScale(0.6, 0.5), UDim2.fromScale(0.5, 0.06), Vector2.new(0.5, 0), 12)
+	st.Rotation = -1.2
+	st.BackgroundTransparency = 0.05
+	st.Visible = false
+	local stLimit = Instance.new("UISizeConstraint")
+	stLimit.MaxSize = Vector2.new(560, 330)
+	stLimit.MinSize = Vector2.new(280, 0)
+	stLimit.Parent = st
+	startCard = st
+	local big = Paper.fit(34, 22, 38)
+	local sh = Paper.text(st, "Head", "", big, Paper.hand())
+	sh.Size = UDim2.new(1, 0, 0, big + 6)
+	startHead = sh
+	local small = Paper.fit(17, 12, 19)
+	local sb = Paper.text(st, "Body", "", small)
+	sb.RichText = true
+	sb.Position = UDim2.fromOffset(0, big + 8)
+	sb.Size = UDim2.new(1, 0, 0, (small + 4) * 4)
+	startBody = sb
+	local stp = Paper.text(st, "Tape", "", math.max(11, small - 2))
+	stp.Position = UDim2.fromOffset(0, big + 12 + (small + 4) * 4)
+	stp.Size = UDim2.new(1, 0, 1, -(big + 12 + (small + 4) * 4))
+	stp.TextTransparency = 0.2
+	stp.TextScaled = false
+	startTape = stp
+	local tap = Instance.new("TextButton")
+	tap.Name = "Tap"
+	tap.Text = ""
+	tap.BackgroundTransparency = 1
+	tap.Size = UDim2.fromScale(1, 1)
+	tap.Selectable = false
+	tap.ZIndex = 5
+	tap.Parent = st
+	tap.Activated:Connect(function()
+		startToken += 1
+		st.Visible = false
+	end)
 
+	-- Night end.
 	local e = Paper.sheet(gui, "End", UDim2.fromOffset(520, 340), UDim2.fromScale(0.5, 0.45), Vector2.new(0.5, 0.5), 18)
 	e.BackgroundTransparency = 0.03
 	e.Rotation = 0.8
 	e.Visible = false
+	local eScale = Instance.new("UIScale")
+	eScale.Scale = math.clamp(Paper.fit(100, 55, 100) / 100, 0.55, 1)
+	eScale.Parent = e
 	endCard = e
 	local h = Paper.text(e, "Head", "", 30, Paper.hand())
 	h.Size = UDim2.new(1, 0, 0, 40)
@@ -158,20 +371,37 @@ function NightCards.init()
 	b.Size = UDim2.new(1, 0, 1, -50)
 	endBody = b
 
+	-- The run's end.
+	local r = Paper.sheet(gui, "Run", UDim2.fromOffset(560, 400), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), 20)
+	r.BackgroundTransparency = 0.02
+	r.Rotation = -0.6
+	r.Visible = false
+	local rScale = Instance.new("UIScale")
+	rScale.Scale = math.clamp(Paper.fit(100, 55, 100) / 100, 0.55, 1)
+	rScale.Parent = r
+	runCard = r
+	local rh = Paper.text(r, "Head", "", 34, Paper.hand())
+	rh.Size = UDim2.new(1, 0, 0, 44)
+	runHead = rh
+	local rb = Paper.text(r, "Body", "", 18)
+	rb.Position = UDim2.fromOffset(0, 52)
+	rb.Size = UDim2.new(1, 0, 1, -110)
+	runBody = rb
+	local btn = Paper.button(r, "Title", "Back to the title", UDim2.fromOffset(240, 44))
+	btn.AnchorPoint = Vector2.new(0.5, 1)
+	btn.Position = UDim2.fromScale(0.5, 1)
+	btn.Activated:Connect(function()
+		LobbyClient.send("Title")
+	end)
+	runButton = btn
+
 	Events.on("NightStarted", function(ev)
 		local data = ev.data or {}
 		nightNumber = tonumber(data.night) or nightNumber
 		e.Visible = false
+		r.Visible = false
 		endToken += 1
-		titleToken += 1
-		local token = titleToken
-		tt.Text = string.format("Night %d", nightNumber)
-		t.Visible = true
-		task.delay(4, function()
-			if titleToken == token then
-				t.Visible = false
-			end
-		end)
+		task.spawn(showStart, nightNumber)
 	end)
 	-- The death card goes first: the end card waits for it (at most 15 s), then, for a
 	-- drowned player, a few seconds of the drowned view. A new night cancels the wait.
@@ -197,22 +427,43 @@ function NightCards.init()
 	Events.on("NightCleared", function(ev)
 		local data = ev.data or {}
 		afterDeathCard(function()
-			showEnd(true, nil, data.result)
+			local s = awaitOutcome(2)
+			if s.outcome == "RunCleared" then
+				-- The finale's dawn first (fx/Finale), then the run card.
+				task.wait(2.5)
+				showRun(true, LobbyClient.get())
+			else
+				showEnd(true, nil, data.result, s)
+			end
 		end)
 	end)
 	Events.on("NightFailed", function(ev)
 		local data = ev.data or {}
 		afterDeathCard(function()
-			showEnd(false, if type(data.reason) == "string" then data.reason else nil, data.result)
+			local s = awaitOutcome(2)
+			showEnd(false, if type(data.reason) == "string" then data.reason else nil, data.result, s)
 			-- The sting and the owner's "Rough night" come with the card, never over a death.
 			AudioDirector.play("night-failed-sting")
 			local tok = endToken
+			if s.outcome == "RunOver" then
+				task.delay(6, function()
+					if endToken == tok then
+						showRun(false, LobbyClient.get())
+					end
+				end)
+				return
+			end
 			task.delay(1.2, function()
 				if endToken == tok then
 					AudioDirector.playTape("tape-night-failed")
 				end
 			end)
 		end)
+	end)
+	LobbyClient.onChange(function(s)
+		if s.phase == "Title" then
+			NightCards.hide()
+		end
 	end)
 end
 

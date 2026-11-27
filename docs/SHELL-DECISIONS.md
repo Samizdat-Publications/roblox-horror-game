@@ -139,3 +139,81 @@ Calls made while building:
 - Not built: lake-silence-drop's "then all ambience muted" is behavior, not a sound; nothing calls lake-silence-drop or lake-groan yet. title-theme "without the radio filter": the filter is baked into the radio tunes, so they play as they are.
 - Server sounds: `EntityPresenter.play` (server, outside this task) does not read `derive`. `SoundRegistry.uri` now resolves a derived name to its source, so the server's rod-clatter plays fish-land-thud unshaped instead of nothing. The derive shaping on the server is a follow-up for whoever owns src/server.
 - Still silent (not in the plan's table): ui-book-close, ui-envelope, ui-pencil-scratch, ui-tape-click, ui-tape-stop.
+
+## S4 (11/26/2026)
+
+- 11/26/2026: NightService owns the run (Core.Run); LobbyService owns the title flow and the timing between nights (12 s to the next night, 30 s on the run's end card, then the title). Nights started by Studio scenarios are outside the run and advance nothing.
+- 11/26/2026: Nights outside the run are built by a throwaway Normal first run at that night, with the scenario's seed used as the night seed, so S2 and S3 scenarios replay as before (night 5 scenarios now carry the first run's one amendment).
+- 11/26/2026: The server starts on the title screen; nothing runs until the host presses Play (the S2 auto start when the first player sits is gone). Any night start, a Studio scenario included, takes the title down.
+- 11/26/2026: The host is the first player in the server; when the host leaves, the next player in the list takes over. Only the host picks the difficulty, starts, or leaves the run's end card early.
+- 11/26/2026: The book flag and the touch flag ride the Lobby remote ("Book", "Touch") rather than new Intent kinds, so Core's intent list is untouched. While the book is open the server refuses intents that need hands and the helm goes slack; letting go of the reel and the bail is always allowed.
+- 11/26/2026: Tonight's page reaches clients on LobbyState (rules, newRules, amendments); the client builds the text with Core.Rulebook (page and TEXT), which is in ReplicatedStorage.
+- 11/26/2026: An amendment is drawn as the printed rule crossed out (RichText strikethrough, faded) with the new line under it in the amendment ink and handwriting, a little crooked. Fresh tape and a "taped in tonight" pencil note mark tonight's new rule.
+- 11/26/2026: "Opens from the boat": a small paper block on the stern thwart with a ClickDetector (on a client-made part; the docs do not say whether client-side ClickDetector events fire for local parts, so Studio must check). R, the D-pad and the Book button always work.
+- 11/26/2026: Gamepad: D-pad left rulebook, D-pad right Field Guide, B shuts the book; the guide turns pages with the shoulders (L1 knock is blocked while the book is open). Title: A plays, X toggles the difficulty, Y opens the Lake Rules.
+- 11/26/2026: MobileButtons replace the ContextActionService touch buttons. Layout is computed from the screen size: Cast (84 px at 338 tall, scaled up to 1.6x on bigger screens), Use and Knock in the bottom right around Roblox's default jump button rectangle (70 px at 95 and 90 from the right and bottom when the short side is 500 or less, else 120 px at 170 and 210; from the PlayerModule as remembered, the source could not be fetched); six 54 px buttons in two columns on the left edge so the move stick can still start in the open middle. Touch is chosen by UserInputService.PreferredInput when present, else TouchEnabled without a keyboard.
+- 11/26/2026: Late joiners are hidden in a seat through EntityPresenter (so Net.isDrowned refuses their helm) and watch from the drowned view with their own tag and no bell until the next night.
+- 11/26/2026: The night start card carries the words of tonight's tape (Rulebook.TEXT) for players with the sound off; the run-cleared card carries the run-cleared tape's words.
+- 11/26/2026: The finale's "every water sound stops" fades the DeadCalmAmbience SoundGroup to 0 from fx/Finale (AudioDirector has no public call for it and was being edited by another builder); it is restored on pass, fail, reset and the title. All finale sounds go through AudioDirector.play and loop.
+- 11/26/2026: The locked lantern is shown by two dark bands clamped round the lantern glow and a small Neon flame inside it that shrinks and reddens with the oil, plus "Oil (locked)" in the amendment ink on the HUD. There is no dock bell in the world, so fx/Finale puts a small bell on a post at the dock end when it rings (local).
+- 11/26/2026: Dawn after the finale's pass is a camera ColorCorrection tint toward the dawn color over 6 s (local), cleared at the next night or on the title.
+- 11/26/2026: full_run and finale use a server crew bot (DebugCrew, a port of crewbot "follow") that hands Night its intents directly and steers through BoatService.setHelmInput(nil, ...): the remote paths are proven by S2 and S3, and a five-night run through Net would trip the per-player rate limits. full_run's fast clock scales the quota by seconds / 360 (rounded up).
+- 11/26/2026: The finale scenario starts night 5 of a run with quota 3, jumps the raw clock to 3:50 AM and puts a book-true Steeple Cat in the hold, so getting home banks the cat, clears the night and clears the run.
+
+## Scare polish 2 (11/26/2026)
+
+From Neon's listening test (`docs/critic/11-26-2026-derived-sounds-listen-neon.md`: oarlock 1/10, knocks 1 and 2/10, footsteps 1/10, Watcher tone 8/10) and the second Hum fail review (4.5/10). Items 0 to 6 of `docs/SCARE-POLISH-2.md`.
+
+### The mix (item 0)
+
+Cause found: not only the ambience level. The first listening test played every spatial cue at the hull, but the real Neighbor and Watcher cues play 90 to 260 studs away, where the old rolloff (minDist 20 or 40, InverseTapered) took 12 to 17 dB off; and the "far" recipe itself took most of the creak away (EQ HighGain -30, MidGain -8, reverb DryLevel -10). So distance now comes from reverb and a gentle high cut, minDist covers the real distance, and the Ambience group is lower and ducks.
+
+SoundGroup levels (Look.Mix.groups; SoundGroup.Volume ranges 0 to 10, creator docs YAML):
+
+| Group | Before | Now | Change |
+|---|---|---|---|
+| Ambience, below band 2 | 0.9 | 0.75 | -1.6 dB |
+| Ambience, at band 3 (band3Trim 0.6, eased in from band 2) | 0.9 | 0.45 | -6.0 dB |
+| Ambience, during any rule cue (cueDuck 0.4) | no duck | x0.4 | -8 dB more (band 3: 0.18, -14 dB from before) |
+| Ambience, death card up | 0.9 | 0 | muted from the fade to black until the card goes |
+| Boat | 0.8 | 0.8 | random hull creaks and shore wildlife skip while ducked |
+| Rule | 1.0 | 1.6 | +4.1 dB |
+| Fishing, UI, Music, Voice | 0.8, 0.6, 0.6, 1.0 | same | |
+
+Ducking: any Rule-group sound that is playing above volume 0.02 ducks the Ambience group (entries can opt out with `duck = false`; only ghost-loop does), and every EntityCue holds the duck for Look.Mix.cueHold (3 s) even before its sound loads. Attack 0.12 s, release 1.0 s. The Hum already silences the chorus by design; its loops duck the beds too.
+
+Cue entries (volume is the entry's; final level is entry x group):
+
+| Entry | Volume before, now | Rolloff min/max before, now | Shape now |
+|---|---|---|---|
+| neighbor-oarlock-loop, neighbor-pass | 0.55, 1.3 | 20/400, 160/900 | EQ HighGain -12, MidGain -2; reverb DecayTime 3.5, Dry -4, Wet -3 |
+| knock-three-soft | 0.7, 1.3 | 4/90, 14/120 | plays under the keel, `with` knock-thump-soft |
+| knock-three-hard | 0.7, 2.0 | 4/90, 14/120 | plays under the keel, `with` knock-thump-hard |
+| knock-thump-soft (new, derived) | 0.8 | 14/120 | fish-land-thud at speed 0.55, 0.35 s, EQ Low +6, Mid -8, High -30, three times |
+| knock-thump-hard (new, derived) | 1.3 | 14/120 | fish-land-thud at speed 0.45, 0.45 s, EQ Low +8, Mid -6, High -30, three times |
+| knock-pass | 0.6, 0.9 | 4/90, 14/120 | under the keel |
+| fake-single-knock | 0.7, 1.2 | 4/90, 14/120 | under the keel |
+| watcher-step | 0.5, 1.3 | 40/700, 150/900 | EQ Low +3, High -12, Mid -2; reverb 2.5, Dry -3, Wet -5 |
+| watcher-lunge | 0.8, 1.5 | 40/700, 150/900 | as before |
+| watcher-tone-loop | 0.12 | 2D | second PitchShift 1.8 instead of 2 (about two semitones lower) |
+| cooler-knock-inside | 0.6, 1.1 | 4/90, 30/300 | EQ Low +4, Mid -8, High -30 (muffled but present) |
+| hum-rise, hum-hold-loop | 0.7, 0.9 | 2D | the loop now starts with the rise |
+| hum-hull-resonance (new, derived) | 0.55 | 2D | hum-hold-loop two octaves up (PitchShift 2 twice), Distortion 0.18, EQ Low +2, Mid -9, High -30 |
+| motor-idle-loop | 0.7, 1.4 | 4/90, 12/140 | layer level motorIdle 0.8 to 1.0 |
+
+Calls made:
+- New registry fields: `with` (companion entries started at the same place with the same options, stopped with it) and `duck` (false opts a Rule sound out of ducking). A real-id entry cannot carry a derive (the lint), so the knocks' thump is its own derived entry started through `with`.
+- Knocks play from AudioDirector.under(): an invisible part that follows the hull 1.6 studs under the keel.
+- Band 3 trim is applied to the Ambience group, not the layers, so the single frog calls (one-shots in the Ambience group) come down with the loop.
+- fx/Finale tweens the DeadCalmAmbience group's Volume itself. AudioDirector now writes that group every frame, so it reads a change made by someone else as a new base and rides on top of the tween instead of fighting it. Cleaner: Finale calls `AudioDirector.muteAmbience("Finale", on)` (logged under Needed from S4).
+- WrongCatch started cooler-knock-inside three times, and the entry itself repeats three times: nine knocks. It now starts it once with repeatGap = KNOCK_GAP.
+- Listening test: `play_sound` plays each cue where the real fx would (AudioDirector.auditionSpot: the Neighbor 200 studs off the bow, 40 degrees to one side; the Watcher, branch snap and loon scream on the nearest shore; the buoy clank 150 studs to port; knocks, flooding and bailing under the keel; cooler sounds at the dock cooler; lantern and motor sounds at those parts; 2D entries in 2D), through the same group and ducking. `ambience = true` holds the chorus at band 3 (full loop, crickets, single frogs, band-3 trim) for the cue's length plus 6 s, so a sequence of cues never drops to silence between them; `stop_sound` releases it.
+
+### Fail moments (items 1 to 6)
+
+- Capsize: one big throw (roll 0.85 rad, heave 1.8 studs, periods 0.95 s and 0.6 s) that dies away over the full 1.2 s and ends level, instead of a fast 0.55 s wobble. A white foam burst of 30 Neon flecks at both gunwales and two pale foam rings, a brief cold PointLight on the thrown copy (brightness 1.8 fading to 0 over the throw) so it reads with the lantern out, and loose gear: the bucket (paler), an oar and an orange tackle box join the fish. Under the surface, 22 bubbles rush up past the camera. Interpretation: the flash is a stylized cue for phones, not a light in the world; it is the most reversible choice (BoatFx.FLASH).
+- Motor: louder loop (see table), the outboard copy shakes more (0.06 studs) and a faint camera rumble (0.008) runs while the motor is on and you are alive. `AudioDirector.debugState().motorIdle` now also reports soundVolume and group, plus the group volumes, duck and mute.
+- Hum on a phone: hum-hull-resonance swells in over 1.6 s with the rise and the hold loop (1.0 s); camera rattle at full buzz 0.04 (was 0.02); rings of 28 short Neon segments spread on the water around the hull every 0.8 s while the hum builds, 10 to 44 studs across over 2.6 s.
+- Silence to hum: the gap was Config.Rules.Hum.silence (2.5 s) plus the client waiting 2.2 s for the hold loop while hum-rise starts softly. Now silence is 1.3 s (logged in CLOUD-DECISIONS) and the loop and the resonance start with the Window stage, so the hum is heard about 1.5 s after the frogs stop.
+- Death card: about 70 percent of the screen width (clamped 300 to 980 px, never wider than the screen less 24 px), height 0.42 of the width, text sized from the width (main up to 54 px, scaled down to fit), both lines in the marker hand in near-black ink on opaque paper with a dark 3 px edge; held 5 s or until a tap (after 0.6 s). The ambience is muted from the fade to black until the card goes.
+- Clean state: the hint line goes blank the moment the boat is thrown, while the camera is under and while the death card is up; "Motor: on" is hidden for the drowned; the drowned view opens on the boat still rocking for 5 s (a local copy, no camera roll); your own ghost light carries a small "You" (BillboardGui, marker hand).

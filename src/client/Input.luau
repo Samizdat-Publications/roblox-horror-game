@@ -17,7 +17,12 @@
 --   in the wheel.
 --   Hold E or gamepad A while there is water in the boat (and no fish to decide on): bail.
 --   While drowned, the cast button rings the ghost bell (Drowned sets the handler).
--- The other touch buttons arrive with MobileButtons in S4.
+--   R or gamepad D-pad left: the rulebook. G or gamepad D-pad right: the Field Guide
+--   (BookState sets the handler; Escape or B closes the book).
+-- Touch: ui/MobileButtons draws a large button for every verb and calls the functions here
+-- (no ContextActionService touch buttons). While the book covers the view, or the title
+-- screen is up, the hands are blocked (Input.setBlocked): no casting, reeling, steering,
+-- lantern, motor, knocking or bailing.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -160,6 +165,8 @@ end
 Input.CHARGE_SECONDS = 1 -- holding this long casts at full power
 
 local castDown = false
+local blocks: { [string]: boolean } = {}
+local bookHandler: ((string) -> ())? = nil
 local castDownAt = 0
 local reelHeld = false
 local bailHeld = false
@@ -176,6 +183,23 @@ function Input.setCalloutHandler(fn: (() -> ())?)
 	calloutHandler = fn
 end
 
+-- True while something covers the view (the book, the title screen): no hands.
+function Input.blocked(): boolean
+	return next(blocks) ~= nil
+end
+
+-- BookState: what R and G (and the D-pad sides) do.
+function Input.setBookHandler(fn: ((string) -> ())?)
+	bookHandler = fn
+end
+
+function Input.openBook(page: string)
+	local fn = bookHandler
+	if fn then
+		fn(page)
+	end
+end
+
 local function amDrowned(): boolean
 	local pv = ViewState.me()
 	return pv ~= nil and pv.alive == false
@@ -183,7 +207,7 @@ end
 
 -- One knock on the hull. The server plays it for everyone; you feel it at once.
 function Input.knock()
-	if amDrowned() then
+	if amDrowned() or Input.blocked() then
 		return
 	end
 	Input.sendIntent("Knock")
@@ -201,7 +225,7 @@ end
 function Input.bail(down: boolean)
 	if down then
 		local flood = tonumber(ViewState.get().flood) or 0
-		if flood > 0.005 and not amDrowned() and not bailHeld then
+		if flood > 0.005 and not amDrowned() and not bailHeld and not Input.blocked() then
 			bailHeld = true
 			Input.sendIntent("BailHold", nil, true)
 			return
@@ -223,6 +247,9 @@ end
 
 -- The cast and reel button went down (true) or up (false).
 function Input.castButton(down: boolean)
+	if down and Input.blocked() then
+		return
+	end
 	if amDrowned() then
 		local fn = ghostHandler
 		if down and fn then
@@ -256,6 +283,9 @@ end
 
 -- Interact: keep the fish, else bank at the dock, else refill at the dock.
 function Input.interact()
+	if Input.blocked() then
+		return
+	end
 	local phase = myPhase()
 	local view = ViewState.get()
 	if phase == "Deciding" then
@@ -269,6 +299,9 @@ end
 
 -- Throw the fish back, else reel the line in.
 function Input.throwBack()
+	if Input.blocked() then
+		return
+	end
 	local phase = myPhase()
 	if phase == "Deciding" then
 		Input.sendIntent("CatchDecision", nil, false)
@@ -283,6 +316,45 @@ function Input.charge(): number
 		return 0
 	end
 	return math.clamp((os.clock() - castDownAt) / Input.CHARGE_SECONDS, 0, 1)
+end
+
+-- Blocks the hands for `reason` ("book", "title") while `on`. Letting go of the reel and
+-- the bail happens at once, so nothing stays held.
+function Input.setBlocked(reason: string, on: boolean)
+	blocks[reason] = if on then true else nil
+	if on then
+		castDown = false
+		if reelHeld then
+			reelHeld = false
+			Input.sendIntent("ReelHold", nil, false)
+		end
+		Input.bail(false)
+	end
+end
+
+-- The Use button went down (true) or up (false): with water in the boat and no fish to
+-- decide on it bails while held, else keep, bank or refill.
+function Input.useButton(down: boolean)
+	if down then
+		local flood = tonumber(ViewState.get().flood) or 0
+		if flood > 0.005 and myPhase() ~= "Deciding" then
+			Input.bail(true)
+		else
+			Input.interact()
+		end
+	else
+		Input.bail(false)
+	end
+end
+
+-- Lantern or motor, from a key, a gamepad button or a touch button.
+function Input.toggle(kind: string)
+	if Input.blocked() or amDrowned() then
+		return
+	end
+	if kind == "ToggleLantern" or kind == "ToggleMotor" then
+		Input.sendIntent(kind)
+	end
 end
 
 local KEY_INTENTS: { [Enum.KeyCode]: string } = {
@@ -303,7 +375,7 @@ function Input.init()
 		end
 		local kind = KEY_INTENTS[io.KeyCode]
 		if kind then
-			Input.sendIntent(kind)
+			Input.toggle(kind)
 		elseif io.UserInputType == Enum.UserInputType.MouseButton1 then
 			Input.castButton(true)
 		end
@@ -327,25 +399,19 @@ function Input.init()
 			Input.castButton(false)
 		end
 		return Enum.ContextActionResult.Sink
-	end, true, high, Enum.KeyCode.Space, Enum.KeyCode.ButtonR2)
-	ContextActionService:SetTitle("DeadCalmCast", "Cast")
+	end, false, high, Enum.KeyCode.Space, Enum.KeyCode.ButtonR2)
 	ContextActionService:BindActionAtPriority("DeadCalmUse", function(_name, state: Enum.UserInputState)
 		if UserInputService:GetFocusedTextBox() then
 			return Enum.ContextActionResult.Pass
 		end
 		if state == Enum.UserInputState.Begin then
 			-- With water in the boat and no fish to decide on, E is bail (held).
-			local flood = tonumber(ViewState.get().flood) or 0
-			if flood > 0.005 and myPhase() ~= "Deciding" then
-				Input.bail(true)
-			else
-				Input.interact()
-			end
+			Input.useButton(true)
 		elseif state == Enum.UserInputState.End or state == Enum.UserInputState.Cancel then
-			Input.bail(false)
+			Input.useButton(false)
 		end
 		return Enum.ContextActionResult.Sink
-	end, true, high, Enum.KeyCode.E, Enum.KeyCode.ButtonA)
+	end, false, high, Enum.KeyCode.E, Enum.KeyCode.ButtonA)
 	ContextActionService:BindActionAtPriority("DeadCalmKnock", function(_name, state: Enum.UserInputState)
 		if UserInputService:GetFocusedTextBox() then
 			return Enum.ContextActionResult.Pass
@@ -354,8 +420,7 @@ function Input.init()
 			Input.knock()
 		end
 		return Enum.ContextActionResult.Sink
-	end, true, high, Enum.KeyCode.Q, Enum.KeyCode.ButtonL1)
-	ContextActionService:SetTitle("DeadCalmKnock", "Knock")
+	end, false, high, Enum.KeyCode.Q, Enum.KeyCode.ButtonL1)
 	ContextActionService:BindActionAtPriority("DeadCalmCallouts", function(_name, state: Enum.UserInputState)
 		if UserInputService:GetFocusedTextBox() then
 			return Enum.ContextActionResult.Pass
@@ -364,9 +429,7 @@ function Input.init()
 			Input.toggleCallouts()
 		end
 		return Enum.ContextActionResult.Sink
-	end, true, high, Enum.KeyCode.C, Enum.KeyCode.DPadUp)
-	ContextActionService:SetTitle("DeadCalmCallouts", "Call")
-	ContextActionService:SetTitle("DeadCalmUse", "Use")
+	end, false, high, Enum.KeyCode.C, Enum.KeyCode.DPadUp)
 	ContextActionService:BindActionAtPriority("DeadCalmThrow", function(_name, state: Enum.UserInputState)
 		if UserInputService:GetFocusedTextBox() then
 			return Enum.ContextActionResult.Pass
@@ -377,10 +440,29 @@ function Input.init()
 		return Enum.ContextActionResult.Sink
 	end, false, high, Enum.KeyCode.X, Enum.KeyCode.ButtonB)
 
+	ContextActionService:BindActionAtPriority("DeadCalmBook", function(_name, state: Enum.UserInputState)
+		if UserInputService:GetFocusedTextBox() then
+			return Enum.ContextActionResult.Pass
+		end
+		if state == Enum.UserInputState.Begin then
+			Input.openBook("rules")
+		end
+		return Enum.ContextActionResult.Sink
+	end, false, high, Enum.KeyCode.R, Enum.KeyCode.DPadLeft)
+	ContextActionService:BindActionAtPriority("DeadCalmGuide", function(_name, state: Enum.UserInputState)
+		if UserInputService:GetFocusedTextBox() then
+			return Enum.ContextActionResult.Pass
+		end
+		if state == Enum.UserInputState.Begin then
+			Input.openBook("guide")
+		end
+		return Enum.ContextActionResult.Sink
+	end, false, high, Enum.KeyCode.G, Enum.KeyCode.DPadRight)
+
 	RunService.Heartbeat:Connect(function()
 		-- Only the helm steers; the server would refuse anyone else anyway.
 		-- The drowned stay in their seat (hidden) but never steer: their keys turn the view.
-		local atHelm = BoatClient.mySeat() == "HelmSeat" and not amDrowned()
+		local atHelm = BoatClient.mySeat() == "HelmSeat" and not amDrowned() and not Input.blocked()
 		if not atHelm and override == nil then
 			if lastThrottle ~= 0 or lastSteer ~= 0 then
 				Input.sendHelm(0, 0)

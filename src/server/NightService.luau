@@ -1,6 +1,6 @@
 --!strict
--- Owns the night: builds NightParams (Core.Run when it exists, else straight from
--- Config.Nights), creates Core.Night, ticks it at Config.Night.tick, gathers observations
+-- Owns the run and the night: holds the Core.Run state (LobbyService starts it), builds
+-- NightParams with Core.Run.nightParams, creates Core.Night, ticks it at Config.Night.tick, gathers observations
 -- from the world (the boat from BoatService, every player's seat, gaze and whether they are
 -- in the water), drains validated intents from Net, dispatches the events (world first,
 -- then clients) and replicates the NightView at most 10 times per second.
@@ -17,7 +17,7 @@ local Core = Shared:WaitForChild("Core")
 local Types = require(Core:WaitForChild("Types"))
 local Night = require(Core:WaitForChild("Night")) :: any
 local LakeMap = require(Core:WaitForChild("LakeMap"))
-local Quota = require(Core:WaitForChild("Quota"))
+local Run = require(Core:WaitForChild("Run")) :: any
 
 local server = script.Parent
 local BoatService = require(server:WaitForChild("BoatService"))
@@ -40,6 +40,9 @@ export type StartOpts = {
 	-- Studio scenarios only: patch fields of Config.Rules.<RuleId> in a copy of Config for
 	-- this night (for example a shorter Wrong Catch knock delay). Config itself is untouched.
 	rulesPatch: { [string]: { [string]: any } }?,
+	run: boolean?, -- this night is the run's next night (LobbyService); night comes from the run
+	difficulty: string?, -- a night outside the run: "Normal" (default) or "Nightmare"
+	quotaScale: number?, -- multiply the quota (a fast clock in a Studio full run)
 }
 
 local NightService = {}
@@ -68,56 +71,55 @@ local seq = 0
 local startOpts: StartOpts = {}
 
 ----------------------------------------------------------------------------------------
--- NightParams
+-- The run and NightParams (Core.Run)
 
-local function rulesFor(night: number): ({ any }, { any })
-	local rules, newRules = {}, {}
-	for n = 1, math.clamp(night, 1, #Config.Nights) do
-		for _, r in Config.Nights[n].newRules do
-			table.insert(rules, r)
-			if n == night then
-				table.insert(newRules, r)
-			end
-		end
-	end
-	return rules, newRules
-end
+-- The run in progress (LobbyService starts it), or nil on the title screen. Nights started
+-- with StartOpts.run = true are the run's nights: their results go to Run.finishNight.
+local run: any = nil
+local runNight = false -- the current night belongs to the run
+local runExtra: { seconds: number?, quotaScale: number? } = {}
+local lastOutcome: string? = nil
+local endListeners: { (any, string?, any) -> () } = {}
 
--- SEAM: Core.Run.nightParams once Core.Run lands. Story, Normal, the book as printed.
+-- Params from Core.Run. A run night uses the run (crew set to who is here now); any other
+-- night (Studio scenarios) uses a throwaway Normal first run at that night, with the seed
+-- given as the night seed so a scenario replays exactly.
 local function buildParams(night: number, seed: number, ids: { number }, o: StartOpts, c: any): NightParams
-	local crew = math.clamp(#ids, 1, 4)
-	local N = c.Nights[math.clamp(night, 1, #c.Nights)]
-	local D = c.Difficulty.Normal
-	local rules, newRules = rulesFor(night)
-	local p: NightParams = {
-		seed = seed,
-		night = night,
-		mode = "Story",
-		difficulty = "Normal",
-		playerIds = ids,
-		rules = rules :: any,
-		newRules = newRules :: any,
-		amendments = {},
-		supplies = {},
-		real = math.max(1, math.floor(N.real * c.Scaling.budget[crew] * D.budget + 0.5)),
-		fake = N.fake,
-		quietGap = N.quietGap * D.quiet,
-		quota = Quota.scaled(c, N.quota, crew),
-		maxConcurrent = N.maxConcurrent,
-		warningScale = c.Scaling.warning[crew] * D.warning,
-	}
+	local p: NightParams
+	if o.run and run ~= nil then
+		Run.setPlayers(run, ids)
+		p = Run.nightParams(run)
+		if o.seed then
+			p.seed = seed
+		end
+	else
+		local r = Run.new(c, {
+			seed = seed,
+			difficulty = if o.difficulty == "Nightmare" then "Nightmare" else "Normal",
+			mode = "Story",
+			playerIds = ids,
+			firstRun = true,
+		})
+		r.night = math.clamp(night, 1, #c.Nights)
+		p = Run.nightParams(r)
+		p.seed = seed
+	end
 	if o.quiet then
 		p.rules = {}
 		p.newRules = {}
+		p.amendments = {}
 		p.real = 0
 		p.fake = 0
+	end
+	local scale = o.quotaScale
+	if scale and scale > 0 then
+		p.quota = math.max(1, math.ceil(p.quota * scale))
 	end
 	if o.quota then
 		p.quota = math.max(1, math.floor(o.quota))
 	end
 	return p
 end
--- END SEAM
 
 ----------------------------------------------------------------------------------------
 -- Events out
@@ -248,6 +250,9 @@ end
 ----------------------------------------------------------------------------------------
 -- Observations
 
+-- Studio full runs: a server crew bot can set gaze directly (DebugCrew).
+local debugGaze: { [number]: number } = {}
+
 local function inBoat(pos: Vector3): boolean
 	local hull = BoatService.get().hull
 	local lp = hull.CFrame:PointToObjectSpace(pos)
@@ -276,8 +281,9 @@ local function observePlayer(id: number): PlayerObs?
 		seated = seat ~= nil,
 		helm = seat ~= nil and seat.Name == "HelmSeat",
 		inWater = inWater,
-		gazeYaw = Net.gazeOf(id) or 0,
-		bookOpen = false, -- SEAM: rulebook and Field Guide (S4)
+		gazeYaw = debugGaze[id] or Net.gazeOf(id) or 0,
+		bookOpen = Net.bookOpenOf(id),
+		touch = Net.touchOf(id),
 	}
 end
 
@@ -327,6 +333,19 @@ local function stepOnce(dt: number)
 		return
 	end
 	local intents = Net.drainIntents()
+	local crew = NightService.debugCrew
+	if crew then
+		-- Studio only: a server crew bot adds its intents (DebugCrew, full_run and finale).
+		local ok, more = pcall(crew, dt, s)
+		if ok and type(more) == "table" then
+			for _, it in more do
+				table.insert(intents, it)
+			end
+		elseif not ok then
+			warn("[DeadCalm] debug crew: " .. tostring(more))
+			NightService.debugCrew = nil
+		end
+	end
 	if #intents > 0 then
 		for _, fn in intentListeners do
 			task.spawn(fn, intents)
@@ -337,10 +356,20 @@ local function stepOnce(dt: number)
 	syncWorld(v)
 	dispatch(events)
 	FishingService.step(dt, v)
-	local ended = Night.result(s) ~= nil
+	local res = Night.result(s)
+	local ended = res ~= nil
 	replicate(v, ended)
 	if ended and endedAt == nil then
 		endedAt = now
+		local outcome: string? = nil
+		if runNight and run ~= nil and not run.over then
+			outcome = Run.finishNight(run, res)
+		end
+		lastOutcome = outcome
+		local rv = if run then Run.view(run) else nil
+		for _, fn in endListeners do
+			task.spawn(fn, res, outcome, rv)
+		end
 	end
 end
 
@@ -365,16 +394,95 @@ function NightService.tick(dt: number)
 	if steps >= NightService.MAX_STEPS then
 		acc = 0
 	end
-	-- Between nights: the next one starts by itself (a failed night restarts).
+	-- Between nights LobbyService decides what comes next (Run.finishNight's outcome).
+end
+
+-- Seconds since the current night ended, or nil while it runs (or with no night).
+function NightService.endedFor(): number?
 	local e = endedAt
-	if e ~= nil and NightService.autoAdvance and now - e >= NightService.BETWEEN then
-		local res = Night.result(state)
-		local nextNight = nightNumber
-		if res and res.cleared then
-			nextNight = if nightNumber >= #Config.Nights then 1 else nightNumber + 1
-		end
-		NightService.start({ night = nextNight })
+	if e == nil then
+		return nil
 	end
+	return now - e
+end
+
+----------------------------------------------------------------------------------------
+-- The run
+
+-- Starts a run (LobbyService, the host pressed Play). o.night (Studio) jumps to a night;
+-- o.seconds and o.quotaScale (Studio full runs) apply to every night of the run.
+function NightService.newRun(o: {
+	difficulty: string?,
+	seed: number?,
+	firstRun: boolean?,
+	night: number?,
+	seconds: number?,
+	quotaScale: number?,
+}): any
+	local ids = {}
+	for _, p in Players:GetPlayers() do
+		table.insert(ids, p.UserId)
+	end
+	if #ids == 0 then
+		return nil
+	end
+	run = Run.new(Config, {
+		seed = o.seed or Random.new():NextInteger(1, 2 ^ 30),
+		difficulty = if o.difficulty == "Nightmare" then "Nightmare" else "Normal",
+		mode = "Story",
+		playerIds = ids,
+		firstRun = o.firstRun ~= false,
+	})
+	if o.night then
+		run.night = math.clamp(math.floor(o.night), 1, #Config.Nights)
+	end
+	runExtra = { seconds = o.seconds, quotaScale = o.quotaScale }
+	lastOutcome = nil
+	return run
+end
+
+-- Starts the run's next night (the night number comes from the run: a retry repeats it).
+function NightService.startRunNight(extra: StartOpts?): NightParams?
+	if run == nil or run.over then
+		return nil
+	end
+	local o: StartOpts = table.clone(extra or {})
+	o.run = true
+	o.seconds = o.seconds or runExtra.seconds
+	o.quotaScale = o.quotaScale or runExtra.quotaScale
+	return NightService.start(o)
+end
+
+-- Ends the run and the night (back to the title screen).
+function NightService.endRun()
+	run = nil
+	runNight = false
+	lastOutcome = nil
+	state = nil
+	params = nil
+	endedAt = nil
+end
+
+function NightService.run(): any
+	return run
+end
+
+function NightService.runView(): any
+	return if run then Run.view(run) else nil
+end
+
+function NightService.lastOutcome(): string?
+	return lastOutcome
+end
+
+function NightService.isRunNight(): boolean
+	return runNight
+end
+
+-- Called with (result, outcome?, runView?) when a night ends. outcome is Run.finishNight's
+-- answer for a run night, nil for a night outside the run.
+function NightService.onNightEnd(fn: (any, string?, any) -> ())
+	table.insert(endListeners, fn)
 end
 
 -- Starts (or restarts) a night with every player in the server as the crew.
@@ -387,7 +495,8 @@ function NightService.start(o: StartOpts?): NightParams?
 	if #ids == 0 then
 		return nil
 	end
-	local night = math.clamp(math.floor(opts.night or nightNumber), 1, #Config.Nights)
+	local useRun = opts.run == true and run ~= nil
+	local night = if useRun then run.night else math.clamp(math.floor(opts.night or nightNumber), 1, #Config.Nights)
 	local seed = opts.seed or Random.new():NextInteger(1, 2 ^ 30)
 	local c: any = Config
 	if opts.seconds or opts.rulesPatch then
@@ -414,6 +523,9 @@ function NightService.start(o: StartOpts?): NightParams?
 	local p = buildParams(night, seed, ids, opts, c)
 	params = p
 	nightNumber = night
+	runNight = useRun
+	lastOutcome = nil
+	debugGaze = {}
 	startOpts = opts
 	state = Night.new(c, p)
 	acc = 0
@@ -434,31 +546,19 @@ function NightService.start(o: StartOpts?): NightParams?
 	return p
 end
 
--- Starts night 1 once the first player is seated (or after `waitSeconds` with players in).
-function NightService.startWhenReady(waitSeconds: number)
-	task.spawn(function()
-		local since: number? = nil
-		while state == nil do
-			local players = Players:GetPlayers()
-			local seated = false
-			for _, p in players do
-				if BoatService.seatOf(p) ~= nil then
-					seated = true
-				end
-			end
-			if #players > 0 and since == nil then
-				since = os.clock()
-			end
-			if seated or (since ~= nil and os.clock() - since >= waitSeconds) then
-				-- Give a seated player a moment to settle before the clock runs.
-				task.wait(1)
-				NightService.start({ night = 1 })
-				return
-			end
-			task.wait(0.5)
-		end
-	end)
+-- Studio only: the raw NightState (DebugCrew reads it; the finale scenario sets the clock
+-- and puts the owner's fish in the hold). Never used outside Studio scenarios.
+function NightService.debugState(): any
+	return state
 end
+
+-- Studio only: a server crew bot's gaze for a player (nil clears it).
+function NightService.debugSetGaze(id: number, yaw: number?)
+	debugGaze[id] = yaw
+end
+
+-- Studio only: a function called every tick with (dt, state) that returns extra intents.
+NightService.debugCrew = nil :: ((number, any) -> { any }?)?
 
 -- A late joiner gets the current view at once (they join the crew at the next night).
 function NightService.onPlayerAdded(player: Player)
@@ -563,6 +663,9 @@ function NightService.snapshot(): { [string]: any }
 		result = NightService.result(),
 		events = seq,
 		autoAdvance = NightService.autoAdvance,
+		runNight = runNight,
+		run = if run then Run.view(run) else nil,
+		outcome = lastOutcome,
 	}
 end
 

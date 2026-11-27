@@ -55,6 +55,14 @@ function Camera.shotCFrame(shot: string): CFrame?
 		local d = Vector3.new(-target.X, 0, -target.Z).Unit
 		local from = target + d * 70 + Vector3.new(0, -6, 0)
 		return CFrame.lookAt(from, target)
+	elseif shot == "title" then
+		-- The title screen: from just behind the boat at the dock, low over the water, the
+		-- boat and its lantern on the left third, the fog and the far steeple ahead.
+		local dock = lake.dockEnd
+		local from = Vector3.new(dock.x - 10, wy + 5.5, dock.z - 12)
+		local target = steeplePoint()
+		local look = CFrame.lookAt(from, Vector3.new(target.X, wy + 6, target.Z))
+		return look * CFrame.Angles(0, math.rad(8), 0)
 	elseif shot == "top" then
 		return CFrame.lookAt(boatPos + Vector3.new(0, Look.Shots.topHeight, 0.01), boatPos)
 	end
@@ -113,7 +121,15 @@ function Camera.init()
 			return
 		end
 		acc = 0
-		if shotActive or BoatClient.mySeat() == nil then
+		if shotActive then
+			-- A fixed shot (the title screen, a capture) keeps its own camera.
+			local cam = camera()
+			if cam.CameraType ~= Enum.CameraType.Scriptable then
+				cam.CameraType = Enum.CameraType.Scriptable
+			end
+			return
+		end
+		if BoatClient.mySeat() == nil then
 			return
 		end
 		if player.CameraMode ~= Enum.CameraMode.LockFirstPerson then

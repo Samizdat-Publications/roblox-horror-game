@@ -1,7 +1,8 @@
 --!strict
 -- The drowned (DESIGN.md, Death and the drowned). Every dead crewmate floats near the boat as
--- a dim light that everyone can see (built here, on every client, from the NightView). When
--- the local player is one of them, after the death card:
+-- a dim light that everyone can see (built here, on every client, from the NightView); your
+-- own light carries a small "You". When the local player is one of them, after the death
+-- card (the boat still rocking for a few seconds as the view opens):
 --   * the camera floats over the boat in a high three-quarter view that slowly circles it
 --     (turn it with the mouse, the move keys, the stick or a drag; zoom with W and S or the
 --     stick), the view is tinted cold blue-green and a dim cold light hangs over the boat so
@@ -13,6 +14,8 @@
 --     bell, every Config.Ghost.bellCooldown seconds; a small paper tag shows when it is ready
 -- GhostBell events ring a faint bell at that ghost's light, which flares for players with the
 -- sound off. Everyone is back at the next night.
+-- S4: a player who joined while a night was running watches from the same view until the
+-- next night (LobbyState.waiting), with a tag saying so and no bell (they are not crew yet).
 
 local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
@@ -35,6 +38,7 @@ local Common = require(client:WaitForChild("fx"):WaitForChild("Common"))
 local ui = client:WaitForChild("ui")
 local Paper = require(ui:WaitForChild("Paper"))
 local DeathCard = require(ui:WaitForChild("DeathCard"))
+local LobbyClient = require(client:WaitForChild("LobbyClient"))
 
 local Drowned = {}
 
@@ -47,6 +51,7 @@ type Wisp = { part: BasePart, light: PointLight, index: number, flare: number }
 
 local wisps: { [number]: Wisp } = {}
 local active = false -- the local player is drowned and spectating
+local waiting = false -- joined mid-night: spectating until the next night
 local yaw = 0
 local radius = Drowned.ORBIT.radius
 local lastBell = -math.huge
@@ -84,6 +89,26 @@ local function wispFor(id: number, index: number): Wisp
 	light.Brightness = 0.5
 	light.Shadows = false
 	light.Parent = p
+	-- Your own light says so (Neon took it for a mystery orb, 11/26/2026).
+	if id == myId() then
+		local bb = Instance.new("BillboardGui")
+		bb.Name = "YouTag"
+		bb.Size = UDim2.fromOffset(60, 24)
+		bb.StudsOffset = Vector3.new(0, 1.3, 0)
+		bb.AlwaysOnTop = true
+		bb.LightInfluence = 0
+		bb.MaxDistance = 120
+		bb.Parent = p
+		local t = Instance.new("TextLabel")
+		t.BackgroundTransparency = 1
+		t.Size = UDim2.fromScale(1, 1)
+		t.FontFace = Paper.hand()
+		t.TextSize = 20
+		t.TextColor3 = Drowned.WISP_COLOR
+		t.TextStrokeTransparency = 0.3
+		t.Text = "You"
+		t.Parent = bb
+	end
 	local nw: Wisp = { part = p, light = light, index = index, flare = 0 }
 	wisps[id] = nw
 	return nw
@@ -132,6 +157,10 @@ local function updateTag()
 		return
 	end
 	t.Visible = true
+	if waiting then
+		t.Text = "You join the crew at the next night."
+		return
+	end
 	local left = Config.Ghost.bellCooldown - (os.clock() - lastBell)
 	if left <= 0 then
 		local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
@@ -143,7 +172,7 @@ end
 
 -- Rings the ghost bell if it has cooled down (the server checks again).
 function Drowned.ring(): boolean
-	if not active then
+	if not active or waiting then
 		return false
 	end
 	if os.clock() - lastBell < Config.Ghost.bellCooldown then
@@ -241,8 +270,10 @@ local function setActive(on: boolean)
 	setSight(on)
 	local cam = Workspace.CurrentCamera
 	if on then
-		-- The fail's camera effects (thrown, under the surface) end here.
+		-- The fail's camera effects (thrown, under the surface) end here, and the boat is
+		-- still rocking from it for a few seconds as the view opens.
 		BoatFx.clearCamera()
+		BoatFx.rock()
 		local hull = BoatClient.hull()
 		if hull then
 			-- Behind the boat and to one side: a three-quarter view of the hull and the crew.
@@ -278,6 +309,23 @@ local function setActive(on: boolean)
 	updateTag()
 end
 
+-- Joined mid-night: watch from the drowned view until the next night (LobbyClient).
+function Drowned.setWaiting(on: boolean)
+	if waiting == on then
+		return
+	end
+	waiting = on
+	if on then
+		setActive(true)
+	else
+		local pv = ViewState.me()
+		if active and (pv == nil or pv.alive ~= false) then
+			setActive(false)
+		end
+	end
+	updateTag()
+end
+
 function Drowned.init()
 	local gui = Paper.gui("DeadCalmDrowned", 6)
 	local t = Paper.text(gui, "Bell", "", 18)
@@ -299,12 +347,15 @@ function Drowned.init()
 	-- Back at the next night (the view says alive again).
 	ViewState.onChange(function()
 		local pv = ViewState.me()
-		if active and (pv == nil or pv.alive ~= false) then
+		if active and not waiting and (pv == nil or pv.alive ~= false) then
 			setActive(false)
 		elseif not active and pv and pv.alive == false and not DeathCard.showing() then
 			-- Joined dead, or the card was closed some other way.
 			setActive(true)
 		end
+	end)
+	LobbyClient.onChange(function()
+		Drowned.setWaiting(LobbyClient.waiting())
 	end)
 	Events.on("GhostBell", function(e)
 		local id = e.player

@@ -1,6 +1,6 @@
 # Shell progress
 
-Last updated 11/26/2026 by a local builder (S3 written on the working tree of `main`, then the Studio and Neon fixes; not committed, the main session commits). S1 and S2 are verified in Studio.
+Last updated 11/26/2026 by a local builder (S4 written on the working tree of `main`; not committed, the main session commits). S1 and S2 are verified in Studio; S3 and S4 are not yet played in Studio.
 
 ## Needed from Core
 
@@ -10,14 +10,48 @@ These live behind clearly marked seams in the shell. When the Core module lands,
 - `Core.Validate` and `Core.RateLimit` (seam in `src/server/Net.luau`): payload checks for `BoatInput`, `Gaze`, `Intent`, `Lobby`, `Cosmetic`, and a token bucket `(bucket, rate, burst, now) -> allowed`.
 - `Core.SoundMix` (seam in `src/client/AudioDirector.luau`, `mixFor`): `NightView -> { [layerKey]: 0..1 }` for the layer keys listed at the top of AudioDirector.
   Core.SoundMix still has ChorusThin and ChorusSparse layers, which no longer exist (the chorus is the full loop plus single calls); the shell keeps its own `mixFor` until SoundMix follows.
-- `Core.Run` (seam in `src/server/NightService.luau`, `buildParams`): `Run.nightParams(run)`. Until it lands, NightService builds Story, Normal, by-the-book params from `Config.Nights` (same law as `tools/sim/params.luau`), with no amendments.
+- `Core.Run`: DONE in S4. NightService owns the RunState and builds every night with `Run.nightParams`; nights outside the run (Studio scenarios) use a throwaway Normal first run at that night with the scenario's seed as the night seed.
+
+## Needed from S4
+
+- `fx/Finale.luau` fades the DeadCalmAmbience SoundGroup with its own tween. Since Scare polish 2, AudioDirector writes that group every frame (band-3 trim, cue ducking, death-card mute); it detects outside changes and rides on top of the tween, so the finale still goes silent, but the clean way is `AudioDirector.muteAmbience("Finale", true)` at the cue and `false` on pass, fail and reset (the mute fades over Look.Mix.muteFade, 0.3 s; a longer fade would need a seconds argument).
+- Core or the server: after a Hum fail the motor stays on in the NightView. The HUD now hides "Motor: on" for the drowned, but the living crew still see it, and the motor loop keeps playing over the drowned view. Cutting the motor on a `rock = true` fail would match the boat being thrown.
+
+## Scare polish 2 (11/26/2026)
+
+Files: `src/client/AudioDirector.luau` (Ambience group trim at band 3, cue ducking, death-card mute, `with` companions, the under-keel anchor, the listening test placed like the real fx with `ambience = true`), `src/client/DebugBot.luau` (`play_sound` ambience flag, spot in the ack and the print), `src/client/BoatFx.luau` (capsize throw, foam, flash, gear, bubbles, rings, rock, motor rumble), `src/client/fx/Hum.luau` (loop and resonance start with the rise, rings), `src/client/fx/Knocking.luau`, `fx/Neighbor.luau`, `fx/WrongCatch.luau` (nine knocks bug), `fx/Fakeouts.luau`, `src/client/Drowned.luau` ("You" tag, boat rocking), `src/client/ui/DeathCard.luau` (70 percent card, 5 s, ambience muted), `src/client/ui/HUD.luau`, `src/client/ui/Prompt.luau`, `src/shared/Look.luau` (Mix), `src/shared/SoundRegistry.luau` (volumes, rolloff, recipes, `with`, `duck`, three new derived entries), `src/shared/Config.luau` (Rules.Hum.silence only). Values and calls: `docs/SHELL-DECISIONS.md`, "Scare polish 2".
+
+Re-record the listening test (Studio, in Play, server context; one execute_luau call, about 75 s; the client prints `[DebugBot] play_sound <name>: playing (at <spot>, full chorus under it)`):
+
+```lua
+local r = game:GetService("ReplicatedStorage"):WaitForChild("DeadCalmDebugRemotes"):WaitForChild("DebugBot")
+for _, c in { { "neighbor-oarlock-loop", 7 }, { "knock-three-soft", 5 }, { "knock-three-hard", 5 }, { "watcher-tone-loop", 6 }, { "watcher-step", 4 }, { "watcher-lunge", 4 }, { "cooler-knock-inside", 5 }, { "neighbor-fail", 4 }, { "lake-groan", 6 }, { "flood-in-loop", 5 }, { "lanterns-die", 4 }, { "wrong-glow-loop", 5 } } do r:FireAllClients({ cmd = "play_sound", name = c[1], seconds = c[2], ambience = true }) task.wait(c[2] + 2) end
+r:FireAllClients({ cmd = "stop_sound" })
+```
+
+Start it from a clean scenario state so the boat sits on open water near a shore, for example `Invoke("reset", { scenario = "watcher_pass" })` first. Re-record the Hum fail (the bot leaves the motor running):
+
+```lua
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("reset", { scenario = "hum_fail" })
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("hum_fail", { reset = false })
+```
+
+Studio must check (Scare polish 2):
+
+1. Listening test with `ambience = true`: the chorus stays at band 3 between cues; each cue ducks it (audible dip within a fraction of a second, back over about 1 s); every cue is clearly heard over it. Target from Neon: 6/10 or better on every cue.
+2. The Neighbor's creak sounds far (reverb, dull top) but is not faint; knocks are close, dry and heavy, with a low thump under each; the Watcher's tone is a little lower than before.
+3. `AudioDirector.debugState()` during the run: `groups.DeadCalmAmbience` about 0.45 at band 3 and about 0.18 while a cue plays; `duck` 0.4 during a cue; `motorIdle.playing = true` and `soundVolume` about 1.4 with the motor on.
+4. hum_fail: about 1.5 s from the frogs stopping to the hum; the mid-range buzz is audible on laptop speakers; rings spread on the water and the view rattles. At the fail the boat throws hard and settles over about 1.2 s with white foam, a cold flash, fish, bucket, oar and tackle box over the side; bubbles rush up under the surface. The hint line is gone from the impact on. No frog during the black or the card.
+5. Death card: about 70 percent of the screen width, large dark text, stays 5 s or until a tap. Check on a phone in the Device Simulator that the main line fits and is not tiny.
+6. The drowned view opens on the boat still rocking for a few seconds, no "Motor: on" on the paper, and your own light is labelled "You".
+7. Finale (night 5 at the bell): every water sound still fades out and comes back on pass or fail (the AudioDirector and Finale group writes do not fight).
 
 ## Chunks
 
 - [x] S1 The lake you can row (code written, gate green, NOT yet played in Studio)
 - [x] S2 Fishing and the night (code written, gate green, NOT yet played in Studio)
 - [x] S3 The rules on screen (code written 11/26/2026, selene and stylua clean on shell files, rojo build and smoke pass; NOT yet played in Studio)
-- [ ] S4 Front and back of a run
+- [x] S4 Front and back of a run (code written 11/26/2026, selene and stylua clean on S4 files, rojo build and smoke pass; NOT yet played in Studio)
 - [ ] S5 Saves and Endless
 - [ ] S6 Docs
 
@@ -56,6 +90,61 @@ Client (`src/client`):
 - `DebugBot`: commands `hello`, `intent` and `autoreel` (Studio-only auto-reel: sets the hook on a bite and keeps the predicted tension in the middle of the band with ReelHold intents through `Input.sendIntent`, under its own 5 per second token bucket).
 
 Offline check (a scratchpad Lune sim of Core.Night with the quiet params and the same reel law, 0.1 s view lag, 5 intents a second): 20 of 20 seeds cleared night 1 (quota 7 for one player), no fish lost.
+
+## S4: what exists (11/26/2026)
+
+Server (`src/server`):
+- `LobbyService.luau` (new): phase Title, Playing, RunCleared, RunOver. The first player is the host (the next player takes over if they leave); the host picks Normal or Nightmare and presses Play (Lobby remote "Difficulty", "Start"; "Title" leaves the run's end card early; "Hello" asks for the state). Starts the run (`NightService.newRun`) and its nights (`NightService.startRunNight`). After a night: 12 s later the next night (NextNight) or the same night again (RetryNight); 30 s on the run-cleared or run-over card, then back to the title (boat home, everyone shown and seated, lantern lit). Late joiners wait as the drowned (hidden through `EntityPresenter.hideWaiting`, never steering) until the next night. Every change goes to every client on `LobbyState` (phase, host, difficulty, players, waiting, `Run.view`, outcome, tonight's rules, newRules and amendments, the run's totals). Any night start (a Studio scenario too) takes the title down.
+- `NightService`: Core.Run in place of the Config.Nights seam. `newRun`, `startRunNight`, `endRun`, `run`, `runView`, `lastOutcome`, `isRunNight`, `onNightEnd(fn(result, outcome, runView))`, `endedFor`. `Run.finishNight` is called once when a run night ends. It no longer advances by itself (LobbyService does, while `autoAdvance` is true). `bookOpen` and `touch` in PlayerObs come from Net. Studio only: `debugState` (the raw NightState), `debugSetGaze`, `debugCrew`.
+- `Net`: the Lobby remote now acts ("Book" 1 or 0 sets the book flag and lets go of the reel and the bail; "Touch" 1 or 0; the rest goes to `Net.onLobby`). Intents that need hands (lantern, motor, cast, bank, refill, knock, keep or throw back) are refused while the book is open, and the helm goes slack.
+- `EntityPresenter.hideWaiting`. `Main.server`: LobbyService instead of the auto start; `LobbyService.tick` on Heartbeat.
+- `DebugCrew.luau` (new, Studio only): the crewbot "follow" policy on the live server (fishes, checks every catch against the book, banks, refills, answers every rule as tonight's page says, bails, the steeple run and the run home on night 5). Its intents go straight to Night (not through Net: a five-night run would trip the rate limits; the remote paths are covered by S2 and S3).
+- `DebugRun.luau` (new, Studio only): scenarios `title`, `rulebook`, `full_run`, `finale`. `DebugDriver.night_start` takes `run = true` to start a run at that night.
+
+Client (`src/client`):
+- `LobbyClient.luau` (new): the latest LobbyState and the Lobby actions.
+- `ui/Title.luau` (new): the title over the lake from the dock (Camera shot "title"), Play (host), Difficulty (host; others see it), The Lake Rules, a status line; the owner's title tape (`tape-title`) and `title-theme` (id 0 now). Enter, N, L; gamepad A, X, Y. Hands blocked while it is up.
+- `ui/BookState.luau` (new): which page is open; blocks the hands (`Input.setBlocked`) and tells the server.
+- `ui/Rulebook.luau` (new): the page from `Core.Rulebook.page` and `Rulebook.TEXT`: Rule 0 and every rule taped in so far, each held by tape, fresh tape and "taped in tonight" for tonight's rule, an amendment as the printed line crossed out (RichText `<s>`) with the new line under it in the amendment ink. On the title it shows all seven rules as printed. A paper block on the stern thwart opens it with a click (ClickDetector).
+- `ui/FieldGuide.luau` (new): the eight species down the left, the page on the right (name, sepia drawing, facts, note); arrows, A and D, or the shoulders turn pages.
+- `ui/MobileButtons.luau` (new): Cast, Use, Knock bottom right beside the jump area; Lantern, Motor, Bail, Book, Guide, Call in two columns on the left edge; laid out from the screen size; labels follow the action; hidden while the book or the title is up. Reports touch to the server (PlayerObs.touch widens the Watcher's cones).
+- `ui/NightCards.luau` (rewritten): night start card (night of five, which try, quota, the rule taped in tonight, "the book changed", the words of tonight's tape), end card with what comes next from the run's outcome, the run-cleared card (with `run-cleared` and `tape-run-cleared`) and the run-over card with the totals and a host button back to the title.
+- `fx/Finale.luau` (was a stub): the bell rings three times by itself at the dock with a bell swinging on a post and a caption; the Ambience sound group fades out, `lake-silence-drop`, then `finale-bed`; a dark band clamps the lantern and a flame inside it shrinks and reddens with the oil; Neighbor boats (waving figure, own lantern) and false beacons drawn from `EntityMoved` hazards, smoothed and outlined for the drowned; a strike shakes the boat with `lake-groan`; home with the Steeple Cat warms the view to dawn with `dawn-cue`.
+- `Input`: R or D-pad left rulebook, G or D-pad right Field Guide; `setBlocked`, `useButton`, `toggle`; no ContextActionService touch buttons (MobileButtons draws them). `HUD`: hidden on the title, "Oil (locked)" in the amendment ink during the finale, Book and Guide buttons under the paper for mouse players. `Drowned.setWaiting`. `RulesFx` routes `EntityStrike` and resets on the title. `Callouts`: the wheel scales down on short screens and the feed moves above the touch buttons. `Camera`: shot "title". `DebugBot`: command `book`. `ui/Paper`: `fit`, `bookPage`, `tape`.
+
+## How to verify S4 in Studio (server side, during Play)
+
+```lua
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("title")
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("rulebook")
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("rulebook", { page = "guide" })
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("finale")
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("finale", { async = true })
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("full_run")
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("full_run", { seconds = 120, seed = 2 })
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("status")
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("night_start", { night = 3, run = true })
+```
+
+Each prints `SCENARIO DONE <name> <result>`: `title shown`; `rulebook open` (the result lists the night 5 rules and its one amendment, `amended = 1`); `finale RunCleared` when the crew gets home (else `RunOver`, `RetryNight` or `timeout`); `full_run cleared` (or `over`, `timeout`). `full_run` is async by default (about 15 minutes at 150 s nights; poll `status`, whose progress shows the night, banked, quota and the crew bot's mode); its result has one line per night played (night, attempt, cleared, reason, banked, quota, deaths, outcome). `finale` takes 20 to 40 s.
+
+## Studio must check (S4)
+
+1. Press Play: the title screen shows over the lake seen from the dock (not first person), the owner's title tape plays, no HUD, no touch buttons, no night running (`state.night.running` false). Output: still only the two `[DeadCalm] ... up` lines.
+2. Host: Play is there; Difficulty toggles Normal and Nightmare (the note under it changes); The Lake Rules opens a big paper page with all seven rules as printed and closes with Close, Escape, a click outside or gamepad B. With a second Studio client (Test, 2 players): the second player has no Play button, sees "Waiting for <host> to start." and the host's difficulty change.
+3. Play: the title goes, the camera is back in first person at the helm, the night 1 start card shows "Night 1", "Night 1 of 5.", the quota, "Taped in tonight: Rule 1." and the words of tape 1 while the tape plays; a tap or click puts the card away.
+4. R (and D-pad left, and the Book button under the HUD paper) opens the rulebook: it covers most of the view, Rule 0 and Rule 1 each held by two strips of tape, Rule 1 with fresh tape and "taped in tonight". While it is open you cannot cast, steer, light, knock or bail (try them). R again or Escape shuts it. G (D-pad right) opens the Field Guide page; R from there switches to the rulebook with a page-turn sound.
+5. Click the little paper block on the stern thwart beside the helm: it opens the rulebook. If the ClickDetector on a client-made part never fires, say so (R and the button still work). Check the block sits on the thwart, not floating or inside the seat.
+6. `rulebook`: night 5's page shows Rules 0 to 6 with one rule crossed out (a line through the printed text, faded) and the owner's new line under it in dark red handwriting, slightly crooked. The start card said "The owner changed the book. Read it again (R)." in red. On a phone-sized view the page scrolls.
+7. Field Guide page (`rulebook` with page "guide"): eight species tabs on the left, the chosen one highlighted; the drawing, facts and note on the right; the arrows and the shoulder buttons turn pages; nothing overlaps on a 705 by 338 view.
+8. Device Simulator, the smallest phone in landscape (705 by 338, or the closest preset): the touch buttons are large and round, Cast (the biggest), Use and Knock in the bottom right, clear of the jump button area; Light, Motor, Bail, Book, Guide, Call in two columns on the left edge; the move stick still starts in the open middle-left. Each button works: hold Cast to charge and let go; hold to reel; Use keeps, banks, refills; Bail only bright with water in the boat; Book and Guide open the pages (the buttons hide while open); Call opens the wheel, which fits on the screen. While a fish is being decided Cast and Knock hide, so the card's Keep and Throw back are not covered. When drowned only Bell and Call show. `MobileButtons.debugState()` from the client lists every button's position and size. The night cards and the start card's tape words fit (no text spilling off the paper).
+9. Gamepad: Y lantern, X motor, R2 cast and reel, A use, B throw back, L1 knock, D-pad up callouts, D-pad left rulebook, D-pad right guide, B shuts the book; on the title A plays, X toggles the difficulty, Y opens the Lake Rules. Check gamepad A on the title does not also press a different selected button.
+10. The five-night flow (`full_run`, or play): after each night the end card adds "Night N next." (or the retry line with the tries left); 12 s later the next night starts with its start card and tape. A failed night restarts the same night with the retry line. Out of tries: "No more tries. The run is over.", then the run-over card with the totals; 30 s later (or the host's "Back to the title") everyone is on the title again.
+11. `full_run` result: `cleared = true` (or say which night failed and why from `nights`). Watch one night: the bot answers a Hum (lantern out, motor off, still), keeps away from a Neighbor, knocks the right count, and on night 5 goes to the steeple and runs home at the bell.
+12. `finale`: at 4 AM the bell rings three times from the dock (bell-dock-solo, heard far away) and a small bell swings on a post at the dock end; the caption "The dock bell is ringing by itself." shows; the lake goes silent (no lap, wind or frogs; `Finale.debugState().ambience` 0 from the client), then the finale bed; a dark band clamps the lantern and the little flame inside it shrinks and turns red as the oil bar (red, "Oil (locked)") runs down; dark rowboats with their own lanterns and slow-waving figures, and steady lights on poles that never blink, appear off to the sides and drift; the boat motors home around them. Home: the view warms to dawn, dawn-cue, "Dawn. You made it home with the owner's fish.", then the run-cleared card with the owner's run-cleared tape and words. Result `RunCleared`, strikes 0 (if a strike happens: a hard shake, the groan, the death card for the taken player, and the finale goes on). If the lock bands look wrong (cylinders lying flat), change the rotation in `Finale.stepLock`.
+13. After the finale or the run's end card, back on the title: no dawn tint, no finale bell or hazards left, the water sounds are back (`Finale.debugState().ambience` back to its normal level). The AudioDirector builder must keep the Ambience SoundGroup named `DeadCalmAmbience` (fx/Finale fades it).
+14. Late joiner (Studio Test with 2 players, the second joining after Play): the newcomer is hidden in a seat, watches from the drowned view with "You join the crew at the next night.", cannot steer, has no touch buttons; at the next night they are visible and in the crew (the quota rescales).
+15. Every S3 scenario still prints its expected result (they start nights outside the run; the title goes down when they start). `night_start` with `run = true` and `autoAdvance = true` plays on to the next night by itself.
 
 ## Studio and Neon fixes (11/26/2026)
 
@@ -224,6 +313,28 @@ return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invo
 13. HUD: a small paper tag top left reads Night 1, 10:00 PM, Quota 0 / 10, Oil with a full bar, in the typewriter font (SpecialElite). If the font is missing it falls back to SourceSans.
 14. Audio: with every id at 0 nothing errors. After setting one bed id, it starts within a second with no code change.
 
+## Derived sounds (11/26/2026)
+
+Files: `src/shared/SoundRegistry.luau` (the `derive` and `["repeat"]` fields, `EFFECT_PROPS`, `isDerived`; `available` and `uri` resolve a derived name to its source), `src/client/AudioDirector.luau` (builds derived sounds in `play` and `loop`: speed, PlaybackRegion, SoundEffect children, delayed layers, a repeat timer, duration and fades, the entry's `repeat` copies; `audition` and `stopAuditions` for listening tests), `src/client/fx/Knocking.luau` (knocks at the server's gap, cancelled on reset), `src/client/DebugBot.luau` (`play_sound`, `stop_sound`), `tools/lint/asset_ids.py` (derive checks). Recipes and calls: `docs/SHELL-DECISIONS.md`, "Derived sounds 11/26/2026". 28 entries are derived; 5 UI entries stay silent.
+
+Listening test (Studio, in Play, from the server context; the client prints `[DebugBot] play_sound <name>: playing`):
+
+```lua
+game:GetService("ReplicatedStorage"):WaitForChild("DeadCalmDebugRemotes"):WaitForChild("DebugBot"):FireAllClients({ cmd = "play_sound", name = "watcher-tone-loop", seconds = 6 })
+game:GetService("ReplicatedStorage"):WaitForChild("DeadCalmDebugRemotes"):WaitForChild("DebugBot"):FireAllClients({ cmd = "play_sound", name = "knock-three-hard" })
+game:GetService("ReplicatedStorage"):WaitForChild("DeadCalmDebugRemotes"):WaitForChild("DebugBot"):FireAllClients({ cmd = "stop_sound" })
+```
+
+Any registry name works (real, library stand-in or derived). Loops stop after `seconds` (default 8). Spatial entries play at the hull.
+
+Studio must check (derived sounds):
+
+1. Each derived name plays something through `play_sound` (no warnings like "unknown effect class" or "has no property" in the output).
+2. knock-three-soft and knock-three-hard knock three times about 1.1 s apart; cooler-knock-inside three muffled knocks 0.9 s apart.
+3. watcher-tone-loop is thin, high and quiet; neighbor-oarlock-loop creaks every 2 s, far off, until stopped.
+4. wrong-blink, ui-tick and callout-blip are audible at all (very short slices); widen their regions if not.
+5. watcher-step and watcher-lunge: the first 0.6 s of dock-creak is one step. Retune the region if it is two steps or half of one.
+
 ## Known issues and limits
 
 - Not run in Studio yet (this builder had no Studio by instruction).
@@ -239,4 +350,4 @@ return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invo
 
 ## How to resume
 
-Read this file and `docs/SHELL-DECISIONS.md`, run the gate, then `lune run tools/shell/world_count.luau`. Next: the Studio checks for S3, then S4 (with the Finale's presentation: `fx/Finale.luau` is a stub).
+Read this file and `docs/SHELL-DECISIONS.md`, run the gate, then `lune run tools/shell/world_count.luau`. Next: the Studio checks for S3 and S4, then S5 (saves and Endless).

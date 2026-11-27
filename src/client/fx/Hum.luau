@@ -2,8 +2,10 @@
 -- Rule 1, the Hum, on screen. The chorus dying is the view's job (chorus band 0, fireflies
 -- freeze). This adds the hum itself:
 --   EntityCue           a beat of dead quiet; the drowned see a vast shape under the hull
---   EntityStage Window  hum-rise, then hum-hold-loop; the lantern flame shivers and the
---                       floorboards buzz, building over a few seconds
+--   EntityStage Window  hum-rise with hum-hold-loop and hum-hull-resonance (the mid-range
+--                       layer phones can play) swelling in at once; the lantern flame
+--                       shivers, the floorboards buzz, the camera rattles and rings spread
+--                       on the water around the hull, building over a few seconds
 --   EntityPass          the loop sinks away, hum-pass; buzz and shiver settle
 --   EntityFail          the boat is thrown: hum-fail, about 1.2 s of violent roll and heave
 --                       (BoatFx.capsize, the camera rolls with it), the held fish and a
@@ -25,18 +27,17 @@ local Hum = {}
 Hum.THROWN = 1.2 -- seconds the boat is thrown before the taken one goes under
 Hum.SHAPE_AFTER_FAIL = 20 -- the drowned keep seeing the shape this long after a fail
 
+Hum.LOOP_FADE_IN = 1.0 -- the hold loop starts with the rise (Scare polish 2: no 2.2 s wait)
+Hum.MID_FADE_IN = 1.6 -- the mid-range hull resonance (phones) swells in over the rise
+
 local loop: Sound? = nil
+local mid: Sound? = nil
 local shape: BasePart? = nil
 local token = 0
 local plungeToken = 0
 local failedAt = -math.huge
 
-local function stopLoop(fade: number)
-	local l = loop
-	loop = nil
-	if l == nil then
-		return
-	end
+local function fadeOutSound(l: Sound, fade: number)
 	local v0 = l.Volume
 	task.spawn(function()
 		local t0 = os.clock()
@@ -46,6 +47,39 @@ local function stopLoop(fade: number)
 		end
 		l:Destroy()
 	end)
+end
+
+local function stopLoop(fade: number)
+	local l, m = loop, mid
+	loop, mid = nil, nil
+	if l then
+		fadeOutSound(l, fade)
+	end
+	if m then
+		fadeOutSound(m, fade * 0.8)
+	end
+	BoatFx.rings(false)
+end
+
+-- Starts a loop silent and brings it up to its own level over `seconds`.
+local function swell(name: string, seconds: number): Sound?
+	local s = AudioDirector.loop(name, nil)
+	if s == nil then
+		return nil
+	end
+	local target = s.Volume
+	s.Volume = 0
+	task.spawn(function()
+		local t0 = os.clock()
+		while s.Parent and os.clock() - t0 < seconds do
+			s.Volume = target * (os.clock() - t0) / seconds
+			task.wait()
+		end
+		if s.Parent then
+			s.Volume = target
+		end
+	end)
+	return s
 end
 
 -- The thing under the boat: only the drowned see it.
@@ -101,6 +135,15 @@ function Hum.handle(e: any)
 	elseif e.kind == "EntityStage" and data.stage == "Window" then
 		showShape()
 		AudioDirector.play("hum-rise")
+		-- The hold loop and the mid-range resonance start with the rise, so the hum is heard
+		-- the moment the stage opens (hum-rise alone starts too softly), on phones too.
+		if loop == nil then
+			loop = swell("hum-hold-loop", Hum.LOOP_FADE_IN)
+		end
+		if mid == nil then
+			mid = swell("hum-hull-resonance", Hum.MID_FADE_IN)
+		end
+		BoatFx.rings(true)
 		-- Build the visual tells over the rise, then hold.
 		task.spawn(function()
 			for i = 1, 20 do
@@ -110,11 +153,6 @@ function Hum.handle(e: any)
 				BoatFx.buzz(i / 20)
 				BoatFx.shiver(i / 20)
 				task.wait(0.12)
-			end
-		end)
-		task.delay(2.2, function()
-			if token == my and loop == nil then
-				loop = AudioDirector.loop("hum-hold-loop", nil)
 			end
 		end)
 	elseif e.kind == "EntityPass" then

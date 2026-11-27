@@ -8,9 +8,10 @@
 -- Some fails show you something first (the Hum throws the boat and pulls the camera under):
 -- DeathCard.LEAD_IN[rule] holds the fade back that long.
 --
--- The card is built once, centered, at a fixed size (offset pixels, narrowed only on small
--- screens), on a full-screen gui with no insets, and nothing moves it while it is up
--- (Neon saw it jump in the Neighbor recording, 11/26/2026).
+-- The card is built once, centered, sized from the screen width (about 70 percent, refit
+-- only when the viewport changes), on a full-screen gui with no insets, and nothing moves it
+-- while it is up (Neon saw it jump in the Neighbor recording, 11/26/2026). The ambience is
+-- muted from the fade to black until the card goes (Scare polish 2).
 --
 -- DeathCard.hold = true keeps the card up (Studio scenario "death_card").
 
@@ -29,12 +30,17 @@ local DeathCard = {}
 
 DeathCard.FADE = 1.2 -- seconds to black
 DeathCard.CARD_AFTER = 0.8 -- seconds of black before the card
-DeathCard.READ = 4 -- seconds the card stays before it goes by itself
+DeathCard.READ = 5 -- seconds the card stays before it goes by itself (Scare polish 2: was 4)
 DeathCard.MIN_READ = 0.6 -- a tap closes it only after this long (no accidental skips)
 DeathCard.LIFT = 1.2 -- seconds for the black to lift into the drowned view
 DeathCard.LEAD_IN = { Hum = 1.75 } :: { [string]: number }
-DeathCard.WIDTH = 480
-DeathCard.HEIGHT = 200
+-- Scare polish 2 (phones): the card is about 70 percent of the screen width, clamped, with
+-- its height and text sizes following the width; dark ink on opaque paper with a dark edge.
+DeathCard.WIDTH_SCALE = 0.7
+DeathCard.MIN_WIDTH = 300
+DeathCard.MAX_WIDTH = 980
+DeathCard.ASPECT = 0.42 -- height / width
+DeathCard.INK = Color3.fromRGB(14, 9, 5)
 DeathCard.hold = false
 
 local gui: ScreenGui? = nil
@@ -42,6 +48,7 @@ local black: Frame? = nil
 local card: Frame? = nil
 local line: TextLabel? = nil
 local ruleLine: TextLabel? = nil
+local lineCap: UITextSizeConstraint? = nil
 local showing = false
 local cardAt = 0
 local token = 0
@@ -70,6 +77,7 @@ local function finish(my: number)
 		c.Visible = false
 	end
 	showing = false
+	AudioDirector.muteAmbience("DeathCard", false)
 	-- The drowned camera starts under the black, then the black lifts into it.
 	for _, fn in doneListeners do
 		task.spawn(fn)
@@ -82,6 +90,7 @@ end
 function DeathCard.close()
 	token += 1
 	showing = false
+	AudioDirector.muteAmbience("DeathCard", false)
 	local b, c = black, card
 	if c then
 		c.Visible = false
@@ -102,18 +111,37 @@ local function playSoft(name: string)
 	end
 end
 
--- Keeps the card a fixed size: full size on normal screens, narrower on small phones.
+-- Sizes the card from the screen: about 70 percent of the width (clamped, never wider than
+-- the screen less a margin), height and text from that width. Only refit on a viewport
+-- change, never while it animates.
 local function fitCard()
 	local c = card
 	local cam = Workspace.CurrentCamera
 	if c == nil or cam == nil then
 		return
 	end
-	local w = cam.ViewportSize.X
-	if w > 10 and w < DeathCard.WIDTH + 40 then
-		c.Size = UDim2.fromOffset(math.floor(w - 32), DeathCard.HEIGHT)
-	else
-		c.Size = UDim2.fromOffset(DeathCard.WIDTH, DeathCard.HEIGHT)
+	local vw = cam.ViewportSize.X
+	if vw <= 10 then
+		vw = 800
+	end
+	local w = math.clamp(math.floor(vw * DeathCard.WIDTH_SCALE), DeathCard.MIN_WIDTH, DeathCard.MAX_WIDTH)
+	w = math.min(w, math.floor(vw - 24))
+	local h = math.max(190, math.floor(w * DeathCard.ASPECT))
+	c.Size = UDim2.fromOffset(w, h)
+	local mainSize = math.clamp(math.floor(w / 17), 22, 54)
+	local ruleSize = math.clamp(math.floor(w / 26), 18, 34)
+	local l, r, cap = line, ruleLine, lineCap
+	if l then
+		l.TextSize = mainSize
+		l.Size = UDim2.new(1, 0, 1, -(ruleSize + 14))
+	end
+	if cap then
+		cap.MaxTextSize = mainSize
+	end
+	if r then
+		r.TextSize = ruleSize
+		r.Position = UDim2.new(0, 0, 1, -(ruleSize + 6))
+		r.Size = UDim2.new(1, 0, 0, ruleSize + 4)
 	end
 end
 
@@ -138,6 +166,8 @@ function DeathCard.show(textId: any, rule: string?)
 			return
 		end
 		tween(b, DeathCard.FADE, { BackgroundTransparency = 0 })
+		-- No stray frog over the black or the card: the ambience is muted until it goes.
+		AudioDirector.muteAmbience("DeathCard", true)
 		if rule == "Knocking" then
 			AudioDirector.play("boat-sink")
 		elseif rule ~= "Hum" then
@@ -190,30 +220,42 @@ function DeathCard.init()
 	local c = Paper.sheet(
 		g,
 		"Card",
-		UDim2.fromOffset(DeathCard.WIDTH, DeathCard.HEIGHT),
+		UDim2.fromOffset(DeathCard.MIN_WIDTH, 190),
 		UDim2.fromScale(0.5, 0.5),
 		Vector2.new(0.5, 0.5),
-		22
+		26
 	)
 	c.BackgroundTransparency = 0
 	c.Rotation = -1.2
 	c.ZIndex = 2
 	c.Visible = false
 	card = c
-	local main = Paper.text(c, "Line", "", 24, Paper.hand())
+	local edge = Instance.new("UIStroke")
+	edge.Color = DeathCard.INK
+	edge.Thickness = 3
+	edge.Transparency = 0.2
+	edge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	edge.Parent = c
+	local main = Paper.text(c, "Line", "", 30, Paper.hand())
 	main.Size = UDim2.new(1, 0, 1, -40)
-	main.TextScaled = false
+	-- Scaled down to fit a long line, never above the size fitCard picks for this screen.
+	main.TextScaled = true
+	main.TextColor3 = DeathCard.INK
 	main.TextXAlignment = Enum.TextXAlignment.Center
 	main.TextYAlignment = Enum.TextYAlignment.Center
+	main.LineHeight = 1.05
 	main.ZIndex = 3
 	local cap = Instance.new("UITextSizeConstraint")
-	cap.MaxTextSize = 24
-	cap.MinTextSize = 14
+	cap.MaxTextSize = 30
+	cap.MinTextSize = 16
 	cap.Parent = main
 	line = main
-	local rl = Paper.text(c, "Rule", "", 22)
+	lineCap = cap
+	-- The rule line in the same marker hand (the typewriter was too thin on a phone).
+	local rl = Paper.text(c, "Rule", "", 22, Paper.hand())
 	rl.Position = UDim2.new(0, 0, 1, -30)
 	rl.Size = UDim2.new(1, 0, 0, 28)
+	rl.TextColor3 = DeathCard.INK
 	rl.TextXAlignment = Enum.TextXAlignment.Right
 	rl.ZIndex = 3
 	ruleLine = rl

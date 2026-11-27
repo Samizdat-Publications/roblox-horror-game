@@ -420,6 +420,12 @@ local function onIntents(intents: { any })
 	end
 end
 
+-- A late joiner waits as one of the drowned until the next night (LobbyService): hidden,
+-- never steering (Net.isDrowned). The next night's reset shows them again.
+function EntityPresenter.hideWaiting(player: Player)
+	hideCharacter(player)
+end
+
 -- A new night: everyone visible and back in the boat, the rods back, the props gone.
 function EntityPresenter.reset()
 	for userId in hidden do

@@ -1,7 +1,12 @@
 --!strict
 -- The HUD is four small things (DESIGN.md): night, clock, quota, oil. Paper and ink, top
 -- left, small. Reads the NightView from ViewState. While the outboard runs, a fifth line
--- says "Motor: on" (Neon could not tell the motor was running, 11/26/2026).
+-- says "Motor: on" (Neon could not tell the motor was running, 11/26/2026); it is hidden
+-- while the local player is drowned.
+-- S4: hidden on the title screen. In the finale the lantern is locked on and its oil is the
+-- clock: the oil line reads "Oil (locked)" in the owner's second ink and the bar is drawn in
+-- that ink. Under the paper, two small buttons open the rulebook and the Field Guide (mouse
+-- players; touch players have MobileButtons).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10,7 +15,11 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Look = require(Shared:WaitForChild("Look"))
 local Types = require(Shared:WaitForChild("Core"):WaitForChild("Types"))
 
+local UserInputService = game:GetService("UserInputService")
+
 local ViewState = require(script.Parent.Parent:WaitForChild("ViewState"))
+local LobbyClient = require(script.Parent.Parent:WaitForChild("LobbyClient"))
+local BookState = require(script.Parent:WaitForChild("BookState"))
 
 type NightView = Types.NightView
 
@@ -67,11 +76,18 @@ local function render(view: NightView)
 	labels.Clock.Text = HUD.clockText(view.clock)
 	labels.Quota.Text = string.format("Quota %d / %d", view.banked, view.quota)
 	local fill = oilFill
+	local finale = view.phase == "Finale"
 	if fill then
 		fill.Size = UDim2.fromScale(math.clamp(view.oil, 0, 1), 1)
+		fill.BackgroundColor3 = if finale then Look.Palette.amendInk else Look.UI.ink
 	end
+	labels.Oil.Text = if finale then "Oil (locked)" else "Oil"
+	labels.Oil.TextColor3 = if finale then Look.Palette.amendInk else Look.UI.ink
 	local motor = labels.Motor
-	local on = view.motorOn == true
+	-- Not for the drowned: a dead player has no motor to mind (Scare polish 2; the paper said
+	-- "Motor: on" over the drowned view).
+	local me = ViewState.me()
+	local on = view.motorOn == true and (me == nil or me.alive ~= false)
 	if motor and motor.Visible ~= on then
 		motor.Visible = on
 		local paper = paperFrame
@@ -139,8 +155,49 @@ function HUD.init()
 	motor.Text = "Motor: on"
 	motor.Visible = false
 
+	-- The book and the guide, for mouse players.
+	local row = Instance.new("Frame")
+	row.Name = "Books"
+	row.BackgroundTransparency = 1
+	row.Position = UDim2.fromOffset(12, 0)
+	row.Size = UDim2.fromOffset(150, 30)
+	row.Parent = gui
+	local function small(name: string, text: string, x: number, page: string)
+		local b = Instance.new("TextButton")
+		b.Name = name
+		b.Text = text
+		b.FontFace = f
+		b.TextSize = 15
+		b.TextColor3 = Look.UI.ink
+		b.BackgroundColor3 = Look.UI.paper
+		b.BackgroundTransparency = Look.UI.hudPaperTransparency
+		b.BorderSizePixel = 0
+		b.Position = UDim2.fromOffset(x, 0)
+		b.Size = UDim2.fromOffset(72, 26)
+		b.Parent = row
+		b.Activated:Connect(function()
+			BookState.toggle(page)
+		end)
+	end
+	small("Book", "Book  R", 0, "rules")
+	small("Guide", "Guide  G", 78, "guide")
+
+	local function layoutRow()
+		local p = paperFrame
+		if p then
+			row.Position = UDim2.fromOffset(12, 12 + p.Size.Y.Offset + 6)
+		end
+		row.Visible = not (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled)
+	end
 	render(ViewState.get())
-	ViewState.onChange(render)
+	layoutRow()
+	ViewState.onChange(function(v)
+		render(v)
+		layoutRow()
+	end)
+	LobbyClient.onChange(function(st)
+		gui.Enabled = st.phase ~= "Title"
+	end)
 	gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 end
 
