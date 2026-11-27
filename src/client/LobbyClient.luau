@@ -33,7 +33,13 @@ export type State = {
 	night: NightInfo?,
 	totals: { [string]: any }?,
 	nights: number?,
+	mode: string, -- "Story" | "Endless" (S5)
+	endlessOpen: boolean, -- the host may start Endless Nights
+	board: { BoardRow }, -- best Endless nights, display names only
+	memorySaves: boolean,
 }
+
+export type BoardRow = { rank: number, name: string, night: number }
 
 local state: State = {
 	phase = "Title",
@@ -41,6 +47,10 @@ local state: State = {
 	difficulty = "Normal",
 	players = {},
 	waiting = {},
+	mode = "Story",
+	endlessOpen = false,
+	board = {},
+	memorySaves = false,
 }
 local received = false
 local listeners: { (State) -> () } = {}
@@ -65,6 +75,19 @@ local function clean(raw: any): State?
 			quota = tonumber(raw.night.quota),
 		}
 	end
+	local board: { BoardRow } = {}
+	for _, row in list(raw.board) do
+		if type(row) == "table" and type(row.name) == "string" and tonumber(row.night) then
+			table.insert(board, {
+				rank = tonumber(row.rank) or (#board + 1),
+				name = string.sub(row.name, 1, 40),
+				night = tonumber(row.night) :: number,
+			})
+		end
+		if #board >= 10 then
+			break
+		end
+	end
 	return {
 		phase = raw.phase,
 		host = tonumber(raw.host),
@@ -78,6 +101,10 @@ local function clean(raw: any): State?
 		night = night,
 		totals = if type(raw.totals) == "table" then raw.totals else nil,
 		nights = tonumber(raw.nights),
+		mode = if raw.mode == "Endless" then "Endless" else "Story",
+		endlessOpen = raw.endlessOpen == true,
+		board = board,
+		memorySaves = raw.memorySaves == true,
 	}
 end
 

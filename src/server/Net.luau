@@ -13,6 +13,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Remotes = require(Shared:WaitForChild("Remotes"))
 local Types = require(Shared:WaitForChild("Core"):WaitForChild("Types"))
+local Validate = require(Shared:WaitForChild("Core"):WaitForChild("Validate")) :: any
 
 local BoatService = require(script.Parent:WaitForChild("BoatService"))
 
@@ -271,14 +272,16 @@ function Net.handlers.Lobby(player: Player, action: any, value: any): boolean
 	return true
 end
 
+-- DataService sets this: equip an item (whether the player has unlocked it is Profile's call).
+Net.onCosmetic = function(_player: Player, _slot: string, _id: string) end
+
 function Net.handlers.Cosmetic(player: Player, slot: any, id: any): boolean
-	local ok = allow(player, "Cosmetic")
-		and type(slot) == "string"
-		and type(id) == "string"
-		and #slot <= 16
-		and #id <= 24
+	local ok = allow(player, "Cosmetic") and (Validate.Cosmetic(Config, slot, id))
 	count(if ok then Net.stats.accepted else Net.stats.rejected, "Cosmetic")
-	return ok
+	if ok then
+		Net.onCosmetic(player, slot, id)
+	end
+	return ok == true
 end
 
 function Net.init()

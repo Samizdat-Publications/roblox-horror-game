@@ -411,14 +411,17 @@ end
 
 -- Starts a run (LobbyService, the host pressed Play). o.night (Studio) jumps to a night;
 -- o.seconds and o.quotaScale (Studio full runs) apply to every night of the run.
-function NightService.newRun(o: {
-	difficulty: string?,
-	seed: number?,
-	firstRun: boolean?,
-	night: number?,
-	seconds: number?,
-	quotaScale: number?,
-}): any
+function NightService.newRun(
+	o: {
+		mode: string?, -- "Story" (default) or "Endless" (Core.Run starts it at night 6)
+		difficulty: string?,
+		seed: number?,
+		firstRun: boolean?,
+		night: number?,
+		seconds: number?,
+		quotaScale: number?,
+	}
+): any
 	local ids = {}
 	for _, p in Players:GetPlayers() do
 		table.insert(ids, p.UserId)
@@ -429,12 +432,16 @@ function NightService.newRun(o: {
 	run = Run.new(Config, {
 		seed = o.seed or Random.new():NextInteger(1, 2 ^ 30),
 		difficulty = if o.difficulty == "Nightmare" then "Nightmare" else "Normal",
-		mode = "Story",
+		mode = if o.mode == "Endless" then "Endless" else "Story",
 		playerIds = ids,
 		firstRun = o.firstRun ~= false,
 	})
 	if o.night then
-		run.night = math.clamp(math.floor(o.night), 1, #Config.Nights)
+		if run.mode == "Endless" then
+			run.night = math.max(Run.ENDLESS_FROM, math.floor(o.night))
+		else
+			run.night = math.clamp(math.floor(o.night), 1, #Config.Nights)
+		end
 	end
 	runExtra = { seconds = o.seconds, quotaScale = o.quotaScale }
 	lastOutcome = nil

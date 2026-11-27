@@ -37,13 +37,16 @@ function BookState.onChange(fn: (string?) -> ())
 end
 
 -- Opens a page (or switches to it). Returns true when it is open.
+-- Pages that belong to the title screen: the Lake Rules and the Locker (S5).
+local TITLE_PAGES: { [string]: boolean } = { lake = true, locker = true }
+
 function BookState.open(p: string): boolean
-	if p ~= "rules" and p ~= "guide" and p ~= "lake" then
+	if p ~= "rules" and p ~= "guide" and not TITLE_PAGES[p] then
 		return false
 	end
-	-- On the title screen only the Lake Rules open; in a night only the boat's book.
+	-- On the title screen only the Lake Rules and the Locker open; in a night only the boat's book.
 	local onTitle = LobbyClient.get().phase == "Title"
-	if onTitle ~= (p == "lake") then
+	if onTitle ~= (TITLE_PAGES[p] == true) then
 		return false
 	end
 	if page == p then
@@ -52,7 +55,7 @@ function BookState.open(p: string): boolean
 	local was = page
 	page = p
 	Input.setBlocked("book", true)
-	if p ~= "lake" and (was == nil or was == "lake") then
+	if not TITLE_PAGES[p] and (was == nil or TITLE_PAGES[was]) then
 		LobbyClient.send("Book", 1)
 	end
 	AudioDirector.play(if was == nil then "ui-book-open" else "ui-page-turn")
@@ -67,7 +70,7 @@ function BookState.close()
 	local was = page
 	page = nil
 	Input.setBlocked("book", false)
-	if was ~= "lake" then
+	if not TITLE_PAGES[was] then
 		LobbyClient.send("Book", 0)
 	end
 	AudioDirector.play("ui-book-close")
@@ -98,7 +101,7 @@ function BookState.init()
 	end)
 	LobbyClient.onChange(function(s)
 		local onTitle = s.phase == "Title"
-		if page ~= nil and onTitle ~= (page == "lake") then
+		if page ~= nil and onTitle ~= (TITLE_PAGES[page] == true) then
 			BookState.close()
 		end
 	end)

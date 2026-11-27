@@ -46,6 +46,9 @@ Hum, WrongCatch, Neighbor, Knocking and Watcher, "fakeouts", "death_card" and "r
 clean start every rule scenario begins with). Rule scenarios mute the owner's tapes;
 "night_start" and "quiet_night" turn them back on.
 
+S5 scenarios (saves, cosmetics, Endless) are in DebugSaves.luau: "save_roundtrip",
+"unlock_all_debug", "endless".
+
 S4 scenarios (the front and back of a run) are in DebugRun.luau: "title", "rulebook",
 "full_run" and "finale". Nights started here (night_start, quiet_night, the rule scenarios)
 are outside the run: when they end nothing advances. "night_start" with opts.run = true
@@ -823,6 +826,7 @@ function DebugDriver.init()
 	end
 	require(script.Parent:WaitForChild("DebugRules")).register(DebugDriver)
 	require(script.Parent:WaitForChild("DebugRun")).register(DebugDriver)
+	require(script.Parent:WaitForChild("DebugSaves")).register(DebugDriver)
 	local bot = Net.debugRemote("DebugBot")
 	if bot then
 		bot.OnServerEvent:Connect(function(player: Player, msg: any)

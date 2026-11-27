@@ -157,13 +157,36 @@ end
 local function hatFor(player: Player): BasePart
 	local char = player.Character
 	if char then
+		-- S5: the earned hat (Cosmetics, "DeadCalmHat") first; avatar hats hidden under it
+		-- (attribute DeadCalmStowed) never float.
+		local hats = {}
+		local ours = char:FindFirstChild("DeadCalmHat")
+		if ours then
+			table.insert(hats, ours)
+		end
 		for _, acc in char:GetChildren() do
-			if acc:IsA("Accessory") and acc.AccessoryType == Enum.AccessoryType.Hat then
+			if acc ~= ours then
+				table.insert(hats, acc)
+			end
+		end
+		for _, acc in hats do
+			local stowedHandle = acc:FindFirstChild("Handle")
+			local stowed = stowedHandle ~= nil and stowedHandle:GetAttribute("DeadCalmStowed") ~= nil
+			if acc:IsA("Accessory") and acc.AccessoryType == Enum.AccessoryType.Hat and not stowed then
 				local handle = acc:FindFirstChild("Handle")
 				if handle and handle:IsA("BasePart") then
 					local h = handle:Clone()
 					for _, d in h:GetDescendants() do
-						if d:IsA("JointInstance") or d:IsA("WeldConstraint") or d:IsA("Attachment") then
+						-- Keep welds inside the hat (a brim); drop the ones to the head.
+						local inside = false
+						if d:IsA("WeldConstraint") then
+							local a, b = d.Part0, d.Part1
+							inside = (a == h or (a ~= nil and a:IsDescendantOf(h)))
+								and (b == h or (b ~= nil and b:IsDescendantOf(h)))
+						end
+						if
+							(d:IsA("JointInstance") or d:IsA("WeldConstraint") or d:IsA("Attachment")) and not inside
+						then
 							d:Destroy()
 						end
 					end
@@ -174,6 +197,13 @@ local function hatFor(player: Player): BasePart
 					h.CanTouch = false
 					h.Massless = true
 					h.Transparency = 0
+					for _, d in h:GetDescendants() do
+						if d:IsA("BasePart") then
+							d.Transparency = 0
+							d.Anchored = false
+							d.Massless = true
+						end
+					end
 					h.Parent = fxFolder()
 					return h
 				end

@@ -3,9 +3,13 @@
 -- the dock, Play, the difficulty (Normal or Nightmare), the Lake Rules page, and the owner's
 -- title tape. The first player in the server is the host: only the host can pick the
 -- difficulty and start; everyone else sees the host's choice and waits.
+-- S5: Endless Nights (host only, once the host has cleared a run), the Locker (cosmetics,
+-- everyone) and a small paper list of the best Endless nights (display names only).
 -- Mouse and touch: the buttons. Keyboard: Enter plays, N toggles the difficulty, L opens the
--- Lake Rules. Gamepad: A plays, X toggles the difficulty, Y opens the Lake Rules (the
--- buttons are also selectable).
+-- Lake Rules, K opens the Locker (Endless Nights is its button only: E is the boat's
+-- interact key). Gamepad: A plays, X toggles the
+-- difficulty, Y opens the Lake Rules, R1 opens the Locker (the buttons are also
+-- selectable).
 
 local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -22,6 +26,8 @@ local Input = require(client:WaitForChild("Input"))
 local Camera = require(client:WaitForChild("Camera"))
 local Paper = require(script.Parent:WaitForChild("Paper"))
 local BookState = require(script.Parent:WaitForChild("BookState"))
+local ProfileClient = require(client:WaitForChild("ProfileClient"))
+local Locker = require(script.Parent:WaitForChild("Locker"))
 
 local Title = {}
 
@@ -31,6 +37,12 @@ local diffBtn: TextButton? = nil
 local rulesBtn: TextButton? = nil
 local status: TextLabel? = nil
 local diffNote: TextLabel? = nil
+local endlessBtn: TextButton? = nil
+local lockerBtn: TextButton? = nil
+local boardSheet: Frame? = nil
+local boardText: TextLabel? = nil
+local newNote: TextLabel? = nil
+local newItems: { string } = {}
 local shown = false
 local theme: Sound? = nil
 
@@ -58,6 +70,36 @@ local function refresh()
 	d.AutoButtonColor = host
 	r.Text = if pad then "The Lake Rules  (Y)" else "The Lake Rules"
 	dn.Text = Title.DIFF_NOTE[s.difficulty] or ""
+	local e = endlessBtn
+	if e then
+		e.Visible = host and s.endlessOpen
+		e.Text = "Endless Nights"
+	end
+	local lk = lockerBtn
+	if lk then
+		lk.Text = if pad then "Locker  (R1)" else "Locker  (K)"
+	end
+	local bt = boardText
+	if bt then
+		local lines = {}
+		if #s.board == 0 then
+			table.insert(lines, "Nobody has lasted an Endless night yet.")
+		else
+			for _, row in s.board do
+				table.insert(lines, string.format("%d. %s, night %d", row.rank, row.name, row.night))
+			end
+		end
+		if s.memorySaves then
+			table.insert(lines, "")
+			table.insert(lines, "Test place: this list lasts only until the server closes.")
+		end
+		bt.Text = table.concat(lines, "\n")
+	end
+	local nn = newNote
+	if nn then
+		nn.Text = if #newItems > 0 then "New in your locker: " .. table.concat(newItems, ", ") .. "." else ""
+		nn.Visible = #newItems > 0
+	end
 	if host then
 		st.Text = if #s.players > 1
 			then string.format("You have the boat. %d aboard.", #s.players)
@@ -75,6 +117,10 @@ local function setShown(on: boolean)
 	shown = on
 	g.Enabled = on
 	Input.setBlocked("title", on)
+	local bs = boardSheet
+	if bs then
+		bs.Visible = on
+	end
 	if on then
 		Camera.applyShot("title")
 		AudioDirector.stopTape(false)
@@ -106,6 +152,7 @@ end
 local function play()
 	if shown and LobbyClient.isHost() and BookState.current() == nil then
 		AudioDirector.play("ui-stamp")
+		LobbyClient.send("Mode", "Story")
 		LobbyClient.send("Start")
 	end
 end
@@ -121,6 +168,23 @@ end
 local function lakeRules()
 	if shown then
 		BookState.toggle("lake")
+	end
+end
+
+local function endless()
+	local s = LobbyClient.get()
+	if shown and LobbyClient.isHost() and s.endlessOpen and BookState.current() == nil then
+		AudioDirector.play("ui-stamp")
+		LobbyClient.send("Mode", "Endless")
+		LobbyClient.send("Start")
+	end
+end
+
+local function locker()
+	if shown then
+		newItems = {}
+		Locker.toggle()
+		refresh()
 	end
 end
 
@@ -192,11 +256,51 @@ function Title.init()
 	r.TextSize = Paper.fit(20, 14, 22)
 	r.Activated:Connect(lakeRules)
 	rulesBtn = r
+	local e = Paper.button(sheet, "Endless", "Endless Nights", UDim2.new(1, 0, 0, bh))
+	e.LayoutOrder = 7
+	e.TextSize = Paper.fit(20, 14, 22)
+	e.Visible = false
+	e.Activated:Connect(endless)
+	endlessBtn = e
 	local st = Paper.text(sheet, "Status", "", Paper.fit(16, 11, 18), Paper.hand())
-	st.LayoutOrder = 7
+	st.LayoutOrder = 8
 	st.Size = UDim2.new(1, 0, 0, Paper.fit(16, 11, 18) * 2 + 6)
 	st.TextColor3 = Look.Palette.amendInk
 	status = st
+
+	-- Right side: the Locker button and the best Endless nights.
+	local side = Paper.sheet(g, "Board", UDim2.fromScale(0.3, 0.6), UDim2.new(1, -24, 0.5, 0), Vector2.new(1, 0.5), 12)
+	side.BackgroundTransparency = 0.06
+	side.Rotation = 1.4
+	local sideLimit = Instance.new("UISizeConstraint")
+	sideLimit.MinSize = Vector2.new(190, 0)
+	sideLimit.MaxSize = Vector2.new(340, 440)
+	sideLimit.Parent = side
+	local sideList = Instance.new("UIListLayout")
+	sideList.SortOrder = Enum.SortOrder.LayoutOrder
+	sideList.Padding = UDim.new(0, Paper.fit(8, 4, 10))
+	sideList.Parent = side
+	local lk = Paper.button(side, "Locker", "Locker", UDim2.new(1, 0, 0, Paper.fit(40, 30, 46)))
+	lk.LayoutOrder = 1
+	lk.TextSize = Paper.fit(18, 13, 20)
+	lk.Activated:Connect(locker)
+	lockerBtn = lk
+	local nn = Paper.text(side, "NewItems", "", Paper.fit(14, 10, 16), Paper.hand())
+	nn.LayoutOrder = 2
+	nn.Size = UDim2.new(1, 0, 0, Paper.fit(14, 10, 16) * 2 + 6)
+	nn.TextColor3 = Look.Palette.amendInk
+	nn.Visible = false
+	newNote = nn
+	local bh2 = Paper.fit(18, 13, 20)
+	local bhead = Paper.text(side, "BoardHead", "Longest Endless nights", bh2, Paper.hand())
+	bhead.LayoutOrder = 3
+	local btx = Paper.text(side, "BoardRows", "", Paper.fit(14, 10, 16))
+	btx.LayoutOrder = 4
+	btx.Size = UDim2.new(1, 0, 1, -(Paper.fit(40, 30, 46) + bh2 + Paper.fit(14, 10, 16) * 2 + 40))
+	btx.TextTruncate = Enum.TextTruncate.AtEnd
+	boardText = btx
+	side.Visible = false
+	boardSheet = side
 
 	UserInputService.InputBegan:Connect(function(io, processed)
 		if not shown or BookState.current() ~= nil then
@@ -209,12 +313,22 @@ function Title.init()
 			toggleDifficulty()
 		elseif k == Enum.KeyCode.ButtonY or (k == Enum.KeyCode.L and not processed) then
 			lakeRules()
+		elseif k == Enum.KeyCode.ButtonR1 or (k == Enum.KeyCode.K and not processed) then
+			locker()
 		end
 	end)
 
 	LobbyClient.onChange(function(s)
 		refresh()
 		setShown(s.phase == "Title")
+	end)
+	ProfileClient.onChange(function(prof)
+		for _, key in prof.new do
+			local slot, id = string.match(key, "^(%w+)%.(%w+)$")
+			local it = if slot and id then ProfileClient.item(slot, id) else nil
+			table.insert(newItems, if it then it.name else key)
+		end
+		refresh()
 	end)
 	-- Until the server answers, show nothing (a Studio scenario may already be running).
 	task.delay(3, function()

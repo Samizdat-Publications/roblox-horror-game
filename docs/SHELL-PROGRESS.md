@@ -1,6 +1,8 @@
 # Shell progress
 
-Last updated 11/26/2026 by a local builder (S4 written on the working tree of `main`; not committed, the main session commits). S1 and S2 are verified in Studio; S3 and S4 are not yet played in Studio.
+ALL CHUNKS DONE (S1 to S6 written; S5 and S6 on 11/26/2026). S1 and S2 are verified in Studio; S3, S4 and S5 are not yet played in Studio (see each "Studio must check" list).
+
+Last updated 11/26/2026 by a local builder (S5 and S6 written on the working tree of `main`; not committed, the main session commits).
 
 ## Needed from Core
 
@@ -10,6 +12,7 @@ These live behind clearly marked seams in the shell. When the Core module lands,
 - `Core.Validate` and `Core.RateLimit` (seam in `src/server/Net.luau`): payload checks for `BoatInput`, `Gaze`, `Intent`, `Lobby`, `Cosmetic`, and a token bucket `(bucket, rate, burst, now) -> allowed`.
 - `Core.SoundMix` (seam in `src/client/AudioDirector.luau`, `mixFor`): `NightView -> { [layerKey]: 0..1 }` for the layer keys listed at the top of AudioDirector.
   Core.SoundMix still has ChorusThin and ChorusSparse layers, which no longer exist (the chorus is the full loop plus single calls); the shell keeps its own `mixFor` until SoundMix follows.
+- S5: nothing blocking. Nice to have: `Profile.recordNight` gets the crew's totals for every player (as decided in CLOUD-DECISIONS); a per-player fish count in `NightResult.tallies` would let "Bank 100 fish" count each player's own fish.
 - `Core.Run`: DONE in S4. NightService owns the RunState and builds every night with `Run.nightParams`; nights outside the run (Studio scenarios) use a throwaway Normal first run at that night with the scenario's seed as the night seed.
 
 ## Needed from S4
@@ -52,8 +55,8 @@ Studio must check (Scare polish 2):
 - [x] S2 Fishing and the night (code written, gate green, NOT yet played in Studio)
 - [x] S3 The rules on screen (code written 11/26/2026, selene and stylua clean on shell files, rojo build and smoke pass; NOT yet played in Studio)
 - [x] S4 Front and back of a run (code written 11/26/2026, selene and stylua clean on S4 files, rojo build and smoke pass; NOT yet played in Studio)
-- [ ] S5 Saves and Endless
-- [ ] S6 Docs
+- [x] S5 Saves and Endless (code written 11/26/2026, selene and stylua clean on shell files, rojo build and smoke 10 of 10; NOT yet played in Studio)
+- [x] S6 Docs (PLAYTEST_GUIDE.md, SOUNDS_NEEDED.md, README.md, 11/26/2026)
 
 ## S1: what exists
 
@@ -90,6 +93,51 @@ Client (`src/client`):
 - `DebugBot`: commands `hello`, `intent` and `autoreel` (Studio-only auto-reel: sets the hook on a bite and keeps the predicted tension in the middle of the band with ReelHold intents through `Input.sendIntent`, under its own 5 per second token bucket).
 
 Offline check (a scratchpad Lune sim of Core.Night with the quiet params and the same reel law, 0.1 s view lag, 5 intents a second): 20 of 20 seeds cleared night 1 (quota 7 for one player), no fish lost.
+
+## S5: what exists (11/26/2026)
+
+Server (`src/server`):
+- `DataStores.luau` (new): store adapters with one shape (GetAsync, SetAsync, UpdateAsync, top). `open()` picks the real DataStore and OrderedDataStore when the place can reach them, else an in-memory store (unpublished place, or API access off). Real calls wait for request budget first (`GetRequestBudgetForRequestType`); errors go up to Core.SaveLogic, which retries with backoff.
+- `DataService.luau` (new): loads each player's Core.Profile on join (SaveLogic.load: a failed load plays on defaults with canSave false), records each run night (`Profile.recordNight`, plus `Profile.recordRun` at RunCleared or RunOver) for every crew player, saves after each run night, on leave and in BindToClose (SaveLogic.save: UpdateAsync with merge, never over a newer SAVE_VERSION), submits the best Endless night to the ordered store (SaveLogic.submitBest), reads the top 10 for the title, equips cosmetics (Profile.equip on the server, refused unless unlocked) and sends the Profile remote. Prints once when saves are in memory.
+- `Cosmetics.luau` (new): names, swatches, the lantern (PointLight and Neon ball colors), hull paint (outer planks), and the hat (an Accessory `DeadCalmHat` from two cylinders; avatar hats hidden under it).
+- `MonetizationStubs.luau` (new): clearly marked, no ids, no prompts, nothing pay to win; functions return false or {}.
+- `DebugSaves.luau` (new, Studio only): scenarios `save_roundtrip`, `unlock_all_debug`, `endless`.
+- `LobbyService`: mode Story or Endless (Lobby "Mode", host only, Endless only with the host's cleared run), the boat dressed in the host's lantern and paint, LobbyState gains `mode`, `endlessOpen`, `board` (rank, display name, night) and `memorySaves`; the run totals carry `mode` and `bestNight`; "Hello" also resends the Profile.
+- `NightService.newRun` takes `mode` (Endless starts at night 6; `night` can start later). `Net`: Cosmetic goes through `Core.Validate.Cosmetic`, then `Net.onCosmetic`. `EntityPresenter`: the floating hat is the earned hat, brim and all. `Main.server`: `DataService.init()` before the lobby. `DebugDriver` registers DebugSaves.
+
+Client (`src/client`):
+- `ProfileClient.luau` (new): the Profile copy, `equip(slot, id)` (locked items are not sent).
+- `ui/Locker.luau` (new): a paper page from the title, three rows of item cards (swatch, name, "Wearing", "Tap to wear" or how to earn it), a note when saves are in memory or could not load. A BookState page ("locker").
+- `ui/Title.luau`: Endless Nights button (host, when open), a right-hand paper with the Locker button, "New in your locker: ..." after an unlock, and "Longest Endless nights" (display names). Play sends Mode Story first.
+- `ui/BookState.luau`: title pages are "lake" and "locker". `ui/HUD.luau`: "Endless night N". `ui/NightCards.luau`: Endless start, end and run-over lines. `LobbyClient`: mode, endlessOpen, board, memorySaves. `Main.client`: ProfileClient and Locker before Title.
+
+## How to verify S5 in Studio (server side, during Play)
+
+```lua
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("save_roundtrip")
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("unlock_all_debug")
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("unlock_all_debug", { lantern = "BlueHour", paint = "Oxblood", hat = "Souwester" })
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("endless")
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("endless", { night = 9, seconds = 60, seed = 3 })
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("title")
+```
+
+Expected: `SCENARIO DONE save_roundtrip same` (result has `written`, `read`, `saveStatus = "Saved"`, `loadStatus = "Current"`, `liveStore = "Memory"` in an unpublished place, and each player's session status `New` or `Current`); `SCENARIO DONE unlock_all_debug unlocked`; `SCENARIO DONE endless started` (night 6, mode Endless, two to four rules, a 90 s night).
+
+## Studio must check (S5)
+
+1. Output on Play in the unpublished place: `[DeadCalm] server up`, `[DeadCalm] saves are in memory this session: this place is not published, so it has no DataStores`, `[DeadCalm] client up`. No warnings or errors from DataService, DataStores, Cosmetics, ProfileClient, Locker or Title.
+2. `save_roundtrip` prints `same`; `written.stats.nightsCleared` 1, `fishBanked` 7, `equipped.hat` "BucketHat", and `read` matches.
+3. Title: a second paper on the right with "Locker (K)" and "Longest Endless nights" ("Nobody has lasted an Endless night yet." plus the test-place line). Check it does not cover the left menu at 1280 by 720 and on the smallest phone in landscape; if the left menu overflows with the Endless button showing, say so (the sheet may need to scroll).
+4. Locker (K, R1, or the button): three rows; Amber, Bare Wood and No hat unlocked and worn (dark red border, "Wearing"); the others faded with how to earn them. Clicking a locked card does nothing. Escape, B, the dim and Close shut it. Gamepad: the first card is selected and the D-pad moves between cards.
+5. `unlock_all_debug` with `{ lantern = "BlueHour", paint = "Oxblood", hat = "Souwester" }`: the boat's lantern light and ball turn blue, the sides, transom and bow planks dark red (floor and benches stay wood), and a yellow rain hat sits on the head (crown up, brim level, not inside the head or floating). The Locker shows every item unlocked with those three worn. Try each lantern color lit from the bow seat: still readable, still the brightest thing; Bone White not too harsh with bloom.
+6. Hats on R15 and R6 avatars, with and without an avatar hat: ours replaces the avatar hat (hidden, not deleted); "No hat" brings the avatar hat back. If a hat sits wrong, tune `SHAPES.<id>.lift` or the attachment in `Cosmetics.buildHat`. In `hum_fail` (or any death), the floating hat is the earned hat with its brim attached.
+7. Host only: with two clients, the second player's lantern and paint never show on the boat; their hat shows on their own head for both players.
+8. `endless`: the HUD paper says "Endless night 6"; the start card says "Endless night 6" and "Any rule, any night. One try."; the Endless tape plays. A cleared night shows "Endless night 7 next. It gets worse."; a failed one "The lake does not give Endless nights back. The run is over.", then "The Endless run is over." with the best night. A cleared Endless night raises `stats.bestEndlessNight` and, about a second later, the title list shows the player's display name and night (never a number id).
+9. Endless unlock: on a fresh server the host has no Endless button (`unlock_all_debug` does not open it: cosmetics only). After a cleared run (`full_run`) the host sees Endless Nights back on the title; a non-host never does. A client sending `Mode Endless` without a cleared run is ignored.
+10. Unlocks at night end: clearing night 1 of a run shows "New in your locker: Bucket Hat." on the title paper, and the Locker shows it unlocked.
+11. Published place with API access on (only after Stewart publishes privately): no memory line; play a night, leave, rejoin: stats and worn items come back. Stop the server with players in it: BindToClose saves (no "save failed" warning).
+12. Errors never stop play: on a published place with API access off, the memory line says "DataStores refused"; the game plays normally.
 
 ## S4: what exists (11/26/2026)
 
@@ -350,4 +398,4 @@ Studio must check (derived sounds):
 
 ## How to resume
 
-Read this file and `docs/SHELL-DECISIONS.md`, run the gate, then `lune run tools/shell/world_count.luau`. Next: the Studio checks for S3 and S4, then S5 (saves and Endless).
+Read this file and `docs/SHELL-DECISIONS.md`, run the gate, then `lune run tools/shell/world_count.luau`. Next: the Studio checks for S3, S4 and S5. All shell chunks are written.

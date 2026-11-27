@@ -110,7 +110,13 @@ end
 
 -- What comes after this night, in one line, from Core.Run's outcome.
 function NightCards.nextLine(outcome: string?, run: { [string]: any }?, nights: number?): string?
-	if outcome == "NextNight" then
+	local endless = run ~= nil and run.mode == "Endless"
+	if outcome == "NextNight" and endless then
+		local n = tonumber((run :: any).night)
+		return if n then string.format("Endless night %d next. It gets worse.", n) else "The next night is coming."
+	elseif outcome == "RunOver" and endless then
+		return "The lake does not give Endless nights back. The run is over."
+	elseif outcome == "NextNight" then
 		local n = if run then tonumber(run.night) else nil
 		if n and nights and n >= nights then
 			return "Last night next. The owner has a special order."
@@ -151,9 +157,9 @@ local function showEnd(cleared: boolean, reason: string?, result: any, s: LobbyC
 	if card == nil or head == nil or body == nil then
 		return
 	end
-	head.Text = if cleared
-		then string.format("Dawn. Night %d is done.", nightNumber)
-		else string.format("Night %d failed.", nightNumber)
+	local nightName =
+		string.format(if s.run and s.run.mode == "Endless" then "Endless night %d" else "Night %d", nightNumber)
+	head.Text = if cleared then string.format("Dawn. %s is done.", nightName) else nightName .. " failed."
 	local lines = {}
 	if not cleared then
 		table.insert(lines, NightCards.FAIL_TEXT[reason or ""] or "The night got away from you.")
@@ -200,6 +206,25 @@ local function showRun(cleared: boolean, s: LobbyClient.State)
 	head.Text = if cleared then "Dawn. The run is cleared." else "The run is over."
 	local t = s.totals or {}
 	local lines = {}
+	if t.mode == "Endless" then
+		local best = tonumber(t.bestNight) or 0
+		head.Text = "The Endless run is over."
+		table.insert(
+			lines,
+			if best > 0
+				then string.format("You lasted to the end of Endless night %d.", best)
+				else "The first Endless night took you. It is not like the others."
+		)
+		table.insert(lines, "")
+		table.insert(lines, string.format("Fish banked: %s", tostring(t.fishBanked or 0)))
+		table.insert(lines, string.format("Scares lived through: %s", tostring(t.scaresSurvived or 0)))
+		table.insert(lines, string.format("Taken by the lake: %s", tostring(t.deaths or 0)))
+		body.Text = table.concat(lines, "\n")
+		btn.Visible = LobbyClient.isHost()
+		card.Visible = true
+		AudioDirector.play("night-failed-sting")
+		return
+	end
 	if cleared then
 		table.insert(lines, Rulebook.TEXT["Tape.RunCleared"] or "")
 	else
@@ -258,10 +283,13 @@ local function showStart(night: number)
 		return
 	end
 	local info = if s.night and s.night.night == night then s.night else nil
-	head.Text = string.format("Night %d", night)
+	local endless = info ~= nil and info.mode == "Endless"
+	head.Text = string.format(if endless then "Endless night %d" else "Night %d", night)
 	local lines = {}
 	local run = s.run
-	if s.runNight and run then
+	if endless then
+		table.insert(lines, "Any rule, any night. One try.")
+	elseif s.runNight and run then
 		local attempt = tonumber(run.attempt) or 1
 		local first = string.format("Night %d of %d.", night, s.nights or 5)
 		if attempt > 1 then

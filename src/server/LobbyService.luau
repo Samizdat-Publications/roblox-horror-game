@@ -6,6 +6,10 @@
 --     run. When a night ends NightService calls Run.finishNight; BETWEEN seconds later the
 --     next night starts (NextNight), the same night starts again (RetryNight), or, after
 --     RUN_END seconds on the run-cleared or run-over card, everyone is back on the title.
+--   * Endless Nights (S5): the host picks "Endless" (Lobby "Mode") once their profile has a
+--     cleared run (DataService.endlessUnlocked); the run starts at night 6 in Core.Run's
+--     Endless mode and goes on until a night is failed.
+--   * The boat wears the host's lantern and paint (DataService profiles, Cosmetics).
 --   * Late joiners wait as the drowned (hidden, never steering) until the next night, when
 --     NightService takes every player in the server as the crew.
 -- Every change goes out to every client on the LobbyState remote (see LobbyService.state).
@@ -22,6 +26,8 @@ local NightService = require(server:WaitForChild("NightService"))
 local BoatService = require(server:WaitForChild("BoatService"))
 local FishingService = require(server:WaitForChild("FishingService"))
 local EntityPresenter = require(server:WaitForChild("EntityPresenter"))
+local DataService = require(server:WaitForChild("DataService"))
+local Cosmetics = require(server:WaitForChild("Cosmetics"))
 
 local LobbyService = {}
 
@@ -33,6 +39,7 @@ export type Phase = "Title" | "Playing" | "RunCleared" | "RunOver"
 local phase: Phase = "Title"
 local host: number? = nil
 local difficulty = "Normal"
+local mode = "Story" -- "Story" | "Endless"
 local waiting: { [number]: boolean } = {}
 local lastResult: any = nil
 local runOpts: { [string]: any } = {}
@@ -84,6 +91,10 @@ function LobbyService.state(): { [string]: any }
 		night = night,
 		totals = endedRun,
 		nights = #Config.Nights,
+		mode = mode,
+		endlessOpen = DataService.endlessUnlocked(host),
+		board = DataService.board(),
+		memorySaves = DataService.memory(),
 	}
 end
 
@@ -95,12 +106,19 @@ local function sendTo(player: Player)
 	Net.fire("LobbyState", player, LobbyService.state())
 end
 
+-- The boat wears the host's lantern and paint (Amber and bare wood with no host profile).
+local function dressBoat()
+	local eq = DataService.equipped(host or 0) or {}
+	Cosmetics.applyBoat(eq.lantern, eq.paint)
+end
+
 local function pickHost()
 	if host and Players:GetPlayerByUserId(host) then
 		return
 	end
 	local first = Players:GetPlayers()[1]
 	host = if first then first.UserId else nil
+	dressBoat()
 end
 
 -- Starts a run and its first night. Studio scenarios pass seed, night (a later first
@@ -110,7 +128,11 @@ function LobbyService.startRun(o: { [string]: any }?): boolean
 	if opts.difficulty == "Normal" or opts.difficulty == "Nightmare" then
 		difficulty = opts.difficulty
 	end
+	if opts.mode == "Story" or opts.mode == "Endless" then
+		mode = opts.mode
+	end
 	local r = NightService.newRun({
+		mode = mode,
 		difficulty = difficulty,
 		seed = tonumber(opts.seed),
 		firstRun = opts.firstRun ~= false,
@@ -171,8 +193,18 @@ local function onLobby(player: Player, action: string, value: any)
 		if isHost and phase == "Title" and type(value) == "string" then
 			LobbyService.setDifficulty(value)
 		end
+	elseif action == "Mode" then
+		if isHost and phase == "Title" then
+			if value == "Story" or (value == "Endless" and DataService.endlessUnlocked(host)) then
+				mode = value
+				LobbyService.broadcast()
+			end
+		end
 	elseif action == "Start" then
 		if isHost and phase == "Title" then
+			if mode == "Endless" and not DataService.endlessUnlocked(host) then
+				mode = "Story"
+			end
 			LobbyService.startRun({})
 		end
 	elseif action == "Title" then
@@ -182,6 +214,7 @@ local function onLobby(player: Player, action: string, value: any)
 		end
 	elseif action == "Hello" then
 		sendTo(player)
+		DataService.resend(player)
 	end
 end
 
@@ -262,8 +295,21 @@ function LobbyService.debugState(): { [string]: any }
 	}
 end
 
+function LobbyService.mode(): string
+	return mode
+end
+
 function LobbyService.init()
 	Net.onLobby = onLobby
+	DataService.onProfile(function(player: Player)
+		if player.UserId == host then
+			dressBoat()
+		end
+		LobbyService.broadcast()
+	end)
+	DataService.onBoard(function()
+		LobbyService.broadcast()
+	end)
 	Players.PlayerAdded:Connect(onPlayerAdded)
 	Players.PlayerRemoving:Connect(onPlayerRemoving)
 	for _, p in Players:GetPlayers() do
@@ -291,6 +337,8 @@ function LobbyService.init()
 					attempts = r.attempts,
 					difficulty = r.difficulty,
 					cleared = r.cleared,
+					mode = r.mode,
+					bestNight = r.bestNight,
 				}
 			end
 		end

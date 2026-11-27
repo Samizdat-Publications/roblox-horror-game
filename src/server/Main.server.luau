@@ -2,7 +2,8 @@
 -- Server entry point: builds the world and the night look, opens the remotes, launches the
 -- boat and the fishing gear, seats every player who joins, and opens the lobby: the title
 -- screen until the host presses Play, then the five nights (LobbyService, NightService).
--- Prints exactly one line in normal operation; anything else is a warning or an error.
+-- Prints exactly one line in normal operation (two in a place without DataStores: saves in
+-- memory); anything else is a warning or an error.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -16,6 +17,7 @@ local Net = require(server:WaitForChild("Net"))
 local FishingService = require(server:WaitForChild("FishingService"))
 local NightService = require(server:WaitForChild("NightService"))
 local EntityPresenter = require(server:WaitForChild("EntityPresenter"))
+local DataService = require(server:WaitForChild("DataService"))
 local LobbyService = require(server:WaitForChild("LobbyService"))
 
 local startupWarnings: { string } = {}
@@ -28,6 +30,8 @@ Net.init()
 BoatService.init(WorldBuilder.context())
 FishingService.init()
 EntityPresenter.init()
+-- Saves before the lobby: the lobby reads profiles (Endless unlock, the host's boat look).
+DataService.init()
 LobbyService.init()
 
 -- Seat a fresh character in the first free seat. Seat:Sit can miss while the character is

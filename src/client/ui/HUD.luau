@@ -72,7 +72,9 @@ local function label(parent: Instance, name: string, order: number, f: Font): Te
 end
 
 local function render(view: NightView)
-	labels.Night.Text = string.format("Night %d", view.night)
+	labels.Night.Text = if view.mode == "Endless"
+		then string.format("Endless night %d", view.night)
+		else string.format("Night %d", view.night)
 	labels.Clock.Text = HUD.clockText(view.clock)
 	labels.Quota.Text = string.format("Quota %d / %d", view.banked, view.quota)
 	local fill = oilFill
