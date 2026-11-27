@@ -10,7 +10,7 @@
 local Types = require(script.Parent.Types)
 local Rng = require(script.Parent.Rng)
 local FishTable = require(script.Parent.FishTable)
-local WrongCatch = require(script.Parent.WrongCatch)
+local FishMutations = require(script.Parent.FishMutations)
 
 type Event = Types.Event
 type Catch = Types.Catch
@@ -36,7 +36,8 @@ export type FishState = {
 	progress: number,
 	overTime: number,
 	slackTime: number,
-	expired: boolean, -- Deciding ran out: Night keeps the fish
+	expired: boolean, -- Deciding ran out: Night throws it back (or keeps it, cfg.Fishing.timeoutKeeps)
+	biteChance: number, -- chance the wait ends in a bite (Fishing.dockFactor); else it waits again
 }
 
 export type CastOpts = {
@@ -47,7 +48,8 @@ export type CastOpts = {
 	wrongChance: number?,
 	wrongTier: number?,
 	forceWrong: boolean?,
-	biteMult: number?, -- Lucky Lure shortens the wait
+	biteMult: number?, -- shortens or stretches the wait
+	biteChance: number?, -- 0..1, Fishing.dockFactor at the cast (default 1)
 }
 
 local Fishing = {}
@@ -74,6 +76,7 @@ function Fishing.new(): FishState
 		overTime = 0,
 		slackTime = 0,
 		expired = false,
+		biteChance = 1,
 	}
 end
 
@@ -109,6 +112,22 @@ function Fishing.isReeling(f: FishState): boolean
 	return f.phase == "Reeling" and f.held
 end
 
+-- Bites fall off near the dock (cfg.Fishing.dockFalloff): 0 at `from` studs from
+-- cfg.Lake.dockEnd, rising linearly to 1 at `to`. Without dockFalloff, 1 everywhere.
+function Fishing.dockFactor(cfg: any, pos: Types.Vec2): number
+	local fo = cfg.Fishing.dockFalloff
+	if fo == nil then
+		return 1
+	end
+	local dock = cfg.Lake.dockEnd
+	local dx, dz = pos.x - dock.x, pos.z - dock.z
+	local d = math.sqrt(dx * dx + dz * dz)
+	if fo.to <= fo.from then
+		return if d >= fo.to then 1 else 0
+	end
+	return math.clamp((d - fo.from) / (fo.to - fo.from), 0, 1)
+end
+
 -- Casts if the line is idle, the boat is nearly still, and the boat is outside the dock
 -- light (fish do not bite in the beacon's light unless cfg.Fishing.biteInDockLight).
 function Fishing.cast(cfg: any, f: FishState, rng: Rng.RngState, player: number, power: number, o: CastOpts): { Event }
@@ -130,6 +149,7 @@ function Fishing.cast(cfg: any, f: FishState, rng: Rng.RngState, player: number,
 	f.wrongChance = o.wrongChance or 0
 	f.wrongTier = o.wrongTier or 1
 	f.forceWrong = o.forceWrong == true
+	f.biteChance = math.clamp(if o.biteChance == nil then 1 else o.biteChance, 0, 1)
 	return { { kind = "CastOut", player = player, data = { power = math.clamp(power, 0, 1) } } }
 end
 
@@ -147,10 +167,10 @@ local function hook(cfg: any, f: FishState, rng: Rng.RngState)
 	end
 	local traits, tier
 	if wrong then
-		traits = (WrongCatch.mutate(cfg, rng, species, f.wrongTier))
+		traits = (FishMutations.mutate(cfg, rng, species, f.wrongTier))
 		tier = math.clamp(math.floor(f.wrongTier), 1, 3)
 	else
-		traits = WrongCatch.bookTraits(cfg, species)
+		traits = FishMutations.bookTraits(cfg, species)
 		tier = 0
 	end
 	f.catch = { species = species, points = points, wrong = wrong, tier = tier, traits = traits }
@@ -204,14 +224,17 @@ end
 
 -- What a client may see of a catch: never the wrong flag or the tier.
 function Fishing.publicCatch(c: Catch): { [string]: any }
-	return { species = c.species, points = c.points, traits = WrongCatch.copyTraits(c.traits) }
+	return { species = c.species, points = c.points, traits = FishMutations.copyTraits(c.traits) }
 end
 
 function Fishing.step(cfg: any, f: FishState, dt: number, rng: Rng.RngState, player: number): { Event }
 	local F = cfg.Fishing
 	if f.phase == "Waiting" then
 		f.timer -= dt
-		if f.timer <= 0 then
+		if f.timer <= 0 and f.biteChance < 1 and Rng.next(rng) >= f.biteChance then
+			-- Near the dock: no bite this time, the line waits again.
+			f.timer = Rng.range(rng, F.biteMin, F.biteMax)
+		elseif f.timer <= 0 then
 			f.phase = "Bite"
 			f.timer = F.biteWindow
 			return { { kind = "Bite", player = player } }

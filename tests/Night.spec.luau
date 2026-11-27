@@ -15,7 +15,6 @@ return function(t, Shared)
 			rules = { "Hum" },
 			newRules = { "Hum" },
 			amendments = {},
-			supplies = {},
 			real = 0, -- these M2 specs are about fishing: no director scares unless asked
 			fake = 0,
 			quietGap = 75,
@@ -288,7 +287,7 @@ return function(t, Shared)
 		t.eq(kindsOf(e).Callout, 1, "callout")
 	end)
 
-	t.test("supplies are ignored (the pick was cut)", function()
+	t.test("an old params.supplies field is ignored", function()
 		local s = Night.new(Config, params({ supplies = { "OilCan", "BigCooler", "LuckyLure", "TrimmedWick" } }))
 		t.eq(s.lantern.refills, Config.Lantern.refillsPerNight, "no extra can")
 		t.eq(s.holdMax, Config.Fishing.holdMax, "no bigger hold")

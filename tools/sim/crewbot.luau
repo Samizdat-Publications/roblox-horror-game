@@ -23,7 +23,7 @@ the view, and the rule book (params.amendments).
     local crewbot = require("./crewbot")
     local out = crewbot.runNight(core, cfg, params, { policy = "follow", stopAtQuota = false })
 
-`core` is a table of loaded Core modules (Night, BoatModel, LakeMap, Rng, WrongCatch, Director).
+`core` is a table of loaded Core modules (Night, BoatModel, LakeMap, Rng, FishMutations, Director).
 ]]
 
 local crewbot = {}
@@ -69,8 +69,8 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 	local follows = policy ~= "blind" -- answers the rules
 	local keepsAll = policy ~= "follow"
 	local motors = policy == "greedy"
-	local Night, BoatModel, LakeMap, Rng, WrongCatch =
-		core.Night, core.BoatModel, core.LakeMap, core.Rng, core.WrongCatch
+	local Night, BoatModel, LakeMap, Rng, FishMutations =
+		core.Night, core.BoatModel, core.LakeMap, core.Rng, core.FishMutations
 	local s = Night.new(cfg, params)
 	local rng = Rng.fork(Rng.new(params.seed), "bot:" .. policy)
 	local L = cfg.Lake
@@ -98,7 +98,7 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 	local hourSec = cfg.Night.realSeconds / (cfg.Night.endHour - cfg.Night.startHour)
 	local catAt = ((cfg.Fish[need].afterHour or cfg.Night.startHour) - cfg.Night.startHour) * hourSec
 	local bellAt = (F.hour - cfg.Night.startHour) * hourSec
-	local leaveAt = catAt - (o.steepleLead or 40)
+	local leaveAt = catAt - (o.steepleLead or 30)
 	local steepleSpot = nil
 	do
 		local st, dk = L.steeple, L.dockEnd
@@ -120,13 +120,26 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 	local timeline = {}
 	-- The rule contract, checked from the events: one cue, then exactly one outcome, and
 	-- never a fail before the cue's warning time (director rules; Wrong Catch can overlap).
-	local open = {} -- entity -> { at, warn, outcomes }
+	-- A director rule is paused in the dock light, so the warning time counts only the
+	-- seconds the boat spent outside the light since the cue (`ran`), and no director rule
+	-- may reach its outcome while the boat is in the light (except rules let go by the
+	-- Finale's bell).
+	local open = {} -- entity -> { at, warn, outcomes, ran }
 	local contractChecks, contractBad = 0, {}
 
+	-- A Shallows spot, kept with the chance a bite comes there (Fishing.dockFactor): a crew
+	-- learns that fish do not bite near the dock and fishes further out.
+	local Fishing = core.Fishing
 	local function pickSpot()
-		local p = LakeMap.randomPointInZone(cfg, rng, "Shallows", { shoreMargin = 25, avoidSafe = true })
-		while p ~= nil and LakeMap.dist(p, L.dockEnd) < L.safeRadius + 20 do
+		local p = nil
+		for _ = 1, 40 do
 			p = LakeMap.randomPointInZone(cfg, rng, "Shallows", { shoreMargin = 25, avoidSafe = true })
+			if p ~= nil and LakeMap.dist(p, L.dockEnd) >= L.safeRadius + 20 then
+				local chance = if Fishing then Fishing.dockFactor(cfg, p) else 1
+				if Rng.next(rng) < chance then
+					break
+				end
+			end
 		end
 		spot = p or { x = 0, z = L.dockEnd.z + 150 }
 	end
@@ -255,7 +268,7 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 			end
 			for _, list in { s.hold, s.cooler } do
 				for _, c in list do
-					if c.species == need and WrongCatch.matchesBook(cfg, c.species, c.traits) then
+					if c.species == need and FishMutations.matchesBook(cfg, c.species, c.traits) then
 						hasCat = true
 						fdbg.catAt = fdbg.catAt or s.clock.elapsed
 					end
@@ -311,15 +324,40 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 				hold = true
 			end
 		end
+		-- In the dock light every director rule is paused (Night.rulePaused), so waiting
+		-- there never ends one. The crew banks and refills, then leaves: against a paused
+		-- Hum it creeps out below the Hum's still speed and holds once outside; against a
+		-- Neighbor it goes about its business (rowing away if it is close).
+		local creep = false
+		if LakeMap.isSafe(cfg, boat.pos) and not finaleOn and follows then
+			if humOn then
+				hold = bailing
+				creep = true
+			elseif nbOn then
+				hold = bailing
+			end
+		end
 		local target = if away
 			then away
 			elseif hold then nil
 			elseif mode == "ToSpot" then spot
 			elseif mode == "ToDock" then L.dockEnd
 			else nil
+		local exiting = false
+		if creep and mode ~= "AtDock" then
+			-- A paused Hum: out of the light by the shortest way (the bank can wait), unless
+			-- already at the dock, then bank first (AtDock) and creep out toward the spot.
+			local dHome = LakeMap.dist(boat.pos, L.dockEnd)
+			if mode == "ToDock" and dHome > L.bankRadius then
+				local a = angleTo(L.dockEnd, boat.pos)
+				local r = L.safeRadius + 4
+				target = { x = L.dockEnd.x + math.sin(a) * r, z = L.dockEnd.z + math.cos(a) * r }
+				exiting = true
+			end
+		end
 		if target ~= nil then
 			local d = LakeMap.dist(boat.pos, target)
-			local arrive = if away then 0 elseif mode == "ToDock" then L.bankRadius * 0.5 else 6
+			local arrive = if away or exiting then 0 elseif mode == "ToDock" then L.bankRadius * 0.5 else 6
 			if d > arrive then
 				local err = wrap(angleTo(boat.pos, target) - boat.heading)
 				steer = math.clamp(err * 2, -1, 1)
@@ -328,7 +366,10 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 					then (if math.abs(err) < 0.8 then 1 else 0) -- turn in place first
 					elseif math.abs(err) < 0.6 then brake
 					else 0.25
-			elseif BoatModel.speedOf(boat) < cfg.Fishing.castSpeedLimit * 0.6 and not away then
+				if creep then
+					throttle = math.min(throttle, 0.1) -- under Boat.stillSpeed on the oars
+				end
+			elseif BoatModel.speedOf(boat) < cfg.Fishing.castSpeedLimit * 0.6 and not away and not exiting then
 				if mode == "ToSpot" then
 					mode = "Fishing"
 				else
@@ -357,6 +398,26 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 		if away and mode == "Fishing" then
 			mode = "ToSpot" -- moved off the spot: settle again wherever it ends
 			spot = { x = away.x, z = away.z }
+		end
+		-- Settled where fish hardly bite (pushed toward the dock): idle lines move on.
+		if mode == "Fishing" and not away and not steeplePlan and inFlight == 0 and Fishing ~= nil then
+			if Fishing.dockFactor(cfg, boat.pos) < 0.5 then
+				local idle = true
+				for _, id in alive do
+					if s.crew[id].fishing.phase ~= "Idle" and s.crew[id].fishing.phase ~= "Waiting" then
+						idle = false
+					end
+				end
+				if idle then
+					for _, id in alive do
+						if s.crew[id].fishing.phase == "Waiting" then
+							intent("CutLine", id)
+						end
+					end
+					pickSpot()
+					mode = "ToSpot"
+				end
+			end
 		end
 
 		-- The bell: lines in, motor home, around every hazard, never stopping.
@@ -437,7 +498,7 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 			elseif f.phase == "Deciding" then
 				if b.wait <= 0 then
 					local c = f.catch
-					local keep = keepsAll or (c ~= nil and WrongCatch.matchesBook(cfg, c.species, c.traits))
+					local keep = keepsAll or (c ~= nil and FishMutations.matchesBook(cfg, c.species, c.traits))
 					if keep and steeplePlan and not hasCat and c ~= nil and c.species ~= need then
 						-- Keep a slot for the owner's fish.
 						keep = #s.hold < s.holdMax - 1
@@ -478,6 +539,16 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 			intents = intents,
 		})
 		seconds += dt
+		if o.trace then
+			o.trace(s, mode, boat, events)
+		end
+		if not s.safe or s.finaleStarted then
+			for _, rec in open do
+				if rec.outcomes == 0 then
+					rec.ran += dt
+				end
+			end
+		end
 		for _, e in events do
 			local kind = e.kind
 			if kind == "Banked" then
@@ -504,7 +575,7 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 					if prev ~= nil and prev.outcomes == 0 then
 						table.insert(contractBad, e.entity .. ": a new cue before an outcome")
 					end
-					open[e.entity] = { at = s.clock.elapsed, warn = e.data.warn or 0, outcomes = 0 }
+					open[e.entity] = { at = s.clock.elapsed, warn = e.data.warn or 0, outcomes = 0, ran = 0 }
 				end
 				known[e.entity] = {
 					variant = e.data.variant,
@@ -540,16 +611,20 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 						if rec.outcomes > 1 then
 							table.insert(contractBad, e.entity .. ": two outcomes")
 						end
-						if kind == "EntityFail" and s.clock.elapsed - rec.at < rec.warn - 0.15 then
+						if kind == "EntityFail" and rec.ran < rec.warn - 0.15 then
 							table.insert(
 								contractBad,
 								string.format(
-									"%s: fail %.1f s after the cue, warn %.1f",
+									"%s: fail %.1f s of rule time after the cue, warn %.1f",
 									e.entity,
-									s.clock.elapsed - rec.at,
+									rec.ran,
 									rec.warn
 								)
 							)
+						end
+						local letGo = e.data ~= nil and e.data.endedBy == "Finale"
+						if e.entity ~= "Finale" and s.safe and not s.finaleStarted and not letGo then
+							table.insert(contractBad, e.entity .. ": an outcome while paused in the dock light")
 						end
 					end
 				end

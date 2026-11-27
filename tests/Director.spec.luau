@@ -45,7 +45,6 @@ return function(t, Shared)
 			rules = rules,
 			newRules = newRules,
 			amendments = {},
-			supplies = {},
 			real = math.max(1, math.floor(nn.real * Config.Scaling.budget[crew] + 0.5)),
 			fake = nn.fake,
 			quietGap = nn.quietGap,

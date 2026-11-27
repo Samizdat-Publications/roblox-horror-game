@@ -24,6 +24,7 @@ export type PlayerObs = {
 	inWater: boolean, -- swimming, outside the dock's safe light
 	gazeYaw: number, -- radians, world space, atan2(look.x, look.z). Client reported, range checked.
 	bookOpen: boolean, -- rulebook or field guide is covering the view
+	touch: boolean?, -- plays on a touch screen (the Watcher's cones are wider)
 }
 
 export type BoatObs = {

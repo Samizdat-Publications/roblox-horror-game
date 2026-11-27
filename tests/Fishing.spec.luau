@@ -164,4 +164,36 @@ return function(t, Shared)
 		t.eq(Fishing.interrupt(f, 1, "Hum")[1].data.why, "Hum", "interrupted")
 		t.eq(f.phase, "Idle", "idle")
 	end)
+
+	t.test("bites fall off near the dock: 0 at the light's edge, full further out", function()
+		local dock = Config.Lake.dockEnd
+		local fo = F.dockFalloff
+		local function at(d)
+			return Fishing.dockFactor(Config, { x = dock.x, z = dock.z + d })
+		end
+		t.eq(at(fo.from - 10), 0, "none inside from")
+		t.eq(at(fo.from), 0, "none at from")
+		t.ok(math.abs(at((fo.from + fo.to) / 2) - 0.5) < 1e-6, "half way")
+		t.eq(at(fo.to), 1, "full at to")
+		t.eq(at(fo.to + 300), 1, "full beyond")
+		t.eq(F.biteInDockLight, false, "still no bites in the light")
+		-- A low chance makes the average wait longer, from the same seeds.
+		local function meanWait(chance)
+			local total = 0
+			for seed = 1, 60 do
+				local r = Rng.new(seed)
+				local f = Fishing.new()
+				Fishing.cast(Config, f, r, 1, 1, opts({ biteChance = chance }))
+				local tWait = 0
+				while f.phase == "Waiting" and tWait < 600 do
+					Fishing.step(Config, f, 0.1, r, 1)
+					tWait += 0.1
+				end
+				total += tWait
+			end
+			return total / 60
+		end
+		local full, quarter = meanWait(1), meanWait(0.25)
+		t.ok(quarter > full * 2.5, string.format("wait %.1f s at 0.25 vs %.1f s at 1", quarter, full))
+	end)
 end

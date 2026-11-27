@@ -7,8 +7,8 @@
 --   Run.finishNight(run, result) -> "NextNight" | "RetryNight" | "RunCleared" | "RunOver"
 --   Run.setPlayers(run, ids)           -- crew changes between nights (late joiners)
 --   Run.view(run) -> RunView           -- for the lobby and the night cards
---   Run.supplyChoices(run) -> {}       -- the supply pick was cut (11/26/2026): always empty
---   Run.chooseSupply(run, id)          -- no-op, kept so the contract stays callable
+--   Run.supplyChoices(run) -> {}       -- always empty (ARCHITECTURE contract, no supplies)
+--   Run.chooseSupply(run, id)          -- no-op (ARCHITECTURE contract, no supplies)
 --
 -- Story: night n uses every rule taped in so far (Rulebook.taped), cfg.Nights[n] for the
 -- budgets and the quota, scaled by the crew size at night start (cfg.Scaling) and the
@@ -212,7 +212,6 @@ function Run.nightParams(run: RunState): NightParams
 		rules = rules,
 		newRules = newRules,
 		amendments = amendments,
-		supplies = {},
 		real = real,
 		fake = fake,
 		quietGap = quietGap,
@@ -272,7 +271,7 @@ function Run.view(run: RunState): RunView
 	}
 end
 
--- The supply pick was cut (design change 11/26/2026).
+-- ARCHITECTURE contract; there are no supplies, so nothing to choose.
 function Run.supplyChoices(_run: RunState): { string }
 	return {}
 end

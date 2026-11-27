@@ -153,7 +153,7 @@ return function(t, Shared)
 		local run = Run.new(Config, { seed = 1, playerIds = ids(2) })
 		t.eq(#Run.supplyChoices(run), 0, "no choices")
 		Run.chooseSupply(run, "OilCan")
-		t.eq(#Run.nightParams(run).supplies, 0, "no supplies")
+		t.eq(Run.nightParams(run).supplies, nil, "no supplies field")
 	end)
 
 	t.test("crew changes between nights rescale the next night", function()

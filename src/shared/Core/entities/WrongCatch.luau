@@ -1,6 +1,6 @@
 --!strict
 -- Rule 2, Wrong Catch: the consequences (docs/DESIGN.md). The traits live in
--- Core.WrongCatch; this is what happens when a crew keeps one anyway.
+-- Core.FishMutations; this is what happens when a crew keeps one anyway.
 --
 -- Throwing a wrong fish back is the counter: nothing starts. Keeping it raises the lake's
 -- attention at once, with a floor for the rest of the night (Night applies that through

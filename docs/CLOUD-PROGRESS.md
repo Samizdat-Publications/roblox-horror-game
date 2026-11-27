@@ -2,6 +2,21 @@
 
 ALL CHUNKS DONE (M1 to M5 and M7; M6 is not a Core chunk). Updated 11/26/2026. Chunks M1 to M7 were built locally in the working tree on `main` (not on `claude/` branches) by Opus builders; the main session reviews and commits them.
 
+## Design review changes (11/26/2026)
+
+From `docs/reviews/2026-11-26-gemini-hydrogen-verdict.md` (points 1, 4, 5, 6, 8) plus two main-session calls. Details and every Config change in `docs/CLOUD-DECISIONS.md` (section "Design review changes").
+
+- Rules pause in the dock light (`Night.rulePaused`); the director still never starts one there; dawn still ends the night.
+- Bites fall off near the dock (`Fishing.dockFactor`, `Config.Fishing.dockFalloff = { from = 80, to = 200 }`); `biteInDockLight` stays false.
+- A deciding timeout throws the fish back (`Released` with data.timeout = true; `Config.Fishing.timeoutKeeps = false`).
+- Solo Neighbor: no fake callouts. Watcher: `PlayerObs.touch` widens both cones by `touchConeBonus` (15 degrees).
+- A Hum fail turns the motor off and emits `MotorChanged` (entity "Hum", data.on = false).
+- `Core/WrongCatch.luau` (traits) renamed `Core/FishMutations.luau`, with a shim at the old name for `src/server/DebugCrew.luau`. Core no longer sets `NightParams.supplies`.
+- Nightmare retries 1 (was 2). Quotas retuned for the falloff (see decisions).
+- Sim bots fish where fish bite and leave the light under a paused rule; the contract audit counts only rule time and checks that no rule resolves while paused.
+
+For the shell: fill `PlayerObs.touch` from the client's input type; show `Released.data.timeout`; switch `DebugCrew` to `Core.FishMutations`, then the shim can go.
+
 ## Core M5 and M7 (11/26/2026)
 
 **Core M5** (specs green)

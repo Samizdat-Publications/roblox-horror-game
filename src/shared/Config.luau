@@ -27,7 +27,7 @@ Config.Night = {
 
 -- Indexed by living crew size at night start (1 to 4).
 Config.Scaling = {
-	quota = { 0.55, 0.75, 0.86, 1.0 },
+	quota = { 0.5, 0.75, 0.86, 1.0 },
 	warning = { 1.4, 1.15, 1.0, 1.0 },
 	budget = { 0.7, 0.85, 1.0, 1.0 }, -- real scare budget, rounded, never below 1
 }
@@ -52,7 +52,7 @@ Config.Difficulty = {
 		amendFromNight = 2,
 		amendOnFirstRun = true,
 		amendChance = 0.5,
-		retries = 2,
+		retries = 1, -- was 2: careful crews found Nightmare barely harder than Normal
 	},
 }
 
@@ -63,7 +63,7 @@ Config.Nights = {
 		real = 2,
 		fake = 3,
 		quietGap = 50,
-		quota = 12,
+		quota = 11,
 		maxConcurrent = 1,
 		wrongChance = 0,
 		wrongTier = 1,
@@ -73,7 +73,7 @@ Config.Nights = {
 		real = 3,
 		fake = 3,
 		quietGap = 43,
-		quota = 10,
+		quota = 9.4,
 		maxConcurrent = 1,
 		wrongChance = 0.2,
 		wrongTier = 1,
@@ -83,7 +83,7 @@ Config.Nights = {
 		real = 4,
 		fake = 4,
 		quietGap = 37,
-		quota = 11.6,
+		quota = 10.2,
 		maxConcurrent = 1,
 		wrongChance = 0.16,
 		wrongTier = 2,
@@ -93,7 +93,7 @@ Config.Nights = {
 		real = 5,
 		fake = 4,
 		quietGap = 30,
-		quota = 13.4,
+		quota = 12.4,
 		maxConcurrent = 2,
 		wrongChance = 0.16,
 		wrongTier = 2,
@@ -103,7 +103,7 @@ Config.Nights = {
 		real = 6,
 		fake = 5,
 		quietGap = 27,
-		quota = 11.4,
+		quota = 10.4,
 		maxConcurrent = 2,
 		wrongChance = 0.2,
 		wrongTier = 3,
@@ -316,11 +316,15 @@ Config.Fishing = {
 	progressDown = 0.06, -- per second outside the band
 	snapAfter = 0.6, -- seconds at full tension before the line snaps
 	slackAfter = 1.2, -- seconds at zero tension before the fish is gone
-	decideSeconds = 12, -- keep or throw back; if time runs out the fish is kept
+	decideSeconds = 12, -- keep or throw back; if time runs out see timeoutKeeps
+	timeoutKeeps = false, -- a deciding timeout throws the fish back (design review 11/26/2026)
 	holdMax = 4,
 	wrongPointsMult = 3,
 	teachWrongByCatch = 3, -- on the night Wrong Catch is new, one appears by this catch
 	biteInDockLight = false, -- fish do not bite in the beacon's light (else the dock is a free quota)
+	-- Bite chance near the dock, by distance from Lake.dockEnd: 0 at `from` (the edge of the
+	-- light, Lake.safeRadius), full at `to`, so the quota pulls the crew out on the water.
+	dockFalloff = { from = 80, to = 200 },
 }
 
 Config.Lantern = {
@@ -399,7 +403,7 @@ Config.Fakeouts = {
 
 Config.Rules = {
 	Hum = {
-		silence = 2.5, -- chorus is dead before the hum is heard
+		silence = 1.3, -- chorus is dead before the hum is heard (was 2.5; Scare polish 2, about 1.5 s heard)
 		warn = 5, -- seconds from the hum starting until everyone must comply
 		holdMin = 10,
 		holdMax = 15,
@@ -449,6 +453,7 @@ Config.Rules = {
 		stareSteps = 2,
 		stareCone = 0.44, -- radians (25 degrees): inside is staring
 		edgeCone = 1.22, -- radians (70 degrees): between the cones is the edge of sight
+		touchConeBonus = math.rad(15), -- a touch player's stare and edge cones are this much wider
 		presence = 40, -- it leaves after this long if held off
 		retreatDist = 320, -- or if the boat gets this far away
 		warn = 10, -- seconds from the sighting before it can reach anyone

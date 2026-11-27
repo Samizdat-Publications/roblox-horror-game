@@ -28,7 +28,6 @@ return function(t, Shared)
 			rules = { "Finale" },
 			newRules = { "Finale" },
 			amendments = {},
-			supplies = {},
 			real = 0,
 			fake = 0,
 			quietGap = 30,

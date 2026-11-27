@@ -26,6 +26,8 @@
 -- at dawn it fails with reason "SpecialOrder" (no true needSpecies fish banked) or
 -- "NotHome". Before the bell the director sees the night as ending at the bell, so its
 -- late cutoff keeps new scares away from 4 AM.
+-- In the dock light a director rule is paused (Night.rulePaused) and the director starts
+-- none; fish bite less near the dock (Fishing.dockFactor).
 
 local Types = require(script.Parent.Types)
 local Rng = require(script.Parent.Rng)
@@ -170,7 +172,6 @@ end
 function Night.new(cfg: any, params: NightParams): NightState
 	assert(#params.playerIds >= 1, "a night needs at least one player")
 	local rng = Rng.new(params.seed)
-	-- The between-night supply pick was cut (design change 11/26/2026): params.supplies is ignored.
 	local tally: { [PlayerId]: PlayerTally } = {}
 	local crew: { [PlayerId]: CrewMember } = {}
 	local order: { PlayerId } = {}
@@ -314,8 +315,9 @@ local function die(s: NightState, id: PlayerId, rule: string, variant: string, c
 	})
 end
 
--- Keep or throw back the fish on a player's line.
-local function decide(s: NightState, m: CrewMember, keep: boolean, events: { Event })
+-- Keep or throw back the fish on a player's line. `timeout`: the choice ran out of time
+-- (Released then carries data.timeout = true).
+local function decide(s: NightState, m: CrewMember, keep: boolean, events: { Event }, timeout: boolean?)
 	local c = Fishing.take(m.fishing)
 	if c == nil then
 		return
@@ -331,7 +333,11 @@ local function decide(s: NightState, m: CrewMember, keep: boolean, events: { Eve
 		end
 	else
 		local why = if keep then "HoldFull" else "ThrownBack"
-		table.insert(events, { kind = "Released", player = m.id, data = { why = why } })
+		local data: { [string]: any } = { why = why }
+		if timeout then
+			data.timeout = true
+		end
+		table.insert(events, { kind = "Released", player = m.id, data = data })
 	end
 end
 
@@ -395,6 +401,7 @@ local function castOpts(s: NightState, boatPos: Types.Vec2): Fishing.CastOpts
 		wrongChance = s.wrongChance,
 		wrongTier = s.wrongTier,
 		biteMult = s.biteMult,
+		biteChance = Fishing.dockFactor(s.cfg, boatPos),
 	}
 end
 
@@ -617,6 +624,11 @@ local function applyFail(s: NightState, r: ActiveRule, e: Event, events: { Event
 	if fx.rock then
 		table.insert(events, { kind = "BoatRocked", entity = r.id })
 	end
+	if r.id == "Hum" and s.motorOn then
+		-- The boat is thrown: the motor dies with it.
+		s.motorOn = false
+		table.insert(events, { kind = "MotorChanged", entity = r.id, data = { on = false } })
+	end
 	if fx.loseHold then
 		push(events, Night.loseHold(s))
 	end
@@ -638,10 +650,20 @@ local function applyFail(s: NightState, r: ActiveRule, e: Event, events: { Event
 	end
 end
 
+-- A director rule is paused while the boat is in the dock light: its own timers stop (it
+-- moves neither toward a fail nor toward a pass) and it picks up where it left off once
+-- the boat leaves. A rule that already has its outcome (cooldown) runs on. Wrong Catch is
+-- not a director rule (it starts at the dock, on banking) and the Finale passes in the
+-- light, so neither pauses. A crew that sits in the light past dawn simply ends the night.
+function Night.rulePaused(s: NightState, r: ActiveRule): boolean
+	return s.safe and r.real and r.state.base.outcome == nil and not s.finaleStarted
+end
+
 local function stepRules(s: NightState, obs: EntityObs, events: { Event })
 	local keep: { ActiveRule } = {}
 	for _, r in s.rules do
-		for _, e in r.mod.step(r.state, obs) do
+		local stepped = if Night.rulePaused(s, r) then {} else r.mod.step(r.state, obs)
+		for _, e in stepped do
 			table.insert(events, e)
 			if e.kind == "EntityPass" then
 				if r.real then
@@ -929,7 +951,8 @@ function Night.step(s: NightState, input: NightInput): { Event }
 				table.insert(events, e)
 			end
 			if m.fishing.phase == "Deciding" and m.fishing.expired then
-				decide(s, m, true, events) -- out of time: the fish is kept
+				-- Out of time: thrown back (cfg.Fishing.timeoutKeeps = false) or kept.
+				decide(s, m, cfg.Fishing.timeoutKeeps == true, events, true)
 			end
 		end
 	end

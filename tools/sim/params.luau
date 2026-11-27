@@ -34,7 +34,6 @@ function params.story(cfg: any, Quota: any, night: number, crew: number, seed: n
 		rules = rules,
 		newRules = newRules,
 		amendments = amendments or {},
-		supplies = {},
 		real = math.max(1, math.floor(N.real * cfg.Scaling.budget[crew] + 0.5)),
 		fake = N.fake,
 		quietGap = N.quietGap,
@@ -51,7 +50,8 @@ function params.core(Shared: any, req: (any) -> any)
 		BoatModel = req(Shared.Core.BoatModel),
 		LakeMap = req(Shared.Core.LakeMap),
 		Rng = req(Shared.Core.Rng),
-		WrongCatch = req(Shared.Core.WrongCatch),
+		FishMutations = req(Shared.Core.FishMutations),
+		Fishing = req(Shared.Core.Fishing),
 		Director = req(Shared.Core.Director),
 	}
 end

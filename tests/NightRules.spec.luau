@@ -19,7 +19,6 @@ return function(t, Shared)
 			rules = { "Hum", "WrongCatch", "Neighbor", "Knocking", "Watcher" },
 			newRules = {},
 			amendments = {},
-			supplies = {},
 			real = 0,
 			fake = 0,
 			quietGap = 30,
@@ -371,5 +370,104 @@ return function(t, Shared)
 			return table.concat(log, ",")
 		end
 		t.eq(play(), play(), "replay")
+	end)
+
+	t.test("in the dock light a rule pauses: no fail, no pass, it resumes outside", function()
+		local s = Night.new(Config, params())
+		s.lantern.on = false
+		stepFor(s, 1, {})
+		Night.debugForce(s, "Hum", {})
+		local hum = s.rules[1].state
+		-- Into the light while reeling (noise): nothing moves for a long time.
+		local events = {}
+		stepFor(s, 60, function(st)
+			local o = reelEveryone(st)
+			o.pos = AT_DOCK
+			return o
+		end, events)
+		t.eq(find(events, "EntityFail"), nil, "no fail in the light")
+		t.eq(find(events, "EntityPass"), nil, "no pass in the light either")
+		t.eq(hum.held, 0, "the hold timer did not run")
+		t.ok(#s.rules == 1 and s.rules[1].id == "Hum", "still active")
+		-- Back out, still and dark: it picks up and passes.
+		events = {}
+		stepFor(s, 40, {}, events)
+		t.ok(find(events, "EntityPass") ~= nil, "passes once outside")
+	end)
+
+	t.test("a rule paused in the light never holds the night: dawn still ends it", function()
+		local s = Night.new(Config, params({ quota = 0 }))
+		s.lantern.on = false
+		stepFor(s, 1, {})
+		Night.debugForce(s, "Hum", {})
+		stepFor(s, Config.Night.realSeconds + 5, { pos = AT_DOCK })
+		t.ok(s.phase == "Cleared" or s.phase == "Failed", "the night ended")
+	end)
+
+	t.test("a deciding timeout throws the fish back with data.timeout", function()
+		local s = Night.new(Config, params({ rules = { "Hum" } }))
+		stepFor(s, 0.1, {})
+		local m = s.crew[1]
+		m.fishing.phase = "Deciding"
+		m.fishing.catch = { species = "Pumpkinseed", points = 1, wrong = false, tier = 0, traits = {} }
+		m.fishing.timer = 0.05
+		local events = {}
+		stepFor(s, 0.3, {}, events)
+		local r = find(events, "Released")
+		t.ok(r ~= nil and r.data.timeout == true and r.data.why == "ThrownBack", "released on timeout")
+		t.eq(#s.hold, 0, "not kept")
+		t.eq(find(events, "Kept"), nil, "no Kept")
+	end)
+
+	t.test("a solo Neighbor sends no fake callouts", function()
+		local s = Night.new(Config, params({ playerIds = { 1 } }))
+		stepFor(s, 1, { pos = { x = 0, z = 0 } })
+		Night.debugForce(s, "Neighbor", { form = "Boat" })
+		local events = {}
+		stepFor(s, 60, { pos = { x = 0, z = 0 } }, events)
+		for _, e in events do
+			t.ok(not (e.kind == "Callout" and e.data.fake), "no fake callout")
+		end
+	end)
+
+	t.test("a touch player's Watcher cones are wider by touchConeBonus", function()
+		local Watcher = require(Shared.Core.entities.Watcher)
+		local R = Config.Rules.Watcher
+		local boat = { x = 0, z = 0 }
+		local figure = { x = 0, z = 100 } -- bearing 0
+		local function gaze(yaw, touch)
+			return Watcher.gazeAt(
+				Config,
+				boat,
+				figure,
+				{ id = 1, seated = true, helm = true, inWater = false, gazeYaw = yaw, bookOpen = false, touch = touch }
+			)
+		end
+		local b = R.touchConeBonus
+		t.ok(b > 0, "a bonus")
+		t.eq(gaze(R.stareCone + b / 2, nil), "Edge", "mouse: just past the stare cone is the edge")
+		t.eq(gaze(R.stareCone + b / 2, true), "Stare", "touch: inside the wider stare cone")
+		t.eq(gaze(R.edgeCone + b / 2, false), "Away", "mouse: just past the edge cone is away")
+		t.eq(gaze(R.edgeCone + b / 2, true), "Edge", "touch: inside the wider edge cone")
+	end)
+
+	t.test("a Hum fail kills the motor and says so", function()
+		local s = Night.new(Config, params())
+		s.lantern.on = false
+		stepFor(s, 1, {})
+		stepFor(s, 0.1, { intents = { { kind = "ToggleMotor", player = 1 } } })
+		t.ok(s.motorOn, "motor on")
+		Night.debugForce(s, "Hum", {})
+		local events = {}
+		stepFor(s, 30, {}, events)
+		t.ok(find(events, "EntityFail") ~= nil, "the Hum failed (motor noise)")
+		t.eq(s.motorOn, false, "motor off")
+		local mc = nil
+		for _, e in events do
+			if e.kind == "MotorChanged" then
+				mc = e
+			end
+		end
+		t.ok(mc ~= nil and mc.data.on == false and mc.entity == "Hum", "MotorChanged off")
 	end)
 end

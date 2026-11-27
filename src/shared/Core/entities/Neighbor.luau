@@ -14,6 +14,7 @@
 --   While present it sends 1 or 2 fake callouts in a living crewmate's name (kind
 --   "Callout", data { phrase, fake = true, as }): "LanternOn", "Wave" or "GoHome". The
 --   shell shows them exactly like real callouts, so the crew learns to distrust them.
+--   With only one player alive there is nobody to impersonate: no fake callouts.
 --   Amendment NoWaveRowAway: the crew must also move away; closing on it at all (faster
 --   than closeSpeed for more than closeGrace seconds) takes the helm.
 -- False beacon (falseBeaconChance): a steady light falseBeaconDist away, never on the
@@ -197,7 +198,8 @@ local function fakeCallout(s: NeighborState, obs: EntityObs, events: { Event })
 			table.insert(alive, p.id)
 		end
 	end
-	if #alive == 0 then
+	-- Solo: there is no crewmate to impersonate, so no fake callouts.
+	if #alive <= 1 then
 		return
 	end
 	local as = Rng.pick(s.base.rng, alive)

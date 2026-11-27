@@ -4,6 +4,7 @@
 -- Gaze decides what it does (bearing from the boat; a player with the book open is not
 -- looking at anything):
 --   staring: within stareCone of it; edge of sight: within edgeCone; else looking away.
+--   A touch player (PlayerObs.touch) gets both cones widened by touchConeBonus.
 -- EdgeOfSight (as printed): staring for stareLimit seconds makes it lunge stareSteps
 -- closer; with nobody watching it steps closer every unwatchedStep seconds; held at
 -- someone's edge of sight it holds.
@@ -84,9 +85,11 @@ function Watcher.gazeAt(cfg: any, boatPos: Vec2, figure: Vec2, p: Types.PlayerOb
 	end
 	local R = cfg.Rules.Watcher
 	local diff = math.abs(EntityBase.wrapAngle(p.gazeYaw - EntityBase.bearing(boatPos, figure)))
-	if diff < R.stareCone then
+	-- Touch players aim with a thumb: both cones are wider by touchConeBonus.
+	local bonus = if p.touch == true then (R.touchConeBonus or 0) else 0
+	if diff < R.stareCone + bonus then
 		return "Stare"
-	elseif diff <= R.edgeCone then
+	elseif diff <= R.edgeCone + bonus then
 		return "Edge"
 	end
 	return "Away"

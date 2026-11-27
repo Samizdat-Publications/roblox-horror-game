@@ -7,8 +7,8 @@
 -- Fail: the boat is thrown, the hold goes over the side, and whoever made the most noise
 -- is pulled under.
 --
--- Inside the dock light nothing counts as noise (no rule advances there); the hold timer
--- still runs, so a crew that reaches the light is let go.
+-- Inside the dock light Night pauses the rule (Night.rulePaused): neither the noise nor
+-- the hold timer moves until the boat leaves the light.
 -- An amended LanternLit Hum never counts a dark lantern against a crew that cannot light
 -- it (no oil, or snuffed by another rule).
 

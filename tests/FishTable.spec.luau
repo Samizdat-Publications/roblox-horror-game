@@ -1,7 +1,7 @@
--- Core.FishTable and Core.WrongCatch.
+-- Core.FishTable and Core.FishMutations.
 return function(t, Shared)
 	local FishTable = require(Shared.Core.FishTable)
-	local WrongCatch = require(Shared.Core.WrongCatch)
+	local FishMutations = require(Shared.Core.FishMutations)
 	local Rng = require(Shared.Core.Rng)
 	local Config = require(Shared.Config)
 
@@ -48,13 +48,13 @@ return function(t, Shared)
 		for _, species in FishTable.species(Config) do
 			for tier = 1, 3 do
 				for _ = 1, 60 do
-					local traits, kind = WrongCatch.mutate(Config, r, species, tier)
-					local d = WrongCatch.diff(Config, species, traits)
+					local traits, kind = FishMutations.mutate(Config, r, species, tier)
+					local d = FishMutations.diff(Config, species, traits)
 					t.eq(#d, 1, species .. " tier " .. tier .. " changed " .. #d .. " traits")
 					t.ok(d[1] ~= "eyeshine", "eyeshine mutated")
 					t.ok(d[1] ~= "stripes" and d[1] ~= "barbels", "a count mutated")
-					t.eq(d[1], WrongCatch.TRAIT_OF[kind], "kind names its trait")
-					t.ok(not WrongCatch.matchesBook(Config, species, traits), "fails the book")
+					t.eq(d[1], FishMutations.TRAIT_OF[kind], "kind names its trait")
+					t.ok(not FishMutations.matchesBook(Config, species, traits), "fails the book")
 				end
 			end
 		end
@@ -65,7 +65,7 @@ return function(t, Shared)
 		local seen = { {}, {}, {} }
 		for tier = 1, 3 do
 			for _ = 1, 300 do
-				local _, kind = WrongCatch.mutate(Config, r, "YellowPerch", tier)
+				local _, kind = FishMutations.mutate(Config, r, "YellowPerch", tier)
 				seen[tier][kind] = true
 			end
 		end
@@ -81,7 +81,7 @@ return function(t, Shared)
 		local r = Rng.new(9)
 		for tier = 1, 3 do
 			for _ = 1, 100 do
-				local traits = WrongCatch.mutate(Config, r, "Walleye", tier)
+				local traits = FishMutations.mutate(Config, r, "Walleye", tier)
 				t.eq(traits.eyeshine, true, "walleye eyeshine")
 			end
 		end
@@ -90,10 +90,13 @@ return function(t, Shared)
 	t.test("mutate never edits the Field Guide", function()
 		local r = Rng.new(2)
 		for _ = 1, 200 do
-			WrongCatch.mutate(Config, r, "Bullhead", 2)
+			FishMutations.mutate(Config, r, "Bullhead", 2)
 		end
 		t.eq(Config.Fish.Bullhead.traits.barbels, 4, "book barbels")
 		t.eq(Config.Fish.Bullhead.traits.tail, "Square", "book tail")
-		t.ok(WrongCatch.matchesBook(Config, "Bullhead", WrongCatch.bookTraits(Config, "Bullhead")), "book matches")
+		t.ok(
+			FishMutations.matchesBook(Config, "Bullhead", FishMutations.bookTraits(Config, "Bullhead")),
+			"book matches"
+		)
 	end)
 end
