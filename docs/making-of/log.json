@@ -1,8 +1,119 @@
 [
-{"id":"plan","date":"11/26/2026","milestone":"Plan","title":"A night shift on Blackwater Lake","text":"Cowork handed over a brief for a co-op horror fishing game. Fable 5.2 studied the biggest Roblox and Steam horror games and kept what makes them work: monsters with rules you learn by dying (DOORS, Pressure), a quota job and greed (Lethal Company), light as safety (99 Nights in the Forest), and a rulebook to check. The twist: the frog chorus is your only danger meter, the owner rewrites his rules between runs, and a fish that is not in the book pays triple. Title: Don't Wave Back.","stills":[{"file":"stills/00-concept-lantern-noir.jpg","caption":"Concept art for the Lantern Noir look, drawn by Gemini's image model for Liam's style board. The target, not the game."}]},
-{"id":"m0","date":"11/26/2026","milestone":"M0 Skeleton","title":"An empty place that builds itself","text":"Its own repo, a Rojo project, pinned tools, a one-command gate (lint, format, tests, lints, build, a smoke test of the built place) and CI. The first Studio test: launch our own window, attach, play, call a debug scenario, read a clean console, stop. It worked on the first try, and showed nothing but an avatar in a daytime sky.","stills":[{"file":"stills/01-empty-place.jpg","caption":"The very first play. Nothing built yet."}]},
-{"id":"m1-sound","date":"11/26/2026","milestone":"M1 Sound","title":"Sound first","text":"Ninety-seven sounds written as prompts and generated with ElevenLabs, three takes each, ranked by Gemini with the takes shuffled so it cannot favor the first one. The thinned-out frog loops came back too busy, so the chorus is now built from single frog calls placed along the shore, which thin out exactly as danger rises. An older man's voice was designed for the owner's cassette tapes. 68 sounds and tapes are uploaded to Roblox and proven to play.","stills":[]},
-{"id":"m1-look","date":"11/26/2026","milestone":"M1 The lake","title":"From pure black to a foggy night","text":"The whole lake is built from code: water, shore, dock, bait shack, beacon, sunken steeple, buoy, reeds. The first night was pure black. Three lighting passes in Studio, steered by Gemini Neon's look review (2.5 out of 10 at first, phone readability 2), lifted the fog, warmed the lantern, found a bug where the lantern's own glow blocked its light, and turned the trees into crooked silhouettes.","stills":[{"file":"stills/02-first-night-black.jpg","caption":"First night. You can see the HUD and nothing else."},{"file":"stills/03-helm-first-light.jpg","caption":"Ambient light raised: the boat appears."},{"file":"stills/04-dock-first-light.jpg","caption":"The dock, shack and beacon from the water."},{"file":"stills/05-steeple.jpg","caption":"Far out at the sunken steeple."},{"file":"stills/06-fog-overshot.jpg","caption":"Too far: the fog turned daytime teal."},{"file":"stills/07-dock-look2.jpg","caption":"Pulled back to night. The lantern throws a warm streak on the water."},{"file":"stills/08-helm-dark-boat.jpg","caption":"Facing the lake now, but the boat is dark."},{"file":"stills/09-helm-lit-boat.jpg","caption":"Bug found: the lantern's glowing ball was shading its own light."},{"file":"stills/10-shore-trees.jpg","caption":"Crooked trees, conifers and dead snags against the fog band."}]},
-{"id":"m2","date":"11/26/2026","milestone":"M2 Fishing","title":"A quiet night, start to finish","text":"Cast, wait for the bobber tap, reel inside a wandering band, hold the catch up to the lantern and check it against the Field Guide. A Studio bot played a whole six-minute Night 1 through the real controls: six fish, seven of seven points banked at the dock, nothing lost, cleared at 5 AM. A fish that is not in the book is easy to spot: this one glows.","stills":[{"file":"stills/11-wrong-catch.jpg","caption":"A wrong Pumpkinseed. The Field Guide says nothing in the book glows."}]},
-{"id":"m3m4","date":"11/26/2026","milestone":"M3 and M4 Rules","title":"Five Lake Rules, tested before they are seen","text":"The scare director and all five rules are built as pure logic and tested in simulation first: 145 tests, 2,500 simulated nights with no scare ever inside a guaranteed quiet stretch. A crew that follows the rules survives every night; a crew that ignores them loses someone almost every night. After a design review by Gemini Neon, the Neighbor now hunts lantern light and fakes a crewmate's callout, and nights are six minutes. Putting the rules on screen is next.","stills":[]}
+    {
+        "id":  "plan",
+        "date":  "11/26/2026",
+        "milestone":  "Plan",
+        "title":  "A night shift on Blackwater Lake",
+        "text":  "Cowork handed over a brief for a co-op horror fishing game. Fable 5.2 studied the biggest Roblox and Steam horror games and kept what makes them work: monsters with rules you learn by dying (DOORS, Pressure), a quota job and greed (Lethal Company), light as safety (99 Nights in the Forest), and a rulebook to check. The twist: the frog chorus is your only danger meter, the owner rewrites his rules between runs, and a fish that is not in the book pays triple. Title: Don\u0027t Wave Back.",
+        "stills":  [
+                       {
+                           "file":  "stills/00-concept-lantern-noir.jpg",
+                           "caption":  "Concept art for the Lantern Noir look, drawn by Gemini\u0027s image model for Liam\u0027s style board. The target, not the game."
+                       }
+                   ]
+    },
+    {
+        "id":  "m0",
+        "date":  "11/26/2026",
+        "milestone":  "M0 Skeleton",
+        "title":  "An empty place that builds itself",
+        "text":  "Its own repo, a Rojo project, pinned tools, a one-command gate (lint, format, tests, lints, build, a smoke test of the built place) and CI. The first Studio test: launch our own window, attach, play, call a debug scenario, read a clean console, stop. It worked on the first try, and showed nothing but an avatar in a daytime sky.",
+        "stills":  [
+                       {
+                           "file":  "stills/01-empty-place.jpg",
+                           "caption":  "The very first play. Nothing built yet."
+                       }
+                   ]
+    },
+    {
+        "id":  "m1-sound",
+        "date":  "11/26/2026",
+        "milestone":  "M1 Sound",
+        "title":  "Sound first",
+        "text":  "Ninety-seven sounds written as prompts and generated with ElevenLabs, three takes each, ranked by Gemini with the takes shuffled so it cannot favor the first one. The thinned-out frog loops came back too busy, so the chorus is now built from single frog calls placed along the shore, which thin out exactly as danger rises. An older man\u0027s voice was designed for the owner\u0027s cassette tapes. 68 sounds and tapes are uploaded to Roblox and proven to play.",
+        "stills":  [
+
+                   ]
+    },
+    {
+        "id":  "m1-look",
+        "date":  "11/26/2026",
+        "milestone":  "M1 The lake",
+        "title":  "From pure black to a foggy night",
+        "text":  "The whole lake is built from code: water, shore, dock, bait shack, beacon, sunken steeple, buoy, reeds. The first night was pure black. Three lighting passes in Studio, steered by Gemini Neon\u0027s look review (2.5 out of 10 at first, phone readability 2), lifted the fog, warmed the lantern, found a bug where the lantern\u0027s own glow blocked its light, and turned the trees into crooked silhouettes.",
+        "stills":  [
+                       {
+                           "file":  "stills/02-first-night-black.jpg",
+                           "caption":  "First night. You can see the HUD and nothing else."
+                       },
+                       {
+                           "file":  "stills/03-helm-first-light.jpg",
+                           "caption":  "Ambient light raised: the boat appears."
+                       },
+                       {
+                           "file":  "stills/04-dock-first-light.jpg",
+                           "caption":  "The dock, shack and beacon from the water."
+                       },
+                       {
+                           "file":  "stills/05-steeple.jpg",
+                           "caption":  "Far out at the sunken steeple."
+                       },
+                       {
+                           "file":  "stills/06-fog-overshot.jpg",
+                           "caption":  "Too far: the fog turned daytime teal."
+                       },
+                       {
+                           "file":  "stills/07-dock-look2.jpg",
+                           "caption":  "Pulled back to night. The lantern throws a warm streak on the water."
+                       },
+                       {
+                           "file":  "stills/08-helm-dark-boat.jpg",
+                           "caption":  "Facing the lake now, but the boat is dark."
+                       },
+                       {
+                           "file":  "stills/09-helm-lit-boat.jpg",
+                           "caption":  "Bug found: the lantern\u0027s glowing ball was shading its own light."
+                       },
+                       {
+                           "file":  "stills/10-shore-trees.jpg",
+                           "caption":  "Crooked trees, conifers and dead snags against the fog band."
+                       }
+                   ]
+    },
+    {
+        "id":  "m2",
+        "date":  "11/26/2026",
+        "milestone":  "M2 Fishing",
+        "title":  "A quiet night, start to finish",
+        "text":  "Cast, wait for the bobber tap, reel inside a wandering band, hold the catch up to the lantern and check it against the Field Guide. A Studio bot played a whole six-minute Night 1 through the real controls: six fish, seven of seven points banked at the dock, nothing lost, cleared at 5 AM. A fish that is not in the book is easy to spot: this one glows.",
+        "stills":  [
+                       {
+                           "file":  "stills/11-wrong-catch.jpg",
+                           "caption":  "A wrong Pumpkinseed. The Field Guide says nothing in the book glows."
+                       }
+                   ]
+    },
+    {
+        "id":  "m3m4",
+        "date":  "11/26/2026",
+        "milestone":  "M3 and M4 Rules",
+        "title":  "Five Lake Rules, tested before they are seen",
+        "text":  "The scare director and all five rules are built as pure logic and tested in simulation first: 145 tests, 2,500 simulated nights with no scare ever inside a guaranteed quiet stretch. A crew that follows the rules survives every night; a crew that ignores them loses someone almost every night. After a design review by Gemini Neon, the Neighbor now hunts lantern light and fakes a crewmate\u0027s callout, and nights are six minutes. Putting the rules on screen is next.",
+        "stills":  [
+
+                   ]
+    },
+    {
+        "id":  "m3m4-screen",
+        "date":  "11/26/2026",
+        "milestone":  "M3 and M4 on screen",
+        "title":  "The rules show up, and Neon watches them",
+        "text":  "The five Lake Rules now play in Studio: the Hum rises under the hull, the Neighbor rows out of the fog with its own lantern, something knocks from below, a tall figure waits in the trees. A bot plays each rule right and wrong, and the clips go to Gemini Neon, which can watch video with sound. Its first verdict on the Hum fail was 3.5 out of 10: you could not see anything happen, the motor that killed you made no sound, and the owner\u0027s tape talked over the warning. The fixes are in progress: a visible capsize and underwater plunge, moonlight so the boat reads with the lantern out, motor sound and a motor light on the HUD, and death cards that say what to do next time. The drowned players\u0027 bell was also redone by filtering it to sound like it rings underwater.",
+        "stills":  [
+                       {
+                           "file":  "stills/12-the-neighbor.jpg",
+                           "caption":  "The Neighbor: another lantern in the fog, and someone in the boat, waving."
+                       }
+                   ]
+    }
 ]

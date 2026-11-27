@@ -1,0 +1,16 @@
+Watch and listen to this clip from a co-op Roblox horror fishing game (ages 10 and up, often played on phones). It shows the rule called the Hum, played wrong on purpose.
+
+The rule: the whole frog chorus stops at once, then a deep hum rises from under the boat. The crew must stop reeling, cut the outboard motor, put out the lantern and hold still until the frogs sing again. In this clip the player leaves the motor running, so they should fail: the boat is thrown, the catch goes over the side, the player is pulled under (fade to black, a splash or drag sound), and a paper death card should name the rule ("You left the motor running..." style).
+
+Use this rubric. Score each point 0 to 10, then overall. Quote timestamps for everything. Be blunt, no praise paragraphs, no em dashes, under 600 words.
+
+1. cue_clarity: can you hear the frogs stop and the hum rise? Is it unmistakable, and does it arrive before any danger?
+2. learnable: after seeing this once, could a 12 year old say what they should have done?
+3. time_to_react: enough time between cue and consequence?
+4. payoff: is the fail moment readable and startling rather than confusing? Can you SEE anything happen?
+5. relief_or_ending: is there a clear end (death card, fade, sound)?
+6. clip_worthy: would five seconds of this make a good short video with no explanation?
+7. tone: scary but not disturbing, no gore.
+8. broken_or_ugly: anything that undercuts it (black screen, missing sound, glitch, timing).
+
+Then list, in order of impact, the top five concrete fixes, each naming the moment and exactly what to change.
