@@ -1,0 +1,13 @@
+Watch and listen to this clip from a co-op Roblox horror fishing game (ages 10 and up, often on phones). It is the finale of a five-night run. The design: on the last night the owner wants one special fish from the deep water by the sunken steeple. At 4 AM the dock bell rings by itself and every water sound stops. The rule says: go home, lights on, do not stop. The lantern locks on and its oil starts running out. On the way home, strange boats with lanterns and false beacon lights appear, and stopping too long gets someone taken. Reaching the dock light with the fish ends the run at dawn.
+
+In this clip a test bot already has the fish and runs home. Score each point 0 to 10, then overall. Quote timestamps. Be blunt, no em dashes, under 600 words.
+
+1. the_turn: does the bell and the silence land as a big, unmistakable moment?
+2. urgency: does the run home feel like a chase? Can you see the hazards?
+3. readability: can a phone player tell where home is and how much oil is left?
+4. the_ending: does reaching home at dawn feel like a payoff?
+5. ui: does anything on screen get in the way (cards, prompts)?
+6. clip_worthy: would five seconds of this make a good short video?
+7. broken_or_ugly.
+
+Then the top five concrete fixes in order of impact, each with the moment and exactly what to change.

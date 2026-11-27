@@ -115,5 +115,22 @@
                            "caption":  "The Neighbor: another lantern in the fog, and someone in the boat, waving."
                        }
                    ]
+    },
+    {
+        "id":  "m5-m7",
+        "date":  "11/26/2026",
+        "milestone":  "M5 to M7",
+        "title":  "Five nights, a title screen and a way home",
+        "text":  "The whole game now has its shape. A title screen with a difficulty choice, a Locker for earned cosmetics and a board for the longest Endless night. The rulebook taped inside the boat, with the owner\u0027s corrections in red ink that change from run to run. Five nights in a row with retries, and the finale: at 4 AM the dock bell rings by itself and you run for home with the owner\u0027s fish. A test bot played a whole five-night run in Studio without losing anyone, and the finale cleared at dawn. Saves fall back to memory until the game is published. Along the way a Gemini Hydrogen review found a real loophole (waiting out a scare in the dock light), now closed: scares pause in the light and fish do not bite near the dock. Behind the scenes, Roblox\u0027s monthly upload limit ran out, so 28 missing sounds are rebuilt inside the game from ones already uploaded, and a listening test by Neon led to a new mix where the scare cues cut through the frogs.",
+        "stills":  [
+                       {
+                           "file":  "stills/13-title.jpg",
+                           "caption":  "The title screen, first version. The panels will shrink so the lake shows."
+                       },
+                       {
+                           "file":  "stills/14-rulebook-amended.jpg",
+                           "caption":  "The rulebook on night 5. The owner has amended Rule 3 in red ink."
+                       }
+                   ]
     }
 ]
