@@ -6,12 +6,17 @@
 --     cue) and the tape is cut (AudioDirector cuts tapes on any cue). Every water and ambient
 --     sound drops to dead silence (AudioDirector.muteAmbience, and AudioDirector.hush for the
 --     motor, the lantern and the music) for Look.Finale.silence seconds; then the dock bell
---     tolls, loud and echoing (finale-bell), a bell swings on a post at the dock end, and a
---     large high-contrast line with a dark stroke says "The bell. Go home."
---   The run: the locked lantern throws a strong warm cone over the bow and the water
---     (a SpotLight), and pale flecks on the water slide past in it so the speed reads. The
---     real dock beacon gets a tall steady shaft and a halo sized in studs (it grows as you
---     come in), both blinking twice with the beacon. Neighbor boats (swaying lanterns, a
+--     tolls three slow times, non-spatial so it is heard at full strength anywhere on the
+--     lake (finale-bell), one Sound per toll, each cut as the next starts; a bell swings on a
+--     post at the dock end, and a large line says "The bell. Go home." The hush holds until
+--     Look.Finale.afterBell after the last toll; only then do the motor and the chase return.
+--   Finale v2 (Neon 2/10, docs/critic/11-26-2026-finale-v2-neon.md): the beacon's shaft and a
+--     fog-proof column billboard go up at the cue itself, so home shows from the bell on.
+--   The run: the locked lantern throws a warm cone over the bow and the water (a SpotLight
+--     in an Attachment on LanternGlow, shadows on), and pale flecks on the water slide past
+--     in it so the speed reads. The real dock beacon has a tall pulsing shaft, a column drawn
+--     over the fog and a halo sized in studs, all blinking twice with the beacon. Neighbor
+--     boats (swaying lanterns, a
 --     slow-waving figure, the creak of oars) and false beacons (a flickering light on a pole
 --     with a thin whine) are drawn from Core's EntityMoved hazards, pulled closer than Core
 --     holds them so they read through the fog (the gap beyond the kill distance is scaled by
@@ -73,7 +78,7 @@ type Hazard = {
 
 local hazards: { [number]: Hazard } = {}
 local active = false
-local phase = "Off" -- "Off" | "Silence" | "Run" | "Dawn"
+local phase = "Off" -- "Off" | "Silence" | "Bell" | "Run" | "Dawn"
 local clock = 0
 local conn: RBXScriptConnection? = nil
 local cueToken = 0
@@ -82,7 +87,7 @@ local stopLimit = Config.Rules.Finale.stopLimit
 -- The locked lantern and its cone.
 local lock: { BasePart } = {}
 local flame: BasePart? = nil
-local conePart: BasePart? = nil
+local coneAim: Attachment? = nil
 local coneLight: SpotLight? = nil
 
 -- The bell on its post.
@@ -91,6 +96,7 @@ local bell: { post: BasePart, bell: BasePart, swing: number }? = nil
 -- The real beacon's shaft and halo.
 local shaft: BasePart? = nil
 local halo: BillboardGui? = nil
+local column: BillboardGui? = nil -- drawn over the fog: home from anywhere
 
 -- The chase.
 local drone: Sound? = nil
@@ -316,6 +322,27 @@ end
 ----------------------------------------------------------------------------------------
 -- The bell
 
+-- The toll now ringing (at most one at a time) and how many have rung this finale.
+local toll: Sound? = nil
+local tolls = 0
+
+local function cutToll(seconds: number)
+	local s = toll
+	toll = nil
+	if s == nil or s.Parent == nil then
+		return
+	end
+	if seconds <= 0 then
+		s:Destroy()
+		return
+	end
+	local tw = TweenService:Create(s, TweenInfo.new(seconds), { Volume = 0 })
+	tw.Completed:Once(function()
+		s:Destroy()
+	end)
+	tw:Play()
+end
+
 local function ringBell()
 	local at = dockPoint()
 	if bell == nil then
@@ -335,13 +362,18 @@ local function ringBell()
 		bell = { post = post, bell = b, swing = 0 }
 	end
 	local F = Look.Finale
+	local my = cueToken
 	for i = 0, F.bellStrokes - 1 do
 		task.delay(i * F.bellGap, function()
-			if not active then
+			if not active or cueToken ~= my then
 				return
 			end
+			-- One Sound per toll: the last one's echo is cut as the next one starts.
+			cutToll(F.bellCut)
+			-- finale-bell is non-spatial (SoundRegistry): heard at full strength anywhere.
+			toll = AudioDirector.play("finale-bell", nil, { volume = F.bellVolume })
+			tolls += 1
 			local bl = bell
-			AudioDirector.play("finale-bell", if bl then bl.bell else at, { volume = F.bellVolume })
 			if bl then
 				bl.swing = 1
 			end
@@ -362,6 +394,32 @@ end
 
 ----------------------------------------------------------------------------------------
 -- The locked lantern and its cone
+
+-- Finale v2: the cone lives ON the lantern (an Attachment in LanternGlow, welded to the
+-- hull, so it never lags a frame). The lantern's local -Z is the bow (BoatHull); the
+-- attachment pitches `tilt` degrees down and the SpotLight shines from its Front face.
+-- The old invisible FinaleCone part is gone: it drew nothing (no visible beam).
+local function makeCone(glow: BasePart)
+	local old = coneAim
+	if old then
+		old:Destroy()
+	end
+	local C = Look.Finale.cone
+	local att = Instance.new("Attachment")
+	att.Name = "FinaleConeAim"
+	att.CFrame = CFrame.new(0, 0, -0.5) * CFrame.Angles(-math.rad(C.tilt), 0, 0)
+	att.Parent = glow
+	local spot = Instance.new("SpotLight")
+	spot.Name = "FinaleCone"
+	spot.Face = Enum.NormalId.Front
+	spot.Angle = C.angle
+	spot.Range = C.range
+	spot.Brightness = C.brightness
+	spot.Color = C.color
+	spot.Shadows = C.shadows
+	spot.Parent = att
+	coneAim, coneLight = att, spot
+end
 
 local function buildLock()
 	local glow = BoatClient.part("LanternGlow")
@@ -385,24 +443,11 @@ local function buildLock()
 		Enum.Material.Neon,
 		{ shape = Enum.PartType.Ball }
 	)
-	local C = Look.Finale.cone
-	local cp =
-		Common.part("FinaleCone", Vector3.new(0.2, 0.2, 0.2), glow.CFrame, Color3.new(), nil, { transparency = 1 })
-	local spot = Instance.new("SpotLight")
-	spot.Name = "Cone"
-	spot.Face = Enum.NormalId.Front
-	spot.Angle = C.angle
-	spot.Range = C.range
-	spot.Brightness = C.brightness
-	spot.Color = C.color
-	spot.Shadows = false
-	spot.Parent = cp
-	conePart, coneLight = cp, spot
+	makeCone(glow)
 end
 
 local function stepLock()
 	local glow = BoatClient.part("LanternGlow")
-	local hull = BoatClient.hull()
 	if glow == nil then
 		return
 	end
@@ -422,13 +467,11 @@ local function stepLock()
 		f.Color = Look.Palette.lantern:Lerp(Color3.fromRGB(190, 60, 30), 1 - oil)
 		f.Transparency = if lit then 0.05 else 1
 	end
-	local cp, spot = conePart, coneLight
-	if cp and spot and hull then
-		-- Forward over the bow and down onto the water.
-		local look = flat(hull.CFrame.LookVector)
-		look = if look.Magnitude > 1e-3 then look.Unit else Vector3.new(0, 0, 1)
-		local dir = (look * math.cos(math.rad(24)) - Vector3.new(0, math.sin(math.rad(24)), 0)).Unit
-		cp.CFrame = CFrame.lookAt(glow.Position + look * 0.6, glow.Position + look * 0.6 + dir)
+	if coneAim and coneAim.Parent ~= glow then
+		makeCone(glow) -- the boat was rebuilt: a new cone on the new lantern
+	end
+	local spot = coneLight
+	if spot then
 		local C = Look.Finale.cone
 		local gutter = if oil < 0.15 then 0.6 + 0.4 * math.abs(math.sin(clock * 17)) else 1
 		spot.Brightness = C.brightness * (0.35 + 0.65 * oil) * gutter
@@ -441,12 +484,12 @@ local function clearLock()
 		p:Destroy()
 	end
 	lock = {}
-	for _, inst in { flame, conePart } do
+	for _, inst in { flame, coneAim } do
 		if inst then
 			inst:Destroy()
 		end
 	end
-	flame, conePart, coneLight = nil, nil, nil
+	flame, coneAim, coneLight = nil, nil, nil
 end
 
 ----------------------------------------------------------------------------------------
@@ -506,7 +549,7 @@ local function buildShaft()
 	if lamp == nil or shaft ~= nil then
 		return
 	end
-	local S, H = Look.Finale.beaconShaft, Look.Finale.beaconHalo
+	local S, H, K = Look.Finale.beaconShaft, Look.Finale.beaconHalo, Look.Finale.beaconColumn
 	local p = Common.part(
 		"FinaleBeaconShaft",
 		Vector3.new(S.height, S.width, S.width),
@@ -539,6 +582,33 @@ local function buildShaft()
 		corner.Parent = f
 	end
 	halo = bb
+	-- The column: a tall thin billboard over the lamp, drawn on top so the fog never hides
+	-- it. Brightest at the lamp, fading out toward the top, like a beam into the fog.
+	local cb = Instance.new("BillboardGui")
+	cb.Name = "FinaleBeaconColumn"
+	cb.Adornee = lamp
+	cb.AlwaysOnTop = true
+	cb.LightInfluence = 0
+	cb.MaxDistance = 3000
+	cb.Size = UDim2.new(K.width, K.minPixels, K.studs, 0)
+	cb.StudsOffsetWorldSpace = Vector3.new(0, K.studs / 2, 0)
+	cb.Parent = p
+	local beam = Instance.new("Frame")
+	beam.Name = "Beam"
+	beam.Size = UDim2.fromScale(1, 1)
+	beam.BorderSizePixel = 0
+	beam.BackgroundColor3 = Look.Beacon.Color:Lerp(Color3.new(1, 1, 1), 0.2)
+	beam.BackgroundTransparency = 0
+	beam.Parent = cb
+	local grad = Instance.new("UIGradient")
+	grad.Rotation = -90 -- keypoint 0 at the bottom (the lamp)
+	grad.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(0.55, 0.45),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	grad.Parent = beam
+	column = cb
 end
 
 local function stepShaft()
@@ -547,15 +617,36 @@ local function stepShaft()
 		return
 	end
 	local dark = WorldFx.beaconDark(Workspace:GetServerTimeNow())
-	p.Transparency = if dark then 0.92 else Look.Finale.beaconShaft.transparency
+	local S, K = Look.Finale.beaconShaft, Look.Finale.beaconColumn
+	-- A slow breath on top of the beacon's double blink.
+	local breath = 0.5 + 0.5 * math.sin(clock * 2 * math.pi * K.pulseHz)
+	p.Transparency = if dark then 0.92 else S.transparency + 0.15 * (1 - breath)
 	if bb then
 		bb.Enabled = not dark
+	end
+	local cb = column
+	if cb then
+		local beam = cb:FindFirstChild("Beam")
+		local cam = Workspace.CurrentCamera
+		local near = 1
+		if cam then
+			local d = (flat(cam.CFrame.Position) - flat(p.Position)).Magnitude
+			near = math.clamp((d - K.hideWithin) / 60, 0, 1)
+		end
+		local a = (1 - K.alpha) * (0.7 + 0.3 * breath) * near -- opacity at the lamp
+		cb.Enabled = not dark and a > 0.01
+		if beam and beam:IsA("Frame") then
+			beam.BackgroundTransparency = 1 - a
+		end
 	end
 end
 
 local function clearShaft(fade: number)
 	local p = shaft
-	shaft, halo = nil, nil
+	if column then
+		column.Enabled = false -- a billboard does not fade with its part
+	end
+	shaft, halo, column = nil, nil, nil
 	if p then
 		if fade > 0 then
 			Common.fadeOut(p, fade)
@@ -942,6 +1033,7 @@ local function endFinale(fade: number)
 	stillFor = 0
 	fear = 0
 	setVignette(0)
+	cutToll(0.6)
 	AudioDirector.hush(Finale.KEY, false)
 end
 
@@ -950,6 +1042,7 @@ local function onCue(data: { [string]: any })
 	phase = "Silence"
 	stopLimit = tonumber(data.stopLimit) or Config.Rules.Finale.stopLimit
 	cueToken += 1
+	tolls = 0
 	local my = cueToken
 	screen()
 	hideBanner()
@@ -958,19 +1051,24 @@ local function onCue(data: { [string]: any })
 	AudioDirector.hush(Finale.KEY, true)
 	clearLock()
 	buildLock()
-	task.delay(Look.Finale.silence, function()
+	-- Home shows from the moment of the bell: the beacon's shaft and column go up now.
+	buildShaft()
+	local F = Look.Finale
+	task.delay(F.silence, function()
 		if cueToken ~= my or not active then
 			return
 		end
-		phase = "Run"
-		AudioDirector.hush(Finale.KEY, false)
+		-- The tolls, still hushed: nothing but the bell until the last stroke has rung.
+		phase = "Bell"
 		ringBell()
-		showCaption(Finale.CAPTION, Look.Finale.captionHold)
-		buildShaft()
-		task.delay(0.8, function()
-			if cueToken == my and active then
-				startChase()
+		showCaption(Finale.CAPTION, F.captionHold)
+		task.delay((F.bellStrokes - 1) * F.bellGap + F.afterBell, function()
+			if cueToken ~= my or not active then
+				return
 			end
+			phase = "Run"
+			AudioDirector.hush(Finale.KEY, false)
+			startChase()
 		end)
 	end)
 end
@@ -1001,7 +1099,10 @@ function Finale.handle(e: any)
 			-- Drawn where it should be at once (no slide in from Core's far position).
 			h.drawn = if hull then Finale.pulled(hull.Position, pos, h.form) else pos
 			hazards[id] = h
-			AudioDirector.play("finale-hazard-toll", h.drawn)
+			-- Never over the bell: the toll through water marks hazards once the run is on.
+			if phase == "Run" then
+				AudioDirector.play("finale-hazard-toll", h.drawn)
+			end
 		else
 			h.target = pos
 		end
@@ -1056,7 +1157,11 @@ function Finale.debugState(): { [string]: any }
 		beacons = beacons,
 		locked = #lock > 0,
 		cone = coneLight ~= nil and (coneLight :: SpotLight).Enabled,
+		coneOnLantern = coneAim ~= nil and (coneAim :: Attachment).Parent ~= nil,
 		shaft = shaft ~= nil,
+		column = column ~= nil and (column :: BillboardGui).Enabled,
+		tolls = tolls,
+		tollPlaying = toll ~= nil and (toll :: Sound).Parent ~= nil,
 		wake = #wake,
 		chase = drone ~= nil,
 		speed = math.floor(speed * 10 + 0.5) / 10,

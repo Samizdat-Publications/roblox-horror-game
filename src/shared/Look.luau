@@ -110,18 +110,35 @@ Look.Dawn = {
 
 -- The finale on screen (Polish 3, Neon's fixes 1, 2, 5). fx/Finale reads these.
 Look.Finale = {
-	silence = 1.5, -- seconds of dead silence at the bell before the first stroke
+	-- Finale v2 (Neon 2/10): the bell was spatial at the dock (inaudible from the steeple)
+	-- and its three strokes overlapped. Now: true silence, then three slow tolls heard from
+	-- anywhere, one Sound per toll (the last is cut before the next starts), and the motor
+	-- and the chase music stay hushed until the tolls are done.
+	silence = 1.75, -- seconds of dead silence at the bell before the first stroke
 	bellStrokes = 3,
-	bellGap = 1.7, -- seconds between strokes
-	bellVolume = 1.6, -- multiplies bell-dock-solo (it plays close and echoing)
+	bellGap = 2.8, -- seconds between strokes (slow)
+	bellCut = 0.3, -- the previous toll fades out over this long as the next one starts
+	bellVolume = 1.6, -- multiplies finale-bell (non-spatial, from SoundService)
+	afterBell = 1.2, -- seconds after the last stroke before the motor and the chase come back
 	captionHold = 4.5, -- "The bell. Go home." stays this long
-	-- The locked lantern's cone over the bow: a SpotLight on the lantern, aimed forward
-	-- and down so the water racing past shows the speed.
-	cone = { brightness = 7, range = 58, angle = 70, color = Color3.fromRGB(255, 176, 92) },
-	-- The real dock beacon during the finale: a tall steady shaft of light that blinks
-	-- with the beacon and a halo sized in studs (it grows as you come in).
-	beaconShaft = { height = 90, width = 2.2, transparency = 0.45 },
+	-- The locked lantern's cone over the bow: a SpotLight in an Attachment on the lantern,
+	-- aimed forward along the bow and `tilt` degrees down so the water ahead and any hazard
+	-- in it are lit. Range is clamped to 60 by the engine (lights cap at 60 studs), so 60.
+	cone = {
+		brightness = 4,
+		range = 60,
+		angle = 70,
+		tilt = 14,
+		shadows = true,
+		color = Color3.fromRGB(255, 176, 92),
+	},
+	-- The real dock beacon from the moment of the bell: a tall Neon shaft (fogged like the
+	-- world, so it reads near), and a thin column billboard drawn over the fog (it reads
+	-- from anywhere on the lake), both pulsing and blinking twice with the beacon. The
+	-- column fades out inside `hideWithin` studs, where the shaft and the halo carry it.
+	beaconShaft = { height = 160, width = 3, transparency = 0.35 },
 	beaconHalo = { studs = 26, minPixels = 46 },
+	beaconColumn = { studs = 150, width = 3.5, minPixels = 4, alpha = 0.35, hideWithin = 110, pulseHz = 0.5 },
 	-- Hazards are drawn closer than Core holds them so they read through the fog: the gap
 	-- beyond the kill radius is scaled by `pull` (the kill distance itself is unchanged).
 	pull = 0.5,

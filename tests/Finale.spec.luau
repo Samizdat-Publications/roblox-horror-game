@@ -213,6 +213,48 @@ return function(t, Shared)
 		t.eq(died[1].data.text, want, "card for the form")
 	end)
 
+	t.test("a run home from the steeple shows three or more hazards, two boats, none on the way home", function()
+		local N = Config.Rules.Neighbor
+		local Rule = require(Shared.Core.entities.Finale)
+		local LakeMap = require(Shared.Core.LakeMap)
+		local dock = Config.Lake.dockEnd
+		for seed = 1, 20 do
+			local s = Night.new(Config, params({ seed = seed, playerIds = { 1, 2, 3, 4 } }))
+			local start = Config.Lake.steeple
+			toBell(s)
+			-- Motor straight home at full speed from the steeple, about 30 s to the light.
+			local pos = { x = start.x, z = start.z }
+			local dx, dz = dock.x - start.x, dock.z - start.z
+			local len = math.sqrt(dx * dx + dz * dz)
+			local vel = { x = dx / len * Config.Boat.motorSpeed, z = dz / len * Config.Boat.motorSpeed }
+			local boats, beacons = 0, 0
+			for _ = 1, 400 do -- 40 s
+				local e = Night.step(s, input({ pos = { x = pos.x, z = pos.z }, vel = vel }))
+				for _, ev in all(e, "EntityMoved", "Finale") do
+					if ev.data.appear then
+						local p = ev.data.pos
+						if ev.data.form == "Boat" then
+							boats += 1
+						else
+							beacons += 1
+						end
+						local kill = if ev.data.form == "Boat" then N.killDist else N.falseBeaconKill
+						local off = Rule.distToSegment(p, pos, dock)
+						t.ok(off >= kill + F.hazardClear - 1e-6, "seed " .. seed .. ": clear of the way home")
+						local d = math.sqrt((p.x - pos.x) ^ 2 + (p.z - pos.z) ^ 2)
+						t.ok(d >= F.hazardMin - 1 and d <= F.hazardMax + 1, "seed " .. seed .. ": in range")
+					end
+				end
+				if s.phase ~= "Finale" or LakeMap.isSafe(Config, pos) then
+					break
+				end
+				pos = { x = pos.x + vel.x * 0.1, z = pos.z + vel.z * 0.1 }
+			end
+			t.ok(boats + beacons >= 3, "seed " .. seed .. ": three or more hazards (" .. (boats + beacons) .. ")")
+			t.ok(boats >= 2, "seed " .. seed .. ": two or more boats (" .. boats .. ")")
+		end
+	end)
+
 	t.test("home with the Steeple Cat aboard: pass, hold banked, night cleared at once", function()
 		local s = Night.new(Config, params({ quota = 3 }))
 		local events = {}

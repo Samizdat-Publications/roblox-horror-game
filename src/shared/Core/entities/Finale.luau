@@ -17,9 +17,12 @@
 --       Closed: a Neighbor boat comes within cfg.Rules.Neighbor.killDist (the helm).
 --       Beacon: the boat comes within cfg.Rules.Neighbor.falseBeaconKill of a false
 --         beacon (the helm).
---   * Hazards on a fast clock: every neighborEvery x scale seconds a Neighbor boat or a
---     false beacon shows up hazardMin..hazardMax away, hazardAngleMin..Max off the boat's
---     bearing to the dock (never dead ahead). Boats drift toward the lit lantern at
+--   * Hazards on a fast clock: from hazardFirst x scale after the bell (never before warn),
+--     every neighborEvery x scale seconds a Neighbor boat or a false beacon (hazardForms in
+--     order) shows up hazardMin..hazardMax away, hazardAngleMin..Max off the boat's bearing
+--     to the dock (never dead ahead), and at least its kill distance plus hazardClear off
+--     the straight way home (it never blocks the run; no fair spot: retry in hazardRetry
+--     seconds). Boats drift toward the lit lantern at
 --     boatDrift. Each is gone after hazardLife seconds. Sent as EntityMoved with data
 --     { hazard = n, form, pos, appear? , gone? }.
 --   * Fail (EntityFail): the last living player is taken, or dawn comes first (no kill,
@@ -65,7 +68,7 @@ function Finale.new(cfg: any, rng: Rng.RngState, ctx: EntityBase.SpawnCtx): Fina
 	return {
 		base = base,
 		hazards = {},
-		nextHazard = base.warn,
+		nextHazard = math.max(base.warn, (R.hazardFirst or 0) * base.scale),
 		hazardCount = 0,
 		stillFor = 0,
 		darkFor = 0,
@@ -113,19 +116,42 @@ local function onWater(cfg: any, p: Vec2): boolean
 		and LakeMap.dist(p, cfg.Lake.dockEnd) > cfg.Lake.safeRadius + cfg.Rules.Neighbor.killDist
 end
 
-local function spawnHazard(s: FinaleState, obs: EntityObs, events: { Event })
+-- Distance from p to the segment a..b (the straight way home).
+function Finale.distToSegment(p: Vec2, a: Vec2, b: Vec2): number
+	local abx, abz = b.x - a.x, b.z - a.z
+	local len2 = abx * abx + abz * abz
+	local u = if len2 > 1e-9 then math.clamp(((p.x - a.x) * abx + (p.z - a.z) * abz) / len2, 0, 1) else 0
+	local cx, cz = a.x + abx * u, a.z + abz * u
+	return math.sqrt((p.x - cx) ^ 2 + (p.z - cz) ^ 2)
+end
+
+-- The form of the next hazard: R.hazardForms in order (repeating), else by beaconChance.
+local function nextForm(s: FinaleState): string
+	local R = s.base.cfg.Rules.Finale
+	local forms = R.hazardForms
+	if type(forms) == "table" and #forms > 0 then
+		return forms[s.hazardCount % #forms + 1]
+	end
+	return if Rng.next(s.base.rng) < R.beaconChance then "FalseBeacon" else "Boat"
+end
+
+-- Places one hazard off the way home. False when no fair spot was found this tick.
+local function spawnHazard(s: FinaleState, obs: EntityObs, events: { Event }): boolean
 	local b = s.base
 	local cfg = b.cfg
 	local R = cfg.Rules.Finale
+	local N = cfg.Rules.Neighbor
 	local boatPos = obs.boat.pos
-	local home = EntityBase.bearing(boatPos, cfg.Lake.dockEnd)
-	local form = if Rng.next(b.rng) < R.beaconChance then "FalseBeacon" else "Boat"
+	local dock = cfg.Lake.dockEnd
+	local home = EntityBase.bearing(boatPos, dock)
+	local form = nextForm(s)
+	local clear = (if form == "FalseBeacon" then N.falseBeaconKill else N.killDist) + (R.hazardClear or 0)
 	for _ = 1, 16 do
 		local side = if Rng.next(b.rng) < 0.5 then -1 else 1
 		local a = home + side * Rng.range(b.rng, R.hazardAngleMin, R.hazardAngleMax)
 		local d = Rng.range(b.rng, R.hazardMin, R.hazardMax)
 		local p = { x = boatPos.x + math.sin(a) * d, z = boatPos.z + math.cos(a) * d }
-		if onWater(cfg, p) then
+		if onWater(cfg, p) and Finale.distToSegment(p, boatPos, dock) >= clear then
 			s.hazardCount += 1
 			local h: Hazard = { id = s.hazardCount, form = form, pos = p, age = 0, moveClock = 0 }
 			table.insert(s.hazards, h)
@@ -137,9 +163,10 @@ local function spawnHazard(s: FinaleState, obs: EntityObs, events: { Event })
 					{ hazard = h.id, form = form, pos = { x = p.x, z = p.z }, appear = true }
 				)
 			)
-			return
+			return true
 		end
 	end
+	return false
 end
 
 local function stepHazards(s: FinaleState, obs: EntityObs, events: { Event }): boolean
@@ -275,8 +302,11 @@ function Finale.step(s: FinaleState, obs: EntityObs): { Event }
 
 	-- Neighbors and false beacons on a fast clock.
 	if b.age >= s.nextHazard and not obs.safe then
-		s.nextHazard = b.age + cfg.Rules.Finale.neighborEvery * b.scale
-		spawnHazard(s, obs, events)
+		if spawnHazard(s, obs, events) then
+			s.nextHazard = b.age + R.neighborEvery * b.scale
+		else
+			s.nextHazard = b.age + (R.hazardRetry or 1)
+		end
 	end
 	stepHazards(s, obs, events)
 	if EntityBase.resolved(b) then

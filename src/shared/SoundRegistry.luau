@@ -1014,14 +1014,14 @@ local sounds: { [string]: SoundEntry } = {
 		derive = { from = "fish-land-thud", speed = 1.6 },
 	},
 	-- Polish 3 (Neon's finale review, 11/26/2026): derived stand-ins for the finale and dawn.
-	-- The bell at 4 AM after 1.5 s of dead silence: loud from anywhere on the lake, echoing.
+	-- The bell at 4 AM after dead silence: loud from anywhere on the lake, echoing.
+	-- Finale v2: non-spatial (a spatial bell at the dock was inaudible from the steeple,
+	-- about 600 studs out). It plays from SoundService at full strength everywhere.
 	["finale-bell"] = {
 		id = 0,
 		volume = 1.0,
 		looped = false,
-		spatial = true,
-		minDist = 160,
-		maxDist = 1500,
+		spatial = false,
 		group = "Rule",
 		duck = false,
 		derive = {
