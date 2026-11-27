@@ -89,9 +89,25 @@ function BoatHull.build(ctx: any, at: CFrame): Built
 	piece("HoldLid", Vector3.new(2.3, 0.2, 1.7), p(0, 1.65, 1.6), trim, Enum.Material.Wood)
 
 	-- The lantern on a post at the bow.
-	piece("LanternPost", Vector3.new(0.3, 4.4, 0.3), p(0, 2.4, -7.4), trim, Enum.Material.Wood)
-	piece("LanternArm", Vector3.new(0.25, 0.25, 1.3), p(0, 4.5, -7.95), pal.metal, Enum.Material.Metal)
-	piece("LanternCap", Vector3.new(0.9, 0.2, 0.9), p(0, 4.35, -8.55), pal.metal, Enum.Material.Metal)
+	-- The post, arm and cap cast no shadow: from the lantern they threw a black wedge straight
+	-- down the middle of the boat, right where the helm looks (Studio 11/26/2026).
+	piece("LanternPost", Vector3.new(0.3, 4.4, 0.3), p(0, 2.4, -7.4), trim, Enum.Material.Wood, { shadow = false })
+	piece(
+		"LanternArm",
+		Vector3.new(0.25, 0.25, 1.3),
+		p(0, 4.5, -7.95),
+		pal.metal,
+		Enum.Material.Metal,
+		{ shadow = false }
+	)
+	piece(
+		"LanternCap",
+		Vector3.new(0.9, 0.2, 0.9),
+		p(0, 4.35, -8.55),
+		pal.metal,
+		Enum.Material.Metal,
+		{ shadow = false }
+	)
 	local glow = piece(
 		"LanternGlow",
 		Vector3.new(0.75, 0.75, 0.75),
