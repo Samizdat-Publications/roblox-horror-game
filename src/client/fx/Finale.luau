@@ -74,6 +74,7 @@ Finale.HAZARD_FIGURE = CFrame.new(0, 0.35, -3.6)
 Finale.HAZARD_SWAY = { speed = 0.9, angle = 0.22 }
 Finale.FOLLOW = 4 -- how quickly a drawn hazard closes on where it should be drawn
 Finale.KEY = "Finale" -- AudioDirector mute and hush key
+Finale.HOME_PITCH = math.rad(-6) -- the view's pitch at the end of the turn toward home
 Finale.CAPTION = "The bell. Go home."
 Finale.BANNER = "Dawn. You made it home."
 -- Polish round 2 (Neon finale v7: "flat green streaks sliding across the water", seen in
@@ -1228,6 +1229,28 @@ function Finale.dawnStages(u: number): (number, number)
 	return smooth(u), smooth((u - f) / math.max(1e-3, 1 - f))
 end
 
+-- The sky clock at horizon progress `kH` (0..1), from the night's clock `night`: up to
+-- Look.Dawn.clockFrom over the first clockLead of the ease (all still night to the eye), then on
+-- to Look.Dawn.ClockTime. Continuous from the very first frame (polish round 3: no jump).
+function Finale.dawnClock(night: number, kH: number): number
+	local D = Look.Dawn
+	local goal = D.ClockTime
+	local mid = D.clockFrom or goal
+	local from = night
+	if from > goal then
+		from -= 24 -- the night clock is before midnight: run forward through it
+	end
+	mid = math.max(from, mid)
+	local lead = math.clamp(D.clockLead or 0, 0, 0.9)
+	local c: number
+	if lead > 0 and kH < lead then
+		c = from + (mid - from) * (kH / lead)
+	else
+		c = mid + (goal - mid) * math.clamp((kH - lead) / (1 - lead), 0, 1)
+	end
+	return if c < 0 then c + 24 else c
+end
+
 local function stepDawn()
 	local t0, s = dawnT0, saved
 	if t0 == nil or s == nil then
@@ -1240,8 +1263,11 @@ local function stepDawn()
 	local light: any = Lighting
 	local dawnLook: any = D
 	for _, k in LIGHT_PROPS do
-		local from = if k == "ClockTime" then D.clockFrom or s.lighting[k] else s.lighting[k]
-		light[k] = mix(from, dawnLook[k], kH)
+		if k == "ClockTime" then
+			light.ClockTime = Finale.dawnClock(s.lighting.ClockTime, kH)
+		else
+			light[k] = mix(s.lighting[k], dawnLook[k], kH)
+		end
 	end
 	if atmo then
 		local a: any = atmo
@@ -1331,12 +1357,19 @@ local function endFinale(fade: number, keepCat: boolean?)
 	cutToll(0.6)
 	AudioDirector.hush(Finale.KEY, false)
 	AudioDirector.boostLayer("motorIdle", 1)
+	HUD.holdOil(Finale.KEY, false)
 end
 
 -- At the first toll the view eases round to face home (the dock beacon) over `seconds`, so every
 -- player, on a phone too, knows which way to go. Found 11/26/2026: the crew is usually looking
 -- at its bobber off the side of the boat when the bell rings, and Neon read the run home as
 -- "no direction home". The player's own look takes over again as soon as it finishes.
+-- Polish round 3 (Neon finale v8: "the camera snaps"): the old ease set the pitch to the goal on
+-- the first frame and took a fixed share of the turn per frame (frame-rate bound, 8 percent of
+-- up to half a turn in one frame). Now each frame takes the share of what is left that a
+-- smoothstep from the current view calls for, for yaw and pitch alike: it starts at rest from
+-- wherever the player was looking and ends exactly on home, at any frame rate. Writing a share
+-- of what is left (not an absolute angle) keeps the boat's own turn (Camera) on top of it.
 local function faceHome(seconds: number)
 	local cam = Workspace.CurrentCamera
 	if cam == nil then
@@ -1344,16 +1377,21 @@ local function faceHome(seconds: number)
 	end
 	local e = Config.Lake.dockEnd
 	local start = os.clock()
+	local done = 0 -- eased share of the turn already made
 	local name = "DeadCalmFaceHome"
 	pcall(function()
 		RunService:UnbindFromRenderStep(name)
 	end)
 	RunService:BindToRenderStep(name, Enum.RenderPriority.Camera.Value + 2, function()
-		local t = math.clamp((os.clock() - start) / seconds, 0, 1)
+		local t = math.clamp((os.clock() - start) / math.max(0.05, seconds), 0, 1)
+		local want = smooth(t)
+		local k = if want >= 1 then 1 else math.clamp((want - done) / math.max(1e-4, 1 - done), 0, 1)
+		done = want
 		local cf = cam.CFrame
 		local pos = cf.Position
 		local lv = cf.LookVector
 		local curYaw = math.atan2(-lv.X, -lv.Z)
+		local curPitch = math.asin(math.clamp(lv.Y, -1, 1))
 		local toX, toZ = e.x - pos.X, e.z - pos.Z
 		local goalYaw = math.atan2(-toX, -toZ)
 		local d = goalYaw - curYaw
@@ -1362,10 +1400,8 @@ local function faceHome(seconds: number)
 		elseif d < -math.pi then
 			d += 2 * math.pi
 		end
-		-- Ease: cover a growing share of the remaining turn each frame, all of it at the end.
-		local k = if t >= 1 then 1 else math.min(1, 0.08 + 0.25 * t)
 		local yaw = curYaw + d * k
-		local pitch = math.rad(-6)
+		local pitch = curPitch + (Finale.HOME_PITCH - curPitch) * k
 		cam.CFrame = CFrame.new(pos) * CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0)
 		if t >= 1 then
 			RunService:UnbindFromRenderStep(name)
@@ -1385,6 +1421,8 @@ local function onCue(data: { [string]: any })
 	-- Dead silence: the water, the frogs, the motor, the lantern, the music.
 	AudioDirector.muteAmbience(Finale.KEY, true, 0.08)
 	AudioDirector.hush(Finale.KEY, true)
+	-- The oil bar keeps its night look (amber, its level) until the first toll (polish round 3).
+	HUD.holdOil(Finale.KEY, true)
 	clearLock()
 	buildLock()
 	-- Home shows from the moment of the bell: the beacon's shaft and column go up now.
@@ -1397,10 +1435,11 @@ local function onCue(data: { [string]: any })
 		-- The tolls, still hushed: nothing but the bell until the last stroke has rung.
 		phase = "Bell"
 		ringBell()
-		faceHome(1.2)
-		-- Finale v6 (Neon: the line flashed before the bell rang): silence, the first toll,
-		-- THEN the line, F.captionAfterToll after the toll is actually heard (the Sound may
-		-- take a moment to load and start; wait for it, at most F.captionWaitMax).
+		-- Polish round 3 (Neon finale v8: the turn came in four beats, clock, red bar, camera,
+		-- bell): everything lands on the first toll the moment it is actually heard (the Sound
+		-- may take a moment to load and start; wait for it, at most F.captionWaitMax): the oil
+		-- bar turns red (eased, HUD.OIL_EASE), the view eases toward home from wherever it is,
+		-- and the line shows (F.captionAfterToll, now 0).
 		task.spawn(function()
 			local t0 = os.clock()
 			while os.clock() - t0 < F.captionWaitMax do
@@ -1410,8 +1449,12 @@ local function onCue(data: { [string]: any })
 				end
 				task.wait()
 			end
-			task.wait(F.captionAfterToll)
+			if F.captionAfterToll > 0 then
+				task.wait(F.captionAfterToll)
+			end
 			if cueToken == my and active then
+				HUD.holdOil(Finale.KEY, false)
+				faceHome(F.faceHomeSeconds)
 				showCaption(Finale.CAPTION, F.captionHold)
 			end
 		end)

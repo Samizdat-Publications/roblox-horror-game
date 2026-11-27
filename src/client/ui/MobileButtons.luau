@@ -217,8 +217,10 @@ local function refresh()
 	btns.Cast.button.Text = cast
 	btns.Use.button.Text = use
 	local view = ViewState.get()
-	btns.Lantern.button.Text = if view.lanternOn then "Light off" else "Light"
-	btns.Motor.button.Text = if view.motorOn then "Motor off" else "Motor"
+	-- Polish round 3: each label says what a press does, on two fixed lines so it never wraps
+	-- mid-word or runs past the round button's edge.
+	btns.Lantern.button.Text = if view.lanternOn then "Light\nout" else "Light\non"
+	btns.Motor.button.Text = if view.motorOn then "Motor\noff" else "Motor\non"
 	local flood = tonumber(view.flood) or 0
 	btns.Bail.button.BackgroundTransparency = if flood > 0.005 then 0.12 else 0.6
 	-- While deciding on a fish, the catch card's own Keep and Throw back buttons sit at the

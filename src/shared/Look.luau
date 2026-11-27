@@ -90,9 +90,14 @@ Look.Lighting = {
 -- colours, the sky), the fog lifts and thins from `fogDelay` of the way in, and the banner
 -- shows only at the end. ClockTime starts from `clockFrom` (still night to the eye) so the
 -- sunrise in the sky spreads over the whole ease instead of the last few frames.
+-- Polish round 3 (Neon finale v8: the dawn still popped in one frame): ClockTime no longer
+-- jumps to `clockFrom` on the first frame. It eases from the night's own clock up to
+-- `clockFrom` over the first `clockLead` of the horizon ease (still night), then on to
+-- ClockTime over the rest, so no single frame changes the sky abruptly.
 Look.Dawn = {
 	seconds = 3,
 	clockFrom = 5.2,
+	clockLead = 0.2,
 	fogDelay = 0.25,
 	bannerHold = 4.5, -- seconds the banner stays before it fades (the HUD is hidden under it)
 	-- Polish round 2: the run-cleared card comes this long after the banner, so the dock is
@@ -125,7 +130,9 @@ Look.Finale = {
 	-- and its three strokes overlapped. Now: true silence, then three slow tolls heard from
 	-- anywhere, one Sound per toll (the last is cut before the next starts), and the motor
 	-- and the chase music stay hushed until the tolls are done.
-	silence = 1.75, -- seconds of dead silence at the bell before the first stroke
+	-- Polish round 3 (Neon finale v8: four beats before the bell): about 1 s of dead silence
+	-- after the water drops (was 1.75), then everything lands on the first toll.
+	silence = 1.0, -- seconds of dead silence at the bell before the first stroke
 	bellStrokes = 3,
 	bellGap = 2.8, -- seconds between strokes (slow)
 	bellCut = 0.3, -- the previous toll fades out over this long as the next one starts
@@ -160,7 +167,10 @@ Look.Finale = {
 	-- How the false beacons blink wrong: "Steady" (always lit, a faint shimmer) or "Single"
 	-- (one dark flicker every `period` seconds, where the real one blinks twice).
 	falseBlink = { period = 6, dark = 0.45, shimmer = 0.08 },
-	captionAfterToll = 0.4, -- "The bell. Go home." shows this long after the first toll is heard
+	-- Polish round 3: the line, the red oil bar and the turn toward home all land the moment the
+	-- first toll is heard (was 0.4 s after it).
+	captionAfterToll = 0, -- "The bell. Go home." shows this long after the first toll is heard
+	faceHomeSeconds = 1.6, -- the view's smoothstep ease toward home at the first toll (was 1.2)
 	captionWaitMax = 1.5, -- at most this long waiting for the toll Sound to start before the delay
 	-- Hazards are drawn closer than Core holds them so they read through the fog: the gap
 	-- beyond the kill radius is scaled by `pull` (the kill distance itself is unchanged).
@@ -195,6 +205,21 @@ Look.Lantern = {
 	-- orange Neon while lit (BoatHull's colour) and a dull brass, not Neon, while out (WorldFx).
 	glowLit = Color3.fromRGB(255, 118, 36),
 	glowOut = Color3.fromRGB(78, 64, 38),
+}
+
+-- The cool moonlight that hangs high over the boat while the lantern is out (WorldFx), and the
+-- OutdoorAmbient it lifts to (Look.Lighting.OutdoorAmbient while lit). Polish round 3 (Neon
+-- hum-fail v5: "way too dark for phone screens" with the lantern out): brightness 0.85 to 1.15,
+-- range 50 to 60 (the engine cap), ambient RGB 82, 100, 108 to 96, 116, 124, so the hull outline
+-- and the water line read on a dim phone. The lit lantern (3.6 over 60 studs, warm) stays far
+-- brighter near the boat.
+Look.Moon = {
+	color = Color3.fromRGB(140, 172, 205),
+	brightness = 1.15,
+	range = 60,
+	height = 26,
+	fadePerSecond = 1.2,
+	ambient = Color3.fromRGB(96, 116, 124),
 }
 
 -- The dock beacon: a steady warm light that blinks off twice every `period` seconds.

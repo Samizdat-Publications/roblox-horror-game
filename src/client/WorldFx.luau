@@ -19,15 +19,8 @@ local BoatFx = require(script.Parent:WaitForChild("BoatFx"))
 
 local WorldFx = {}
 
-WorldFx.MOON = {
-	color = Color3.fromRGB(140, 172, 205),
-	brightness = 0.85,
-	range = 50,
-	height = 26,
-	fadePerSecond = 1.2,
-	-- OutdoorAmbient while the lantern is out (Look.Lighting.OutdoorAmbient while lit).
-	ambient = Color3.fromRGB(82, 100, 108),
-}
+-- Values live in Look.Moon (polish round 3 raised them a little for dim phones).
+WorldFx.MOON = Look.Moon
 
 -- fx/Finale's dawn owns the Lighting while it shows (Polish 3): the moon then leaves
 -- OutdoorAmbient alone.

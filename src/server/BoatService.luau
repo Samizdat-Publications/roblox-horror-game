@@ -168,10 +168,27 @@ local function countParts(inst: Instance): number
 	return n
 end
 
+-- Polish round 3 (Neon finale v8: "the boat looks glued to the water" on the run home): while
+-- the outboard drives the boat it rocks gently on top of the idle bob, up to MOTOR_ROCK.roll of
+-- roll and MOTOR_ROCK.pitch of pitch at full motor speed, slow (2.2 to 2.6 s periods). The
+-- level eases in and out (MOTOR_ROCK.ease per second) so it never starts with a jolt. Kept
+-- small: the seated camera rides the boat.
+BoatService.MOTOR_ROCK = {
+	roll = math.rad(1.5),
+	pitch = math.rad(1.0),
+	rollPeriod = 2.6,
+	pitchPeriod = 2.2,
+	ease = 0.6,
+}
+local rockLevel = 0 -- 0..1, eased toward the motor's share of its top speed
+
 local function poseFor(s: Kin, t: number, steer: number): CFrame
 	local y = Config.Lake.waterY + 0.15 + 0.12 * math.sin(t * 1.3)
-	local pitch = 0.015 * math.sin(t * 1.1 + 1)
-	local roll = 0.02 * math.sin(t * 0.9) - steer * math.clamp(s.speed, -30, 30) * 0.003
+	local R = BoatService.MOTOR_ROCK
+	local pitch = 0.015 * math.sin(t * 1.1 + 1) + R.pitch * rockLevel * math.sin(2 * math.pi * t / R.pitchPeriod + 0.7)
+	local roll = 0.02 * math.sin(t * 0.9)
+		- steer * math.clamp(s.speed, -30, 30) * 0.003
+		+ R.roll * rockLevel * math.sin(2 * math.pi * t / R.rollPeriod)
 	local pos = Vector3.new(s.x, y, s.z)
 	local look = Vector3.new(math.sin(s.heading), 0, math.cos(s.heading))
 	return CFrame.lookAt(pos, pos + look) * CFrame.Angles(pitch, 0, roll)
@@ -273,6 +290,9 @@ function BoatService.step(dt: number)
 	end
 	stepKinematics(kin, throttle, steer, motorOn, dt)
 	confine(kin, dt)
+	local rockGoal = if motorOn then math.clamp(math.abs(kin.speed) / Config.Boat.motorSpeed, 0, 1) else 0
+	local rockStep = BoatService.MOTOR_ROCK.ease * dt
+	rockLevel += math.clamp(rockGoal - rockLevel, -rockStep, rockStep)
 	local pose = poseFor(kin, clock, steer)
 	local ap, ao = alignPos, alignOri
 	if ap and ao then

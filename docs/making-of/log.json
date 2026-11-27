@@ -1,4 +1,4 @@
-[
+﻿[
     {
         "id":  "plan",
         "date":  "11/26/2026",
@@ -159,6 +159,38 @@
                        {
                            "file":  "stills/15-helm-lit.jpg",
                            "caption":  "A shadow from the lantern post used to black out the middle of the boat."
+                       }
+                   ]
+    },
+    {
+        "date":  "11/27/2026",
+        "milestone":  "M8 and the final review",
+        "title":  "Three polish rounds, an outside audit, and the night is done",
+        "text":  "The last stretch was all finish. Three rounds of polish from Neon\u0027s video reviews: the capsize now throws real gear away from the camera and holds the boat on its side until the screen goes dark; the death card is big enough to read on a phone; the lantern really goes dark when it is out, while the moon keeps the boat readable; the dawn eases in instead of popping; the bell, the red oil bar and the turn toward home land as one beat; and small Motor and Lantern buttons now sit beside the book. Then a reviewer that had never seen the build audited the whole game against the brief\u0027s safety checks. It found one real fairness hole: on your own, the Watcher could take a player who never saw it if the one who did had already drowned. That is fixed and now checked on every simulated night: every player a rule takes heard its warning first. Neon\u0027s scores ended at 5 out of 10 for both big moments, up from 1.5 and 3.5. The strange boats on the run home are still the weakest part, and they are first on the list for next time.",
+        "stills":  [
+                       {
+                           "file":  "stills/24-hum-lantern-out.jpg",
+                           "caption":  "The Hum: lantern out, the moon keeps the boat readable."
+                       },
+                       {
+                           "file":  "stills/25-death-card.jpg",
+                           "caption":  "A death card big enough for a phone, naming the rule you broke."
+                       },
+                       {
+                           "file":  "stills/21-bell-v8.jpg",
+                           "caption":  "4 AM: silence, then the bell, and the turn toward home."
+                       },
+                       {
+                           "file":  "stills/22-dawn-easing.jpg",
+                           "caption":  "Nearly home: the dock lights and the first grey of dawn."
+                       },
+                       {
+                           "file":  "stills/23-dawn-banner.jpg",
+                           "caption":  "Dawn, eased in over three seconds."
+                       },
+                       {
+                           "file":  "stills/26-run-cleared.jpg",
+                           "caption":  "The run cleared, with the owner\u0027s dry thanks."
                        }
                    ]
     }

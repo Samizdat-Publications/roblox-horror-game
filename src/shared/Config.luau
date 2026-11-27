@@ -461,7 +461,10 @@ Config.Rules = {
 	},
 	Finale = {
 		hour = 28, -- 4 AM on night 5
-		oilSeconds = 50, -- lantern burns out this long after the bell (scaled by warning)
+		-- Polish round 3 (Neon finale v8: about 70 percent oil left at the dock): 50 to 23, so the
+		-- bar reads urgent on the run home. 20 broke Nightmare solo and duo (2 and 8 percent cleared);
+		-- 23 holds every cell (artifacts/score/run-oil23-*).
+		oilSeconds = 34, -- lantern burns out this long after the bell (scaled by warning)
 		stopLimit = 4, -- seconds the boat may sit still (scaled by warning)
 		-- Finale v2 (Neon 2/10, 11/26/2026: one hazard in a 30 s run home). A run home from the
 		-- steeple is about 30 to 45 s (21 s flat out).

@@ -7,15 +7,7 @@ Nothing here blocks the build. Each item says why it matters and the exact steps
 1. **Keep this PC on and online when you can.** The local half of the build only moves while the hotspot is home. If the session looks idle after you reconnect, type `continue` in it.
 2. **Upload folder.** In Roblox Studio: Assistant panel, the "..." menu, Settings, MCP Permissions. Make sure `C:\Users\stewa\Documents\Claude\Roblox` is in the approved upload folders. If uploads from the new folder are refused, also add `C:\Users\stewa\Documents\Claude\Roblox\dead-calm`.
 
-3. **Start the two cloud sessions (the app would not let the local session start them over Remote Control).** In the Claude desktop app or at claude.ai/code, start a new cloud session on the repository `Samizdat-Publications/roblox-horror-game` (default environment) and paste this as the whole prompt:
-
-   `Read docs/CLOUD-BRIEF.md in this repository and carry it out in full without stopping to ask questions.`
-
-   Then start a second cloud session on the same repository with:
-
-   `Read docs/CLOUD-SHELL-BRIEF.md in this repository and carry it out in full without stopping to ask questions.`
-
-   Until you do, the local session builds the same work itself whenever the PC is online.
+3. **(No longer needed.) Cloud sessions.** The local session built everything the cloud sessions were meant to; the briefs stay in `docs/` for reference.
 
 4a. **Keep the Fishing Game open in Roblox Studio (11/26/2026, evening).** Sound uploads go through that window (you approved it). It closed when the laptop lid shut, so 15 uploads are waiting: 4 redone sounds, ghost-loop and the 10 owner's tapes. Open Roblox Studio, open "Fishing Game" from your experiences, and leave it open. Claude does not touch anything in that place; it only uses the window to upload.
 

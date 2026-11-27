@@ -44,6 +44,10 @@ BoatFx.SCOOP_EVERY = 1.1
 -- Scare polish 2: one big throw that dies away over the whole 1.2 s (the old fast wobble read
 -- as a half-second snap), with a foam burst and a cold flash so it reads in the dark.
 BoatFx.CAPSIZE = { roll = 0.85, heave = 1.8, pitch = 0.2, rollPeriod = 0.95, heavePeriod = 0.6 }
+-- Polish round 3: for the one taken, the boat keeps going over after the throw and holds this
+-- heel (radians: about 40 degrees of roll, 7 of pitch, a little lower in the water) until the
+-- black is full. `ease` is the share of the throw over which the heel builds in.
+BoatFx.HEEL = { roll = 0.7, pitch = 0.12, sink = 0.6, ease = 0.6 }
 -- M8 polish (Neon: "giant white spheres and blue spheres"): the foam and the splashes are short
 -- ParticleEmitter bursts of small soft droplets (Emit, no Neon balls). `bursts` points along
 -- each gunwale, `count` droplets each. The pale foam ring on the water stays, dimmer.
@@ -75,7 +79,7 @@ BoatFx.RINGS = {
 	from = 7,
 	to = 24,
 	life = 3.8,
-	segments = 24,
+	segments = 48, -- polish round 3: 24 read as blocky arcs at 24 studs across
 	color = Color3.fromRGB(16, 24, 26),
 	alpha = 0.45, -- the dark band at its most opaque (transparency 1 - alpha)
 	width = 0.55,
@@ -83,6 +87,7 @@ BoatFx.RINGS = {
 	edgeAlpha = 0.22,
 	edgeWidth = 0.12,
 }
+BoatFx.RING_KILL_FADE = 0.25 -- seconds for the Hum's ripples to fade when the boat is thrown
 BoatFx.BUZZ_CAMERA = 0.04 -- camera rattle at full buzz (was 0.02, Neon wanted it felt)
 -- M8 polish (Neon: the motor did not read): a little more rumble and jitter at the stern, and
 -- a faint churn of droplets behind the shaft while the outboard runs.
@@ -149,8 +154,11 @@ local capsizeT0 = 0
 local capsizeLen = 0
 local capsizeRoll = CFrame.new() -- this frame's roll, in the hull's frame
 local copyMode = "throw" -- "throw" (the camera rolls too) or "rock" (the drowned watch)
+local capsizeThrow = 0 -- seconds of the violent throw (the rest of capsizeLen is the held heel)
+local capsizeHeld = false -- true: the boat eases over to BoatFx.HEEL and stays (the one taken)
 local rings = false
 local ringT = 0
+local ringKill = 0 -- bumped to fade out every Hum ring still spreading
 -- The plunge under the surface.
 local plungeT0: number? = nil
 local plungeFrom = 0 -- camera height when the plunge started
@@ -227,8 +235,11 @@ end
 -- A ring on the water at `center` (diameter R.from to R.to over R.life): short flat segments
 -- with an optional faint edge just outside, growing and fading, easing in so it never pops.
 -- `clearCam`: segments within BoatFx.DEBRIS.minCamDist of the camera are not drawn.
-local function waterRing(name: string, center: Vector3, R: RingSpec, clearCam: boolean?)
+-- `killable`: the ring fades out over BoatFx.RING_KILL_FADE once ringKill moves (the Hum's ripples
+-- at a capsize).
+local function waterRing(name: string, center: Vector3, R: RingSpec, clearCam: boolean?, killable: boolean?)
 	local n = R.segments
+	local myKill = ringKill
 	local dark: { BasePart } = {}
 	local edge: { BasePart } = {}
 	for i = 1, n do
@@ -251,12 +262,24 @@ local function waterRing(name: string, center: Vector3, R: RingSpec, clearCam: b
 	end
 	task.spawn(function()
 		local t0 = os.clock()
+		local killedAt: number? = nil
 		while os.clock() - t0 < R.life and dark[1].Parent do
 			local t = (os.clock() - t0) / R.life
 			local r = (R.from + (R.to - R.from) * (1 - (1 - t) * (1 - t))) / 2
 			local rEdge = r + R.width * 0.5 + R.edgeWidth
 			-- In over the first fifth, then out.
 			local k = math.min(1, t / 0.2) * (1 - t)
+			if killable and killedAt == nil and ringKill ~= myKill then
+				killedAt = os.clock()
+			end
+			local ka = killedAt
+			if ka ~= nil then
+				local f = (os.clock() - ka) / BoatFx.RING_KILL_FADE
+				if f >= 1 then
+					break
+				end
+				k *= 1 - f
+			end
 			local cam = if clearCam then cameraPos() else nil
 			local near = BoatFx.DEBRIS.minCamDist
 			for i = 1, n do
@@ -284,7 +307,7 @@ end
 -- The Hum's murky ripple around the hull.
 local function spawnRing(hull: BasePart)
 	local center = Vector3.new(hull.Position.X, Config.Lake.waterY + 0.06, hull.Position.Z)
-	waterRing("HumRing", center, BoatFx.RINGS)
+	waterRing("HumRing", center, BoatFx.RINGS, false, true)
 end
 
 -- A short burst of small soft droplets (a ParticleEmitter Emit) at `cf`, thrown along the
@@ -456,6 +479,7 @@ local function endCapsize()
 	local m = capsizeCopy
 	capsizeCopy = nil
 	capsizeRoll = CFrame.new()
+	capsizeHeld = false
 	for _, p in capsizeHidden do
 		if p.Parent then
 			p.LocalTransparencyModifier = 0
@@ -810,10 +834,20 @@ end
 -- The boat is thrown for `seconds`: a local copy rolls and heaves, the camera rolls with it,
 -- foam bursts at both gunwales under a brief cold flash, and `fishCount` fish, a bucket, an
 -- oar and the tackle box go over the side.
-function BoatFx.capsize(seconds: number, fishCount: number)
-	if not startCopy(seconds, "throw") then
+-- `hold` (polish round 3, for the one taken): after the throw the boat does not right itself;
+-- it eases over to a held heel (BoatFx.HEEL) and stays there for `hold` more seconds, so it is
+-- restored only under the death card's black (Neon hum-fail v5: it snapped upright on screen
+-- about a second before the fade).
+function BoatFx.capsize(seconds: number, fishCount: number, hold: number?)
+	local extra = math.max(0, hold or 0)
+	if not startCopy(seconds + extra, "throw") then
 		return
 	end
+	capsizeThrow = seconds
+	capsizeHeld = extra > 0
+	-- The Hum's ripples belong to the build, not the throw: fade any still spreading now, so no
+	-- ring is seen against the rolled camera (Neon: rings "tilt with the boat").
+	ringKill += 1
 	local hull = BoatClient.hull() :: BasePart
 	local copy = capsizeCopy
 	if copy then
@@ -864,11 +898,25 @@ local function stepCapsize()
 	local env = math.min(1, t / 0.1)
 	-- Thrown hard to one side and back over, dying away over the whole throw; up and down on
 	-- the swell.
-	local u = t / capsizeLen
-	local decay = math.exp(-t / (capsizeLen * 0.75)) * (1 - u * u * u) -- level again at the end
+	local len = if capsizeHeld then capsizeThrow else capsizeLen
+	local u = math.min(1, t / len)
+	-- Level again at the end of a plain throw; a held throw never comes back level.
+	local settle = if capsizeHeld then 1 else (1 - u * u * u)
+	local decay = math.exp(-t / (len * 0.75)) * settle
 	local roll = C.roll * env * decay * math.sin(2 * math.pi * t / C.rollPeriod + 0.5)
 	local heave = C.heave * env * decay * math.abs(math.sin(2 * math.pi * t / C.heavePeriod + 0.3))
 	local pitch = C.pitch * env * decay * math.sin(2 * math.pi * t / (C.rollPeriod * 0.8))
+	if capsizeHeld then
+		-- The heel builds in (smoothstep) over the throw and the first part of the hold, then
+		-- keeps creeping a touch further until the black covers it.
+		local H = BoatFx.HEEL
+		local s = math.clamp(t / math.max(0.05, len * (1 + H.ease)), 0, 1)
+		local k = s * s * (3 - 2 * s)
+		local creep = 1 + 0.12 * math.clamp((t - len) / math.max(0.05, capsizeLen - len), 0, 1)
+		roll += H.roll * k * creep
+		pitch += H.pitch * k
+		heave -= H.sink * k
+	end
 	capsizeRoll = CFrame.new(0, heave, 0) * CFrame.Angles(pitch, 0, roll)
 	copy:PivotTo(hull.CFrame * capsizeRoll)
 	local flash = copy:FindFirstChild("ThrownFlash", true)

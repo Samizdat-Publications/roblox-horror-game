@@ -184,7 +184,8 @@ local function render(view: NightView)
 		labels.Clock.Visible = true
 	end
 	labels.Clock.Text = HUD.clockText(view.clock)
-	labels.Quota.Text = string.format("Quota %d / %d", view.banked, view.quota)
+	-- Polish round 3: capped at the target once met (it read "Quota 5 / 3" after the finale).
+	labels.Quota.Text = string.format("Quota %d / %d", math.min(view.banked, view.quota), view.quota)
 	local objective = HUD.objectiveText(view, compact)
 	local obj = labels.Objective
 	obj.Visible = objective ~= nil
@@ -194,7 +195,7 @@ local function render(view: NightView)
 	-- The fill's size is eased toward the oil every frame (stepPulse), so the drain shows.
 	-- The label stays "Oil" (a longer label squeezed the bar into a square in the finale).
 	labels.Oil.Text = "Oil"
-	labels.Oil.TextColor3 = if finale then Look.Palette.amendInk else Look.UI.ink
+	labels.Oil.TextColor3 = if finale and not HUD.oilHeld() then Look.Palette.amendInk else Look.UI.ink
 	local motor = labels.Motor
 	-- Not for the drowned: a dead player has no motor to mind (Scare polish 2; the paper said
 	-- "Motor: on" over the drowned view).
@@ -216,6 +217,17 @@ HUD.OIL_JUMP = 0.08 -- a change this big between two frames is a jump, not the d
 local oilEase: { from: number, to: number, t: number }? = nil
 local lastOilTarget: number? = nil
 local redMix = 0 -- 0 amber (night), 1 red (finale), eased
+-- Polish round 3: fx/Finale holds the bar's night look (its colour and its drawn level) from the
+-- cue until the first toll, so the red, the refill, the turn and the caption land as one beat.
+local oilHolds: { [string]: boolean } = {}
+
+function HUD.holdOil(key: string, on: boolean)
+	oilHolds[key] = if on then true else nil
+end
+
+function HUD.oilHeld(): boolean
+	return next(oilHolds) ~= nil
+end
 
 -- Smoothstep, 0..1.
 function HUD.ease(u: number): number
@@ -253,8 +265,10 @@ local function stepPulse(dt: number)
 	end
 	local view = ViewState.get()
 	-- The drain shows: the fill eases toward the oil level instead of jumping with each update.
-	fill.Size = UDim2.fromScale(stepOilLevel(math.clamp(view.oil, 0, 1), dt), 1)
-	local red = view.phase == "Finale"
+	local held = HUD.oilHeld()
+	local target = if held then shownOil else math.clamp(view.oil, 0, 1)
+	fill.Size = UDim2.fromScale(stepOilLevel(target, dt), 1)
+	local red = view.phase == "Finale" and not held
 	redMix = math.clamp(redMix + (if red then 1 else -1) * dt / HUD.OIL_EASE, 0, 1)
 	local k = HUD.ease(redMix)
 	local fillBase = HUD.OIL_FILL:Lerp(HUD.PULSE_RED, k)
@@ -372,9 +386,9 @@ function HUD.init()
 	row.Name = "Books"
 	row.BackgroundTransparency = 1
 	row.Position = UDim2.fromOffset(12, 0)
-	row.Size = UDim2.fromOffset(150, 30)
+	row.Size = UDim2.fromOffset(340, 30)
 	row.Parent = gui
-	local function small(name: string, text: string, x: number, page: string)
+	local function small(name: string, text: string, x: number, w: number, onClick: () -> ())
 		local b = Instance.new("TextButton")
 		b.Name = name
 		b.Text = text
@@ -385,14 +399,25 @@ function HUD.init()
 		b.BackgroundTransparency = Look.UI.hudPaperTransparency
 		b.BorderSizePixel = 0
 		b.Position = UDim2.fromOffset(x, 0)
-		b.Size = UDim2.fromOffset(72, 26)
+		b.Size = UDim2.fromOffset(w, 26)
 		b.Parent = row
-		b.Activated:Connect(function()
-			BookState.toggle(page)
-		end)
+		b.Activated:Connect(onClick)
 	end
-	small("Book", "Book  R", 0, "rules")
-	small("Guide", "Guide  G", 78, "guide")
+	small("Book", "Book  R", 0, 72, function()
+		BookState.toggle("rules")
+	end)
+	small("Guide", "Guide  G", 78, 72, function()
+		BookState.toggle("guide")
+	end)
+	-- Polish round 3 (Neon hum-fail v5: no hint how to cut the motor or put out the lantern):
+	-- the same toggles as the M and F keys (Input.toggle). Hidden on touch with the rest of the
+	-- row; MobileButtons has its own Motor and Light buttons.
+	small("Motor", "Motor  M", 156, 80, function()
+		Input.toggle("ToggleMotor")
+	end)
+	small("Lantern", "Lantern  F", 242, 96, function()
+		Input.toggle("ToggleLantern")
+	end)
 
 	local function layoutRow()
 		local p = paperFrame

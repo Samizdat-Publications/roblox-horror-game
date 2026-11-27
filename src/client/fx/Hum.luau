@@ -21,11 +21,16 @@ local AudioDirector = require(client:WaitForChild("AudioDirector"))
 local BoatClient = require(client:WaitForChild("BoatClient"))
 local BoatFx = require(client:WaitForChild("BoatFx"))
 local ViewState = require(client:WaitForChild("ViewState"))
+local DeathCard = require(client:WaitForChild("ui"):WaitForChild("DeathCard"))
 local Common = require(script.Parent:WaitForChild("Common"))
 
 local Hum = {}
 
 Hum.THROWN = 1.2 -- seconds the boat is thrown before the taken one goes under
+-- Polish round 3: for the one taken, the boat keeps its heel past the throw until the death
+-- card's black is full (DeathCard.LEAD_IN.Hum + DeathCard.FADE after the fail) plus this margin,
+-- so it is righted only under black.
+Hum.UNDER_BLACK_MARGIN = 0.25
 Hum.SHAPE_AFTER_FAIL = 20 -- the drowned keep seeing the shape this long after a fail
 
 Hum.LOOP_FADE_IN = 1.0 -- the hold loop starts with the rise (Scare polish 2: no 2.2 s wait)
@@ -188,8 +193,6 @@ function Hum.handle(e: any)
 		BoatFx.shiver(0)
 		-- The boat is thrown and the hold goes over the side.
 		local hold = tonumber(ViewState.get().hold) or 0
-		BoatFx.capsize(Hum.THROWN, math.max(1, hold))
-		BoatFx.shake(0.5, Hum.THROWN + 0.4)
 		-- Whoever is taken goes under (the others stay in the boat).
 		local fx = data.effects
 		local me = Players.LocalPlayer.UserId
@@ -201,6 +204,15 @@ function Hum.handle(e: any)
 				end
 			end
 		end
+		-- The taken keep the boat heeled over until their screen is black; the others see it
+		-- right itself after the throw (they stay in the boat).
+		local heelHold = 0
+		if taken then
+			local dark = (DeathCard.LEAD_IN.Hum or 0) + DeathCard.FADE + Hum.UNDER_BLACK_MARGIN
+			heelHold = math.max(0, dark - Hum.THROWN)
+		end
+		BoatFx.capsize(Hum.THROWN, math.max(1, hold), heelHold)
+		BoatFx.shake(0.5, Hum.THROWN + 0.4)
 		-- The plunge has its own token: the Cooldown stage that follows a fail must not
 		-- cancel it. Only a new night (Hum.reset from RulesFx) does.
 		plungeToken += 1

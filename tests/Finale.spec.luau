@@ -119,7 +119,9 @@ return function(t, Shared)
 		local s = Night.new(Calm, params({ playerIds = { 1, 2, 3 } }))
 		local events = {}
 		toBell(s, events)
-		stepFor(s, 15, { vel = MOVING }, events)
+		-- Polish round 3: oilSeconds is 23, so the whole test must end before the lantern runs
+		-- dry (10 s moving + two still spells, about 18.4 s).
+		stepFor(s, 10, { vel = MOVING }, events)
 		t.eq(#all(events, "PlayerDied"), 0, "moving: nobody taken")
 		local still = {}
 		stepFor(s, F.stopLimit - 0.3, {}, still)
