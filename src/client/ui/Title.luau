@@ -14,6 +14,8 @@
 -- paper), the two paper panels shrink to their content (AutomaticSize), the wash is lighter
 -- so the lake shows, and everything fits on the smallest phone (705 by 338). The notes
 -- about tries come from Config.Difficulty (retries), so they cannot drift from the rules.
+-- Phone pass (11/26/2026): no key hints on touch (Input.touch), and Roblox's move thumbstick
+-- hides while the title is up (Input.setBlocked("title") hides the touch controls).
 
 local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -96,7 +98,8 @@ local function refresh()
 	end
 	local lk = lockerBtn
 	if lk then
-		lk.Text = if pad then "Locker  (R1)" else "Locker  (K)"
+		-- Key hints only where there are keys: a phone shows just the word.
+		lk.Text = if pad then "Locker  (R1)" elseif Input.touch() then "Locker" else "Locker  (K)"
 	end
 	local bt = boardText
 	if bt then

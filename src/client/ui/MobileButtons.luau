@@ -1,13 +1,13 @@
 --!strict
--- Touch buttons for every verb (only when touch is how this player plays). Large, paper and
--- ink, in the two bottom corners, laid out from the screen size so they fit the smallest
--- phone (705 by 338) and never sit on the default jump button's area (Roblox's touch jump
--- button: 70 px, 95 px from the right and 90 px from the bottom on screens whose short side
--- is 500 px or less, else 120 px at 170 and 210; jumping is off while seated anyway).
---   Bottom right: Cast (the big one: hold to charge and let go; hold to reel), Use (keep,
---     bank, refill, or bail while held when there is water in the boat), Knock.
---   Bottom left, along the edge (the move stick still starts anywhere to the right of it):
---     Lantern, Motor, Bail, Book, Guide, Call.
+-- Touch buttons for every verb (only when touch is how this player plays, Input.touch).
+-- Large, paper and ink, all on the right half, laid out from the screen size so they fit the
+-- smallest phone (705 by 338), never sit on the default jump button's area (Roblox's touch
+-- jump button: 70 px, 95 px from the right and 90 px from the bottom on screens whose short
+-- side is 500 px or less, else 120 px at 170 and 210; jumping is off while seated anyway),
+-- and leave the bottom-left thumbstick zone (stickRect) and the HUD paper (top left) clear.
+--   Bottom right: Cast (the big one: hold to charge and let go; hold to reel), Knock beside
+--     it, Use (keep, bank, refill, or bail while held) above the jump area.
+--   Above them, two rows of three: Lantern, Motor, Bail; Book, Guide, Call.
 -- The labels follow what the press will do ("Reel", "Keep", "Bank", "Bell"). While drowned
 -- only Bell and Call show; while the book or the title covers the view, none do.
 
@@ -38,13 +38,7 @@ local enabled = false
 -- Touch is how this player plays: the preferred input when the engine reports it, else a
 -- touch screen with no keyboard.
 function MobileButtons.wanted(): boolean
-	local ok, pref = pcall(function()
-		return (UserInputService :: any).PreferredInput
-	end)
-	if ok and pref ~= nil then
-		return string.find(tostring(pref), "Touch", 1, true) ~= nil
-	end
-	return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	return Input.touch()
 end
 
 -- The default jump button's rectangle (left, top, right, bottom) for a screen size.
@@ -56,12 +50,32 @@ function MobileButtons.jumpRect(w: number, h: number): (number, number, number, 
 	return x, y, x + size, y + size
 end
 
+-- The bottom-left area kept clear for Roblox's move thumbstick (the helm steers with it on
+-- touch): this share of the width and of the height, from the bottom-left corner.
+MobileButtons.STICK_W = 0.4
+MobileButtons.STICK_H = 0.45
+MobileButtons.MIN_SIZE = 44
+
+-- The thumbstick zone on a w by h screen (left, top, right, bottom).
+function MobileButtons.stickRect(w: number, h: number): (number, number, number, number)
+	return 0, h * (1 - MobileButtons.STICK_H), w * MobileButtons.STICK_W, h
+end
+
 -- Where every button goes on a w by h screen: name -> (center x, center y, size).
+-- Everything sits in the right half (phone feedback 11/26/2026: the old left columns
+-- covered the HUD paper and the thumbstick):
+--   Cast (largest) bottom right, just left of the jump area; Knock left of Cast on the
+--   bottom edge; Use above the jump area.
+--   Light, Motor, Bail (lower row) and Book, Guide, Call (upper row): two rows of three
+--   above Cast and Knock, ending just left of Use.
 function MobileButtons.layout(w: number, h: number): { [string]: { x: number, y: number, size: number } }
 	local k = math.clamp(math.min(w, h) / 338, 1, 1.6)
 	local gap = MobileButtons.GAP * k
 	local edge = MobileButtons.EDGE * k
-	local cast, use, small = 84 * k, 62 * k, 54 * k
+	local minSize = MobileButtons.MIN_SIZE
+	local cast = math.max(84 * k, minSize)
+	local use = math.max(62 * k, minSize)
+	local small = math.max(54 * k, minSize)
 	local jl, jt, jr, _jb = MobileButtons.jumpRect(w, h)
 	local out = {}
 	-- Cast: bottom right, just left of the jump area.
@@ -70,20 +84,37 @@ function MobileButtons.layout(w: number, h: number): { [string]: { x: number, y:
 	out.Cast = { x = cx, y = cy, size = cast }
 	-- Use: above the jump area.
 	out.Use = { x = (jl + jr) / 2, y = jt - gap - use / 2, size = use }
-	-- Knock: above Cast.
-	out.Knock = { x = cx, y = cy - cast / 2 - gap - small / 2, size = small }
-	-- Left edge: two columns of three, from the bottom up.
-	local names = { "Lantern", "Motor", "Bail", "Book", "Guide", "Call" }
-	for i, name in names do
-		local col = (i - 1) % 2
-		local row = math.floor((i - 1) / 2)
-		out[name] = {
-			x = edge + small / 2 + col * (small + gap),
-			y = h - edge - small / 2 - row * (small + gap),
-			size = small,
-		}
+	-- Knock: left of Cast, on the bottom edge.
+	out.Knock = { x = cx - cast / 2 - gap - small / 2, y = h - edge - small / 2, size = small }
+	-- Two rows of three above Cast, the right end just left of Use.
+	local right = (jl + jr) / 2 - use / 2 - gap
+	local rowBottom = cy - cast / 2 - gap
+	local rows = { { "Lantern", "Motor", "Bail" }, { "Book", "Guide", "Call" } }
+	for r, names in rows do
+		local y = rowBottom - small / 2 - (r - 1) * (small + gap)
+		for i, name in names do
+			out[name] = { x = right - small / 2 - (3 - i) * (small + gap), y = y, size = small }
+		end
 	end
 	return out
+end
+
+-- The top edge of the button cluster on a w by h screen (the prompt sits above it).
+function MobileButtons.clusterTop(w: number, h: number): number
+	local top = h
+	for _, s in MobileButtons.layout(w, h) do
+		top = math.min(top, s.y - s.size / 2)
+	end
+	return top
+end
+
+-- The left edge of the button cluster.
+function MobileButtons.clusterLeft(w: number, h: number): number
+	local left = w
+	for _, s in MobileButtons.layout(w, h) do
+		left = math.min(left, s.x - s.size / 2)
+	end
+	return left
 end
 
 local function makeButton(parent: Instance, name: string, label: string): Btn
@@ -120,12 +151,20 @@ local function holdable(item: Btn, fn: (boolean) -> ())
 end
 
 local function place()
-	local cam = Workspace.CurrentCamera
 	local g = gui
-	if cam == nil or g == nil then
+	if g == nil then
 		return
 	end
-	local vs = cam.ViewportSize
+	-- The gui's own area (the device safe area, so a notch never eats a button); the
+	-- camera's viewport until the gui has a size.
+	local vs = g.AbsoluteSize
+	if vs.X < 1 or vs.Y < 1 then
+		local cam = Workspace.CurrentCamera
+		if cam == nil then
+			return
+		end
+		vs = cam.ViewportSize
+	end
 	local spots = MobileButtons.layout(vs.X, vs.Y)
 	for name, item in btns do
 		local s = spots[name]
@@ -136,11 +175,9 @@ local function place()
 			item.button.TextSize = math.floor(math.clamp(s.size * 0.27, 13, 24))
 		end
 	end
-	-- The callout feed sits above the left column.
-	local small = spots.Call
-	if small then
-		Callouts.setFeedBottom(vs.Y - (small.y - small.size / 2) + 8)
-	end
+	-- The callout feed keeps its default spot at the bottom left (text only: it never takes
+	-- a touch from the thumbstick under it).
+	Callouts.setFeedBottom(0)
 end
 
 local function phaseLabel(): (string, string)
@@ -209,6 +246,11 @@ end
 function MobileButtons.init()
 	local g = Paper.gui("DeadCalmMobileButtons", 5)
 	g.IgnoreGuiInset = true
+	-- Under Roblox's top bar is fine (the buttons sit low), but stay inside the device's safe
+	-- area (ScreenInsets: DeviceSafeInsets).
+	pcall(function()
+		g.ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets
+	end)
 	g.Enabled = false
 	gui = g
 
@@ -270,6 +312,7 @@ function MobileButtons.init()
 	if cam then
 		cam:GetPropertyChangedSignal("ViewportSize"):Connect(place)
 	end
+	g:GetPropertyChangedSignal("AbsoluteSize"):Connect(place)
 	place()
 	BookState.onChange(refresh)
 	local sentTouch = false

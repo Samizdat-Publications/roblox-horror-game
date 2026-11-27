@@ -133,14 +133,15 @@ function Paper.bookPage(name: string, order: number, heading: string): (ScreenGu
 	limit.Parent = sheet
 	local head = Paper.text(sheet, "Heading", heading, Paper.fit(30, 18, 34), Paper.hand())
 	head.Size = UDim2.new(1, -110, 0, Paper.fit(30, 18, 34) + 8)
-	local close = Paper.button(sheet, "Close", "Close", UDim2.fromOffset(96, 40))
+	-- 44 px tall at least: a comfortable touch target on the smallest phone.
+	local close = Paper.button(sheet, "Close", "Close", UDim2.fromOffset(96, 44))
 	close.AnchorPoint = Vector2.new(1, 0)
 	close.Position = UDim2.fromScale(1, 0)
 	close.TextSize = Paper.fit(18, 14, 20)
 	local body = Instance.new("Frame")
 	body.Name = "Body"
 	body.BackgroundTransparency = 1
-	local top = Paper.fit(30, 18, 34) + 14
+	local top = math.max(Paper.fit(30, 18, 34) + 14, 50) -- below the Close button too
 	body.Position = UDim2.fromOffset(0, top)
 	body.Size = UDim2.new(1, 0, 1, -top)
 	body.Parent = sheet

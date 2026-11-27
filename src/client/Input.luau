@@ -22,13 +22,16 @@
 -- Touch: ui/MobileButtons draws a large button for every verb and calls the functions here
 -- (no ContextActionService touch buttons). While the book covers the view, or the title
 -- screen is up, the hands are blocked (Input.setBlocked): no casting, reeling, steering,
--- lantern, motor, knocking or bailing.
+-- lantern, motor, knocking or bailing. On touch, Roblox's own thumbstick and jump button
+-- also hide while blocked (applyTouchControls). Input.touch() is the one touch check the UI
+-- uses for touch wording and layout.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local ContextActionService = game:GetService("ContextActionService")
+local GuiService = game:GetService("GuiService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
@@ -147,6 +150,47 @@ function Input.setOverride(fn: (() -> (number, number))?)
 	override = fn
 end
 
+-- Touch is how this player plays: UserInputService.PreferredInput when the engine has it
+-- (Enum.PreferredInput.Touch: a touch device with no other input connected), else a touch
+-- screen with no keyboard. Every touch-or-keys choice in the UI asks this one function.
+function Input.touch(): boolean
+	local ok, pref = pcall(function()
+		return (UserInputService :: any).PreferredInput
+	end)
+	if ok and pref ~= nil then
+		return string.find(tostring(pref), "Touch", 1, true) ~= nil
+	end
+	return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+end
+
+local blocks: { [string]: boolean } = {}
+local touchHidden = false -- true while we have hidden Roblox's touch thumbstick and jump
+
+-- Roblox's own touch controls (move thumbstick, jump) hide while something covers the view
+-- (the title, a full-screen book) and come back after. GuiService.TouchControlsEnabled
+-- hides them; the PlayerModule's ControlModule:Disable() and :Enable() are the documented
+-- fallback. Both are pcall'd. Only on touch: a keyboard player's controls are never touched.
+local function applyTouchControls()
+	local hide = next(blocks) ~= nil and Input.touch()
+	if hide == touchHidden then
+		return
+	end
+	touchHidden = hide
+	pcall(function()
+		GuiService.TouchControlsEnabled = not hide
+	end)
+	local c = controls
+	if c ~= nil then
+		pcall(function()
+			if hide then
+				c:Disable()
+			else
+				c:Enable(true)
+			end
+		end)
+	end
+end
+
 local function loadControls()
 	local player = Players.LocalPlayer
 	local ps = player:WaitForChild("PlayerScripts", 10)
@@ -159,13 +203,18 @@ local function loadControls()
 	end)
 	if ok then
 		controls = res
+		-- The title may already be up: hide the stick now that the module is here.
+		if touchHidden and res ~= nil then
+			pcall(function()
+				res:Disable()
+			end)
+		end
 	end
 end
 
 Input.CHARGE_SECONDS = 1 -- holding this long casts at full power
 
 local castDown = false
-local blocks: { [string]: boolean } = {}
 local bookHandler: ((string) -> ())? = nil
 local castDownAt = 0
 local reelHeld = false
@@ -322,6 +371,7 @@ end
 -- the bail happens at once, so nothing stays held.
 function Input.setBlocked(reason: string, on: boolean)
 	blocks[reason] = if on then true else nil
+	applyTouchControls()
 	if on then
 		castDown = false
 		if reelHeld then
@@ -368,6 +418,9 @@ function Input.init()
 	boatRemote = Remotes.wait("BoatInput")
 	intentRemote = Remotes.wait("Intent")
 	task.spawn(loadControls)
+	pcall(function()
+		UserInputService:GetPropertyChangedSignal("PreferredInput"):Connect(applyTouchControls)
+	end)
 
 	UserInputService.InputBegan:Connect(function(io: InputObject, gameProcessed: boolean)
 		if gameProcessed then

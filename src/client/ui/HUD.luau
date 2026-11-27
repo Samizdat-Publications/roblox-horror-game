@@ -10,6 +10,9 @@
 -- locked on and its oil is the clock: the label reads "Oil: locked on"). On the last night a
 -- line under the quota says whether the owner's fish is aboard. The paper grows with its
 -- rows (AutomaticSize).
+-- Phone pass (11/26/2026): the oil label and its bar share one line; on screens under 450 px
+-- tall the paper is compact (see HUD.COMPACT_BELOW). The Book and Guide row hides on touch
+-- (Input.touch).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -22,6 +25,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local ViewState = require(script.Parent.Parent:WaitForChild("ViewState"))
 local LobbyClient = require(script.Parent.Parent:WaitForChild("LobbyClient"))
+local Input = require(script.Parent.Parent:WaitForChild("Input"))
 local BookState = require(script.Parent:WaitForChild("BookState"))
 
 type NightView = Types.NightView
@@ -96,10 +100,28 @@ local function label(parent: Instance, name: string, order: number, f: Font): Te
 	return t
 end
 
+-- Compact on short screens (phones, under 450 px tall): smaller type, a narrower paper, the
+-- night and the clock on one line, the oil label and bar on one line (phone check on the
+-- 705 by 338 Galaxy A06, 11/26/2026).
+HUD.COMPACT_BELOW = 450
+HUD.COMPACT_TEXT = 14
+local compact = false
+
+function HUD.isCompact(viewportHeight: number): boolean
+	return viewportHeight < HUD.COMPACT_BELOW
+end
+
 local function render(view: NightView)
-	labels.Night.Text = if view.mode == "Endless"
+	local nightText = if view.mode == "Endless"
 		then string.format("Endless night %d", view.night)
 		else string.format("Night %d", view.night)
+	if compact then
+		labels.Night.Text = nightText .. "   " .. HUD.clockText(view.clock)
+		labels.Clock.Visible = false
+	else
+		labels.Night.Text = nightText
+		labels.Clock.Visible = true
+	end
 	labels.Clock.Text = HUD.clockText(view.clock)
 	labels.Quota.Text = string.format("Quota %d / %d", view.banked, view.quota)
 	local objective = HUD.objectiveText(view)
@@ -185,17 +207,37 @@ function HUD.init()
 	local objective = label(paper, "Objective", 4, f)
 	objective.Visible = false
 
-	local oilRow = label(paper, "Oil", 5, f)
+	-- One line: the "Oil" label, then the bar filling the rest of the row (a UIFlexItem in a
+	-- horizontal list). No text is ever drawn over the bar.
+	local oilLine = Instance.new("Frame")
+	oilLine.Name = "OilLine"
+	oilLine.LayoutOrder = 5
+	oilLine.BackgroundTransparency = 1
+	oilLine.Size = UDim2.new(1, 0, 0, Look.UI.hudTextSize + 4)
+	oilLine.Parent = paper
+	local lineList = Instance.new("UIListLayout")
+	lineList.FillDirection = Enum.FillDirection.Horizontal
+	lineList.VerticalAlignment = Enum.VerticalAlignment.Center
+	lineList.SortOrder = Enum.SortOrder.LayoutOrder
+	lineList.Padding = UDim.new(0, 6)
+	lineList.Parent = oilLine
+	local oilRow = label(oilLine, "Oil", 1, f)
 	oilRow.Text = "Oil"
-	-- The bar has its own row: no text is ever drawn over it.
+	oilRow.Size = UDim2.fromScale(0, 1)
+	oilRow.AutomaticSize = Enum.AutomaticSize.X
 	local bar = Instance.new("Frame")
 	bar.Name = "OilBar"
-	bar.LayoutOrder = 6
-	bar.Size = UDim2.new(1, 0, 0, HUD.OIL_BAR_HEIGHT)
+	bar.LayoutOrder = 2
+	bar.Size = UDim2.new(0.6, 0, 0, HUD.OIL_BAR_HEIGHT)
 	bar.BackgroundColor3 = Look.UI.ink
 	bar.BackgroundTransparency = 0.75
 	bar.BorderSizePixel = 0
-	bar.Parent = paper
+	bar.Parent = oilLine
+	pcall(function()
+		local flex = Instance.new("UIFlexItem")
+		flex.FlexMode = Enum.UIFlexMode.Fill
+		flex.Parent = bar
+	end)
 	oilBar = bar
 	local fill = Instance.new("Frame")
 	fill.Name = "Fill"
@@ -241,10 +283,36 @@ function HUD.init()
 		if p then
 			row.Position = UDim2.fromOffset(12, 12 + p.AbsoluteSize.Y + 6)
 		end
-		row.Visible = not (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled)
+		row.Visible = not Input.touch()
 	end
-	render(ViewState.get())
+
+	local function applySize()
+		local cam = workspace.CurrentCamera
+		compact = cam ~= nil and HUD.isCompact(cam.ViewportSize.Y)
+		local ts = if compact then HUD.COMPACT_TEXT else Look.UI.hudTextSize
+		paper.Size = UDim2.fromOffset(if compact then 150 else 180, 0)
+		for _, t in labels do
+			t.TextSize = ts
+			if t.Name ~= "Oil" then
+				t.Size = UDim2.new(1, 0, 0, ts + 4)
+			end
+		end
+		oilLine.Size = UDim2.new(1, 0, 0, ts + 4)
+		bar.Size = UDim2.new(0.6, 0, 0, if compact then 10 else HUD.OIL_BAR_HEIGHT)
+		pad.PaddingTop = UDim.new(0, if compact then 4 else 6)
+		pad.PaddingBottom = UDim.new(0, if compact then 4 else 6)
+		list.Padding = UDim.new(0, if compact then 1 else 2)
+		render(ViewState.get())
+	end
+	applySize()
+	local cam = workspace.CurrentCamera
+	if cam then
+		cam:GetPropertyChangedSignal("ViewportSize"):Connect(applySize)
+	end
 	layoutRow()
+	pcall(function()
+		UserInputService:GetPropertyChangedSignal("PreferredInput"):Connect(layoutRow)
+	end)
 	ViewState.onChange(function(v)
 		render(v)
 	end)

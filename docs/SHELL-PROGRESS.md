@@ -21,6 +21,21 @@ These live behind clearly marked seams in the shell. When the Core module lands,
 
 - Both items are done in Polish 3: fx/Finale uses `AudioDirector.muteAmbience` and `AudioDirector.hush` and never writes a SoundGroup; Core emits MotorChanged on a Hum fail and the client view follows it at once.
 
+## Phone layout pass (11/26/2026)
+
+Found in the Device Simulator on the Galaxy A06 (705 by 338, landscape): the left button columns covered the HUD oil bar and the move thumbstick, prompts used keyboard words, the title showed "Locker (K)" and the thumbstick.
+
+- `Input.touch()` is the one touch check (PreferredInput, else TouchEnabled without a keyboard); MobileButtons, Prompt, HUD and Title use it.
+- `Input.setBlocked` now also hides Roblox's touch controls (GuiService.TouchControlsEnabled plus ControlModule Disable/Enable, both pcall'd) while the title or a book is up, on touch only.
+- `ui/MobileButtons`: everything on the right half, bottom-left 40 percent by 45 percent kept for the thumbstick; gui uses ScreenInsets DeviceSafeInsets and lays out from its own AbsoluteSize.
+- `ui/Prompt`: touch wording ("Hold Cast, let go to throw", "Tap Use to bank the hold (3)", "Wait for the bite."); on touch the line sits right-aligned just above the button cluster, two lines of room, never wider than the right half.
+- `ui/HUD`: the oil label and bar share one line (UIFlexItem Fill); under 450 px tall the paper is 150 wide, 14 px type, night and clock on one line. Book/Guide row hides on touch.
+- `ui/Title`: "Locker" on touch (no K). `ui/Paper.bookPage`: Close is 44 px tall, body starts below it. `ui/Locker`: cards at least 44 px tall.
+
+Computed spots on 705 by 338 (centre x, centre y, size; gui frame, no device insets): Cast 558,284,84. Use 645,207,62. Knock 479,299,54. Light 449,205,54. Motor 513,205,54. Bail 577,205,54. Book 449,141,54. Guide 513,141,54. Call 577,141,54. Cluster spans x 422 to 676, y 114 to 326. Thumbstick zone x 0 to 282, y 186 to 338: empty. Jump area 610 to 680, 248 to 318: empty. Prompt (touch): right-aligned, x 352 to 693, bottom at y 108, 38 tall, 15 px type.
+
+Not in my files, still to fix: `Drowned.luau` uses the old touch check for its bell hint; `ui/CatchInspect.luau` shows "Keep  (E)" and "Throw back  (X)" on touch; `fx/Finale.luau` fails stylua --check (another builder is mid-edit).
+
 ## Polish 3 (11/26/2026)
 
 Neon's five finale fixes, the night card, the title screen, the rulebook, Hydrogen rows 2, 3, 4 and 6, and two small fixes. Calls and numbers: `docs/SHELL-DECISIONS.md`, "Polish 3". Gate green (selene and stylua clean, 205 specs, pacing sim, lints, rojo build, smoke 10 of 10). NOT yet played in Studio.

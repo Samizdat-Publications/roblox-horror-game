@@ -85,7 +85,8 @@ local function fill()
 	clear(f)
 	firstButton = nil
 	local s = ProfileClient.get()
-	local h = Paper.fit(54, 40, 62)
+	-- At least 44 px tall: a touch target on the smallest phone (705 by 338).
+	local h = Paper.fit(54, 44, 62)
 	local order = 0
 	for _, slot in s.slots do
 		order += 1
