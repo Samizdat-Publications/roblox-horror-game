@@ -12,6 +12,7 @@ local Look = require(Shared:WaitForChild("Look"))
 local client = script.Parent.Parent
 local ViewState = require(client:WaitForChild("ViewState"))
 local BoatClient = require(client:WaitForChild("BoatClient"))
+local Knocking = require(client:WaitForChild("fx"):WaitForChild("Knocking"))
 local Paper = require(script.Parent:WaitForChild("Paper"))
 
 local Prompt = {}
@@ -71,6 +72,17 @@ function Prompt.init()
 		local seated = BoatClient.mySeat() ~= nil
 		if pv == nil or not pv.alive or not seated or view.phase == "Cleared" or view.phase == "Failed" then
 			t.Text = ""
+			return
+		end
+		local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+		-- The rules' verbs come first: bail while the boat takes water, knock while it listens.
+		-- (The hint names the key, never the answer: how many knocks is the book's business.)
+		if (tonumber(view.flood) or 0) > 0.005 and pv.fishing ~= "Deciding" then
+			t.Text = if touch then "Hold Use  Bail" else "Hold E  Bail"
+			return
+		end
+		if Knocking.windowOpen() then
+			t.Text = if touch then "Tap Knock  Knock on the hull" else "Q  Knock on the hull"
 			return
 		end
 		t.Text = Prompt.textFor(

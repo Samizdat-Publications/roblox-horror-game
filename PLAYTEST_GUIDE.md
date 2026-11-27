@@ -18,6 +18,16 @@ Build the place and open it in Studio (the main session does this with `tools/st
 | Keep the fish, bank the hold at the dock, refill the lantern at the dock | E | A | Use button |
 | Throw the fish back, or reel the line in | X | B | (S4) |
 
+## Controls added in S3
+
+| Do | Keyboard and mouse | Gamepad | Touch |
+|---|---|---|---|
+| Knock on the hull | Q | L1 | Knock button |
+| Callout wheel (Wave is in it) | C, then click a phrase | D-pad up, then A | Call button |
+| Bail while there is water in the boat | Hold E | Hold A | Hold Use |
+| Ring the bell when drowned | Left click or Space | R2 | Bell button |
+| Turn the view when drowned | Drag with the right mouse button, or A and D | Left stick | Drag |
+
 ## What to try on night 1 (S2)
 
 1. Row out of the beacon light (fish do not bite in it) and stop. Cast.

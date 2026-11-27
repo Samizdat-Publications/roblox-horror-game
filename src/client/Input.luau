@@ -12,6 +12,11 @@
 -- Every helm message goes through Input.sendHelm, rate limited to Config.Net.boatHz.
 -- DebugBot drives the helm through Input.setOverride and sends its intents through
 -- Input.sendIntent, so it uses the same send paths as a player.
+--   Q or gamepad L1 (and a touch button): knock on the hull (the Knocking's answer).
+--   C or gamepad D-pad up (and a touch button): the callout wheel (ui/Callouts). Wave lives
+--   in the wheel.
+--   Hold E or gamepad A while there is water in the boat (and no fish to decide on): bail.
+--   While drowned, the cast button rings the ghost bell (Drowned sets the handler).
 -- The other touch buttons arrive with MobileButtons in S4.
 
 local Players = game:GetService("Players")
@@ -26,6 +31,7 @@ local Remotes = require(Shared:WaitForChild("Remotes"))
 
 local BoatClient = require(script.Parent:WaitForChild("BoatClient"))
 local ViewState = require(script.Parent:WaitForChild("ViewState"))
+local Knocking = require(script.Parent:WaitForChild("fx"):WaitForChild("Knocking"))
 
 local Input = {}
 
@@ -156,6 +162,59 @@ Input.CHARGE_SECONDS = 1 -- holding this long casts at full power
 local castDown = false
 local castDownAt = 0
 local reelHeld = false
+local bailHeld = false
+local ghostHandler: (() -> ())? = nil
+local calloutHandler: (() -> ())? = nil
+
+-- Drowned: what the cast button does while you are one of the drowned (ring the bell).
+function Input.setGhostHandler(fn: (() -> ())?)
+	ghostHandler = fn
+end
+
+-- Callouts: what the callout key does (open or close the wheel).
+function Input.setCalloutHandler(fn: (() -> ())?)
+	calloutHandler = fn
+end
+
+local function amDrowned(): boolean
+	local pv = ViewState.me()
+	return pv ~= nil and pv.alive == false
+end
+
+-- One knock on the hull. The server plays it for everyone; you feel it at once.
+function Input.knock()
+	if amDrowned() then
+		return
+	end
+	Input.sendIntent("Knock")
+	Knocking.answered()
+end
+
+function Input.toggleCallouts()
+	local fn = calloutHandler
+	if fn then
+		fn()
+	end
+end
+
+-- Hold to bail (true) and let go (false). Only while there is water in the boat.
+function Input.bail(down: boolean)
+	if down then
+		local flood = tonumber(ViewState.get().flood) or 0
+		if flood > 0.005 and not amDrowned() and not bailHeld then
+			bailHeld = true
+			Input.sendIntent("BailHold", nil, true)
+			return
+		end
+	elseif bailHeld then
+		bailHeld = false
+		Input.sendIntent("BailHold", nil, false)
+	end
+end
+
+function Input.bailing(): boolean
+	return bailHeld
+end
 
 local function myPhase(): string
 	local pv = ViewState.me()
@@ -164,6 +223,14 @@ end
 
 -- The cast and reel button went down (true) or up (false).
 function Input.castButton(down: boolean)
+	if amDrowned() then
+		local fn = ghostHandler
+		if down and fn then
+			fn()
+		end
+		castDown = false
+		return
+	end
 	local phase = myPhase()
 	if down then
 		castDown = true
@@ -267,10 +334,38 @@ function Input.init()
 			return Enum.ContextActionResult.Pass
 		end
 		if state == Enum.UserInputState.Begin then
-			Input.interact()
+			-- With water in the boat and no fish to decide on, E is bail (held).
+			local flood = tonumber(ViewState.get().flood) or 0
+			if flood > 0.005 and myPhase() ~= "Deciding" then
+				Input.bail(true)
+			else
+				Input.interact()
+			end
+		elseif state == Enum.UserInputState.End or state == Enum.UserInputState.Cancel then
+			Input.bail(false)
 		end
 		return Enum.ContextActionResult.Sink
 	end, true, high, Enum.KeyCode.E, Enum.KeyCode.ButtonA)
+	ContextActionService:BindActionAtPriority("DeadCalmKnock", function(_name, state: Enum.UserInputState)
+		if UserInputService:GetFocusedTextBox() then
+			return Enum.ContextActionResult.Pass
+		end
+		if state == Enum.UserInputState.Begin then
+			Input.knock()
+		end
+		return Enum.ContextActionResult.Sink
+	end, true, high, Enum.KeyCode.Q, Enum.KeyCode.ButtonL1)
+	ContextActionService:SetTitle("DeadCalmKnock", "Knock")
+	ContextActionService:BindActionAtPriority("DeadCalmCallouts", function(_name, state: Enum.UserInputState)
+		if UserInputService:GetFocusedTextBox() then
+			return Enum.ContextActionResult.Pass
+		end
+		if state == Enum.UserInputState.Begin then
+			Input.toggleCallouts()
+		end
+		return Enum.ContextActionResult.Sink
+	end, true, high, Enum.KeyCode.C, Enum.KeyCode.DPadUp)
+	ContextActionService:SetTitle("DeadCalmCallouts", "Call")
 	ContextActionService:SetTitle("DeadCalmUse", "Use")
 	ContextActionService:BindActionAtPriority("DeadCalmThrow", function(_name, state: Enum.UserInputState)
 		if UserInputService:GetFocusedTextBox() then
@@ -284,7 +379,8 @@ function Input.init()
 
 	RunService.Heartbeat:Connect(function()
 		-- Only the helm steers; the server would refuse anyone else anyway.
-		local atHelm = BoatClient.mySeat() == "HelmSeat"
+		-- The drowned stay in their seat (hidden) but never steer: their keys turn the view.
+		local atHelm = BoatClient.mySeat() == "HelmSeat" and not amDrowned()
 		if not atHelm and override == nil then
 			if lastThrottle ~= 0 or lastSteer ~= 0 then
 				Input.sendHelm(0, 0)

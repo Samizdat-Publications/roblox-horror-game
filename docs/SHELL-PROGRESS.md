@@ -1,6 +1,6 @@
 # Shell progress
 
-Last updated 11/26/2026 by a local builder (S2 written on the working tree of `main`, not committed; the main session commits). S1 is verified in Studio.
+Last updated 11/26/2026 by a local builder (S3 written on the working tree of `main`, not committed; the main session commits). S1 and S2 are verified in Studio.
 
 ## Needed from Core
 
@@ -16,7 +16,7 @@ These live behind clearly marked seams in the shell. When the Core module lands,
 
 - [x] S1 The lake you can row (code written, gate green, NOT yet played in Studio)
 - [x] S2 Fishing and the night (code written, gate green, NOT yet played in Studio)
-- [ ] S3 The rules on screen
+- [x] S3 The rules on screen (code written 11/26/2026, selene and stylua clean on shell files, rojo build and smoke pass; NOT yet played in Studio)
 - [ ] S4 Front and back of a run
 - [ ] S5 Saves and Endless
 - [ ] S6 Docs
@@ -56,6 +56,73 @@ Client (`src/client`):
 - `DebugBot`: commands `hello`, `intent` and `autoreel` (Studio-only auto-reel: sets the hook on a bite and keeps the predicted tension in the middle of the band with ReelHold intents through `Input.sendIntent`, under its own 5 per second token bucket).
 
 Offline check (a scratchpad Lune sim of Core.Night with the quiet params and the same reel law, 0.1 s view lag, 5 intents a second): 20 of 20 seeds cleared night 1 (quota 7 for one player), no fish lost.
+
+## S3: what exists
+
+Server (`src/server`):
+- `EntityPresenter.luau`: what every player must see the same way. On `PlayerDied` the taken player's character is hidden (no body), their hat (a clone of a Hat accessory's handle, or a stand-in cloth cap) floats beside their seat for 7 s and sinks over 5 s, and their seat's rod is hidden while a copy clatters onto the floorboards (`rod-clatter`, id 0). On a Neighbor `EntityFail` with `effects.silhouette`, a black seated figure sits in the taken player's seat for 25 s. Every Knock intent plays `knock-answer` on the hull as a server Sound (Core sends no event for a knock). Each night start puts everything back: characters shown, rods back, props gone, anyone out of the boat seated again. It sets `Net.isDrowned` so a drowned helm player never steers.
+- `NightService`: `onStart(fn)`, `onIntents(fn)`, `debugEmit(events)` (Studio fake-outs), and `StartOpts.rulesPatch` (Studio only: patch `Config.Rules.<Rule>` fields in a copy of Config for one night).
+- `Net`: `Net.isDrowned` refuses BoatInput from the drowned.
+- `DebugRules.luau`: the S3 scenarios, registered into DebugDriver (`DebugDriver.register`, `DebugDriver.helpers`). `botIntent` now carries `text`.
+- `Main.server`: `EntityPresenter.init()`.
+
+Client (`src/client`):
+- `RulesFx.luau`: routes `EntityCue`, `EntityStage`, `EntityMoved`, `EntityPass`, `EntityFail` by `entity` to `fx/<Rule>`, `Fakeout` to `fx/Fakeouts`, and `BoatRocked`, `Flooding` and `Sunk` to BoatFx; resets every rule on `NightStarted`.
+- `BoatFx.luau`: floorboard buzz (five local slats over the hull floor, jittered), the lantern shiver and the fake-out flicker (WorldFx multiplies the lantern brightness by `BoatFx.lanternFactor()`), camera shake (`BindToRenderStep` at Camera + 2), water in the boat from `view.flood`, `flood-in-loop` while leaking, and a thrown scoop of water plus `bail-scoop` every 1.1 s per bailing crewmate.
+- `fx/Common.luau` (local parts, Vec2 to world, ground height by raycast against the Ground and Bank folders, silhouette figures from parts, fades, and the drowned's sight: `outline` adds a Highlight, `ghostOnly` parts are invisible to the living), `fx/Hum.luau`, `fx/WrongCatch.luau`, `fx/Neighbor.luau`, `fx/Knocking.luau`, `fx/Watcher.luau` (the figure, the stare tone and the vignette), `fx/Finale.luau` (STUB: plays `bell-dock-solo` on the cue), `fx/Fakeouts.luau` (all eight ids).
+- `Drowned.luau`: a dim light for every dead crewmate near the boat (every client, from the view). For the local drowned player, after the card: an orbit camera over the boat, `ghost-loop`, outlines on, the cast button rings `GhostBell` (client cooldown `Config.Ghost.bellCooldown`; the server checks again), a tag says when the bell is ready. A `GhostBell` event rings `ghost-bell` at that ghost's light and makes it flare.
+- `ui/DeathCard.luau` and `ui/DeathTexts.luau`: fade to black with `death-drag` (or `boat-sink` for the Knocking), then `death-sting` and a paper card with the line and "Rule N."; it goes after 7 s or on a click, tap or key; `DeathCard.hold` keeps it up. `DragWarning` plays `water-pull-warning` and a dark pulse.
+- `ui/Callouts.luau`: the wheel of `Config.Callouts` (C, D-pad up, the Call touch button; gamepad selection starts on the first phrase). Wave also sends the Wave intent. A speech tag over the speaker's head with `callout-blip`, and a feed line at the bottom left. Fake callouts look exactly the same. A crewmate's death adds "<name> is gone." to the feed.
+- `Input`: Q or L1 (touch Knock) knocks; C or D-pad up (touch Call) opens the wheel; hold E or A to bail while there is water in the boat; the cast button rings the bell while drowned; the drowned never send helm input.
+- `ui/Prompt`: "Hold E  Bail" while flooding, "Q  Knock on the hull" during a Knocking window (never the count).
+- `ui/NightCards`: the end card waits for the death card; tally lines say "twice", "three times".
+- `DebugBot`: commands `knock`, `bail`, `callout`, `look` (turns the real camera toward a point every frame, so the server's gaze follows), `cardhold`; `intent` carries `text`.
+- `AudioDirector`: `loop(name, part?, volume?)` and `baseVolume(name)`.
+
+Shared: `SoundRegistry` gained `rod-clatter` (id 0). No ids changed.
+
+## How to verify S3 in Studio (server side, during Play)
+
+```lua
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("hum_pass")
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("hum_fail")
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("wrongcatch_pass")
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("wrongcatch_fail")
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("neighbor_pass")
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("neighbor_fail")
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("knocking_pass")
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("knocking_fail")
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("watcher_pass")
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("watcher_fail")
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("fakeouts")
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("death_card")
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("neighbor_pass", { form = "FalseBeacon" })
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("knocking_fail", { sink = true })
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("hum_pass", { async = true })
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("status")
+```
+
+Each scenario starts a seeded quiet night with auto advance off, forces its rule and prints `SCENARIO DONE <name> <result>`: `pass` or `fail` (the rule's outcome), `died` for death_card, `played-8` for fakeouts, `timeout` or `error:...` when something is wrong. Expected: every `_pass` prints `pass`, every `_fail` prints `fail`. Longest: neighbor_pass and watcher_pass about 45 s, knocking_fail about 35 s (plus about 45 s with `sink = true`); the rest 10 to 30 s. Use `async = true` and `status` if an MCP call times out.
+
+Seats and views: every scenario stays in the first-person helm view. The bot turns its head toward the Neighbor (neighbor_*) and the Watcher (watcher_*; about 0.8 rad off it for the edge of sight in watcher_pass). wrongcatch_fail switches to the `dock` camera shot while the cooler knocks, then resets. watcher_* move the boat to open water off the west shore (-470, -150). wrongcatch_fail shortens the knock delay to 8 to 10 s with `rulesPatch`; neighbor_pass with the false beacon shortens its burn to 20 s.
+
+## Studio must check (S3)
+
+1. Output on Play: still only the two `[DeadCalm] ... up` lines. No errors from EntityPresenter, RulesFx, fx/*, Drowned, DeathCard or Callouts. Every scenario prints its `SCENARIO DONE` line with the expected result.
+2. hum_pass: the chorus and fireflies stop at once; after the beat of silence `hum-rise` then `hum-hold-loop`; the lantern flame shivers fast and the floorboard slats visibly buzz; the camera trembles slightly. On the pass the hum sinks, `hum-pass`, buzz and shiver settle, `frog-first-back`. Check the five floor slats sit on the hull floor at rest (not floating, not hidden under it).
+3. hum_fail: `hum-fail`, a hard shake, then the death card "The motor was running while the frogs were quiet." with "Rule 1.", the hat floating beside the helm and sinking, the helm rod lying in the boat. After the card: orbit camera over the boat, the dim light near the boat, the outlined shape under the hull (only the drowned see it), the bell tag; Space or a click rings the bell and the light flares. The night failed card comes after the death card, not over it.
+4. wrongcatch_pass and wrongcatch_fail: the wrong tell on the held fish; throwing it back gives no cooler events. Kept and banked: from the dock shot, three knocks with the cooler jumping on the dock each time, then the thump; the banked total drops by the eaten points. The jump moves the server's cooler part locally; if it looks wrong, lower the lift in `fx/WrongCatch`.
+5. neighbor_pass: the oarlock creak far off (id 0 now, silent), then a dark rowboat with its own warm lantern appears in the fog where the bot looks, a tall seated figure in it with one arm up, waving slowly (one wave per 3.6 s). It drifts smoothly (no stepping every 0.5 s) and always faces the boat. One or two fake callouts appear over the bot's head and in the feed, exactly like real ones. With the lantern out it drifts off and fades. With `form = "FalseBeacon"`: a steady light on a pole, never blinking, out after 20 s. Check the waving arm turns from the shoulder; if it swings the wrong way, flip the sign of `math.rad(150)` in `Neighbor.step`.
+6. neighbor_fail: the bot's "(waves)" tag, then `neighbor-fail`, the other boat is gone, the lantern goes out, the death card "You waved back." "Rule 3.", and a black seated silhouette in the helm seat, visible from the orbit camera for 25 s.
+7. knocking_pass: three knocks shake the boat three times; the hint "Q  Knock on the hull" shows during the window; the two answers are heard on the hull (`knock-answer`, a server Sound); pass.
+8. knocking_fail: the harder second round (bigger jolts), then water appears in the boat and rises; the hint switches to "Hold E  Bail"; while the bot bails, scoops of water fly over the side and the level falls. Check the water plane stays inside the hull and reads as water at night.
+9. watcher_pass: a figure about 13 studs tall and very narrow stands in the trees on the west shore with two pale pin eyes, feet on the ground (not on a canopy, not floating). While the bot glances straight at it the screen edges darken and the tone rises (id 0 now); at the edge of sight both clear and it holds; after about 40 s it is simply gone (removed once off screen, or after 6 s).
+10. watcher_fail: staring deepens the vignette fully; it lunges two steps at a time toward the water; at the waterline the lanterns die, then the death card "You let the thing on the shore reach the water." "Rule 5.".
+11. fakeouts (the bot faces the bow): loon and branch from the shore, a dark fish arcing out of the water by the gunwale with two ripples, one jolt for the single knock, the buoy clank, the lantern nearly going out for 0.6 s, a warm light low on the shore that drifts apart into fireflies after 4 s. Most fake sounds are id 0 now (silent); the visuals must still show. ChorusDip shows nothing in this scenario (Night owns that timer).
+12. death_card: the bot goes over the side; `water-pull-warning` and a dark pulse at 2 s, then the fade to black and "You got out of the boat. The water is not yours at night." "Rule 0." stays up. `night_start` clears it, shows the character again and seats the player.
+13. Callouts by hand: C opens the wheel, a click says the phrase (your own tag is inside your head in first person; the feed shows "You: ..."), Escape or C closes it; with a gamepad, D-pad up opens it with the first phrase selected. On a phone (Device Simulator) the Knock and Call buttons appear beside Cast and Use.
+14. Two players (Studio Test, 2 clients): the speech tag shows over the other player's head; the drowned player's light is visible to the living one; both hear the knocks; both see the hat and the rod.
+15. Highlights: the outlines show through fog and water for the drowned only, and are gone at the next night.
 
 ## How to verify S2 in Studio (server side, during Play)
 
@@ -137,8 +204,10 @@ return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invo
 - Late joiners are not in the crew until the next night; a player who leaves mid-night stays "alive" in Core.Night (Night fills missing players with seated defaults), so the night cannot fail by CrewLost while they are gone. S4 LobbyService should own crew changes.
 - `bookOpen` is always false (no remote carries it yet; S4 decides how the rulebook and Field Guide report it).
 - Event `data` tables with sparse numeric keys (for example keyed by UserId) would not survive a RemoteEvent; S3 rule events should use arrays or string keys.
+- S3: `luau-lsp analyze` not run (no Roblox definitions file); the new client code is checked by selene, StyLua and rojo only. Most rule sounds are still id 0 and skipped; the visual tells carry the scenarios until ids land.
+- S3: the ghost bell cooldown shown on screen comes from the client clock; the server (Core.Ghost) is the judge.
 - Bobbers are animated on the server at the tick rate (10 Hz), so they may look a little stepped on clients.
 
 ## How to resume
 
-Read this file and `docs/SHELL-DECISIONS.md`, run the gate, then `lune run tools/shell/world_count.luau`. Next chunk: S3 (after the Studio checks for S2).
+Read this file and `docs/SHELL-DECISIONS.md`, run the gate, then `lune run tools/shell/world_count.luau`. Next: the Studio checks for S3, then S4 (with the Finale's presentation: `fx/Finale.luau` is a stub).

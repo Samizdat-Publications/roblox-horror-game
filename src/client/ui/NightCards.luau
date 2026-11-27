@@ -8,6 +8,7 @@ local Players = game:GetService("Players")
 local client = script.Parent.Parent
 local Events = require(client:WaitForChild("Events"))
 local Paper = require(script.Parent:WaitForChild("Paper"))
+local DeathCard = require(script.Parent:WaitForChild("DeathCard"))
 
 local NightCards = {}
 
@@ -23,8 +24,18 @@ local endBody: TextLabel? = nil
 local nightNumber = 1
 local titleToken = 0
 
+local TIMES = { [2] = "twice", [3] = "three times", [4] = "four times", [5] = "five times" }
+
+-- "once", "twice", "three times", then "%d times".
 local function plural(n: number, one: string, many: string): string
-	return if n == 1 then one else string.format(many, n)
+	if n == 1 then
+		return one
+	end
+	local word = TIMES[n]
+	if word and string.find(many, "%d times", 1, true) then
+		return (string.gsub(many, "%%d times", word))
+	end
+	return string.format(many, n)
 end
 
 -- Dry lines about one player's night. Empty list for a quiet night.
@@ -138,13 +149,27 @@ function NightCards.init()
 			end
 		end)
 	end)
+	-- The death card goes first: the end card waits for it (at most 15 s).
+	local function afterDeathCard(fn: () -> ())
+		task.spawn(function()
+			local t0 = os.clock()
+			while DeathCard.showing() and os.clock() - t0 < 15 do
+				task.wait(0.25)
+			end
+			fn()
+		end)
+	end
 	Events.on("NightCleared", function(ev)
 		local data = ev.data or {}
-		showEnd(true, nil, data.result)
+		afterDeathCard(function()
+			showEnd(true, nil, data.result)
+		end)
 	end)
 	Events.on("NightFailed", function(ev)
 		local data = ev.data or {}
-		showEnd(false, if type(data.reason) == "string" then data.reason else nil, data.result)
+		afterDeathCard(function()
+			showEnd(false, if type(data.reason) == "string" then data.reason else nil, data.result)
+		end)
 	end)
 end
 

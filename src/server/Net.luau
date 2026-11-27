@@ -148,8 +148,19 @@ end
 -- Handlers are public so DebugDriver can drive the exact path a client message takes.
 Net.handlers = {}
 
+-- EntityPresenter sets this: true for a player the lake has taken tonight. The drowned keep
+-- their seat (hidden) but never steer.
+Net.isDrowned = function(_userId: number): boolean
+	return false
+end
+
 function Net.handlers.BoatInput(player: Player, throttle: any, steer: any): boolean
-	if not allow(player, "BoatInput") or not inRange(throttle, -1, 1) or not inRange(steer, -1, 1) then
+	if
+		not allow(player, "BoatInput")
+		or not inRange(throttle, -1, 1)
+		or not inRange(steer, -1, 1)
+		or Net.isDrowned(player.UserId)
+	then
 		count(Net.stats.rejected, "BoatInput")
 		return false
 	end

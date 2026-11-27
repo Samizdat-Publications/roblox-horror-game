@@ -55,3 +55,22 @@ One line each: date, call, why. All reversible.
 
 - 11/26/2026: The held fish is posed from a frame measured off its own parts (Body center to the Mouth for the head, the back fins for up, the body axes only as a fallback), not from the model's pivot, then set side-on to the camera: head right, tail left, back up, about 3 studs out at 29 percent across and 44 percent down the screen. It is scaled (Model:ScaleTo) to fill a third of the screen height, capped at 46 percent of the width so it stays clear of the Field Guide card, and sways only slightly (yaw 0.12 rad, roll 0.05 rad).
 - 11/26/2026: When a fish is landed the server removes that player's bobber and its line, including any stray `Bobber_<id>` left in the fishing folder, and any older fish still on the line; the next cast builds a fresh bobber and line. While the copy is held up, the client also turns off the original fish's lights (a glowing fish's pale green light) along with hiding its parts and its line.
+
+## S3 (11/26/2026)
+
+- 11/26/2026: Presentation every player must share lives on the server (EntityPresenter: hidden characters, the floating hat, the dropped rod, the Neighbor's silhouette in the boat, knocks on the hull); anything an `only` cue may show to one player is built on the client from events (fx/*), so `only` is respected for free.
+- 11/26/2026: The drowned stay in their seat with the character hidden (all parts and decals transparent) instead of being unseated, so camera and physics need nothing new; the server refuses their helm input (`Net.isDrowned`) and the client stops sending it.
+- 11/26/2026: Knocks have no Core event, so the server plays `knock-answer` as a server Sound on the hull for every Knock intent (everyone hears it), and the knocker's client adds a small jolt at once.
+- 11/26/2026: The drowned's lights are built on every client from the view (players[].alive), not on the server, so they move smoothly with the boat.
+- 11/26/2026: The floorboard buzz uses five local slat parts laid over the hull floor and moved with the hull every frame, rather than moving the server's welded boat parts on the client.
+- 11/26/2026: The Watcher's stare (tone and vignette) is judged on the client from the camera's look and Config.Rules.Watcher.stareCone, matching what the server judges from the reported gaze.
+- 11/26/2026: On a pass the Watcher is simply not there: it is removed the moment it is off screen, or after 6 s.
+- 11/26/2026: The vignette is four black edge bands with UIGradient transparency, no image asset (no invented ids).
+- 11/26/2026: Death card texts live in the client (`ui/DeathTexts`) as the brief asks, in the owner's voice; they match Core.Rulebook's lines in meaning, with the rule number on its own line.
+- 11/26/2026: The end-of-night card waits until the death card is gone (at most 15 s), so the last death reads first.
+- 11/26/2026: Wave in the callout wheel sends both the Callout (a "(waves)" tag) and the Wave intent; there is no separate wave button.
+- 11/26/2026: Callouts also go to a short feed at the bottom left: a tag over a head behind you is easy to miss, and your own tag is inside your head in first person.
+- 11/26/2026: Bail is "hold E" while there is water in the boat (and no fish to decide on); knock is Q, L1 or a touch button; callouts are C, D-pad up or a touch button.
+- 11/26/2026: Studio scenarios get Fakeout events built with Core.Fakeouts.event and sent through `NightService.debugEmit`; ChorusDip's chorus timer stays Night's, so it shows nothing in that scenario.
+- 11/26/2026: wrongcatch_fail shortens the cooler's knock delay to 8 to 10 s with a Studio-only `rulesPatch` on a copy of Config, to stay under a minute; Config.luau is untouched.
+- 11/26/2026: Added registry entry `rod-clatter` (id 0) for the rod dropping into the boat.

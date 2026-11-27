@@ -632,6 +632,16 @@ local sounds: { [string]: SoundEntry } = {
 	["ui-envelope"] = { id = 0, volume = 0.5, looped = false, spatial = false, group = "UI" },
 	["ui-tick"] = { id = 0, volume = 0.5, looped = false, spatial = false, group = "UI" },
 	["callout-blip"] = { id = 0, volume = 0.5, looped = false, spatial = true, group = "UI", minDist = 4, maxDist = 90 },
+	-- Added by shell S3 (not in audio/sounds.json yet): a rod dropped on the floorboards when its owner is taken.
+	["rod-clatter"] = {
+		id = 0,
+		volume = 0.6,
+		looped = false,
+		spatial = true,
+		group = "Rule",
+		minDist = 4,
+		maxDist = 90,
+	},
 }
 
 -- audio/tapes.json (the owner's voice)

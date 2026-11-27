@@ -37,6 +37,9 @@ export type StartOpts = {
 	seconds: number?, -- override Config.Night.realSeconds for this night
 	quota: number?, -- override the scaled quota
 	keepBoat: boolean?, -- do not move the boat back to the dock
+	-- Studio scenarios only: patch fields of Config.Rules.<RuleId> in a copy of Config for
+	-- this night (for example a shorter Wrong Catch knock delay). Config itself is untouched.
+	rulesPatch: { [string]: { [string]: any } }?,
 }
 
 local NightService = {}
@@ -58,6 +61,8 @@ local now = 0
 local nightNumber = 1
 local endedAt: number? = nil
 local listeners: { (Event) -> () } = {}
+local startListeners: { (NightParams) -> () } = {}
+local intentListeners: { ({ any }) -> () } = {}
 local log: { { seq: number, t: number, e: Event } } = {}
 local seq = 0
 local startOpts: StartOpts = {}
@@ -322,6 +327,11 @@ local function stepOnce(dt: number)
 		return
 	end
 	local intents = Net.drainIntents()
+	if #intents > 0 then
+		for _, fn in intentListeners do
+			task.spawn(fn, intents)
+		end
+	end
 	local events = Night.step(s, observe(dt, intents)) :: { Event }
 	local v = Night.view(s) :: NightView
 	syncWorld(v)
@@ -380,10 +390,25 @@ function NightService.start(o: StartOpts?): NightParams?
 	local night = math.clamp(math.floor(opts.night or nightNumber), 1, #Config.Nights)
 	local seed = opts.seed or Random.new():NextInteger(1, 2 ^ 30)
 	local c: any = Config
-	if opts.seconds then
+	if opts.seconds or opts.rulesPatch then
 		c = table.clone(Config)
+	end
+	if opts.seconds then
 		c.Night = table.clone(Config.Night)
 		c.Night.realSeconds = math.max(10, opts.seconds)
+	end
+	if opts.rulesPatch then
+		c.Rules = table.clone(Config.Rules)
+		for id, patch in opts.rulesPatch do
+			local base = (Config.Rules :: any)[id]
+			if type(base) == "table" and type(patch) == "table" then
+				local rule = table.clone(base)
+				for k, v in patch do
+					rule[k] = v
+				end
+				c.Rules[id] = rule
+			end
+		end
 	end
 	cfg = c
 	local p = buildParams(night, seed, ids, opts, c)
@@ -403,6 +428,9 @@ function NightService.start(o: StartOpts?): NightParams?
 	local v = Night.view(state) :: NightView
 	syncWorld(v)
 	replicate(v, true)
+	for _, fn in startListeners do
+		task.spawn(fn, p)
+	end
 	return p
 end
 
@@ -469,6 +497,23 @@ function NightService.eventsSince(since: number): ({ Event }, number)
 		end
 	end
 	return out, seq
+end
+
+-- Called with the NightParams each time a night starts (EntityPresenter resets the world).
+function NightService.onStart(fn: (NightParams) -> ())
+	table.insert(startListeners, fn)
+end
+
+-- Called with each tick's validated intents before Night.step sees them (EntityPresenter
+-- plays the knocks on the hull for everyone).
+function NightService.onIntents(fn: ({ any }) -> ())
+	table.insert(intentListeners, fn)
+end
+
+-- Studio scenarios only: send events that Core did not make (DebugDriver "fakeouts" plays
+-- each fake-out in turn). They go through the same dispatch as Night's own events.
+function NightService.debugEmit(events: { Event })
+	dispatch(events)
 end
 
 function NightService.seq(): number

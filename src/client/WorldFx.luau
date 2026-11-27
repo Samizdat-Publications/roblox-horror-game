@@ -10,6 +10,7 @@ local Workspace = game:GetService("Workspace")
 local Look = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Look"))
 
 local BoatClient = require(script.Parent:WaitForChild("BoatClient"))
+local BoatFx = require(script.Parent:WaitForChild("BoatFx"))
 
 local WorldFx = {}
 
@@ -35,7 +36,10 @@ function WorldFx.init()
 		if light and light:IsA("PointLight") and light.Enabled then
 			local n = math.noise(now * Look.Lantern.flickerSpeed, 0.37) -- about -0.5..0.5
 			local k = Look.Lantern.flickerLow + (1 - Look.Lantern.flickerLow) * (0.5 + n)
-			light.Brightness = Look.Lantern.Brightness * math.clamp(k, Look.Lantern.flickerLow, 1)
+			-- BoatFx: the Hum makes the flame shiver; the fake-out nearly puts it out.
+			light.Brightness = Look.Lantern.Brightness
+				* math.clamp(k, Look.Lantern.flickerLow, 1)
+				* BoatFx.lanternFactor()
 		end
 
 		local lamp = BoatClient.find("Dock", "BeaconLamp")

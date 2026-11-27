@@ -316,6 +316,27 @@ function AudioDirector.play(name: string, at: (BasePart | Vector3)?, opts: PlayO
 	return s
 end
 
+-- A looping sound by registry name on a part (spatial entries) or in 2D. Nil for id 0.
+-- The caller stops and destroys it (fx modules do it on pass, fail and reset).
+function AudioDirector.loop(name: string, at: BasePart?, volume: number?): Sound?
+	local s = makeSound(name, at)
+	if s == nil then
+		return nil
+	end
+	s.Looped = true
+	if volume then
+		s.Volume *= volume
+	end
+	s:Play()
+	return s
+end
+
+-- The registry volume for a name (fx modules fade loops relative to it).
+function AudioDirector.baseVolume(name: string): number
+	local e = SoundRegistry.get(name)
+	return if e then e.volume or 0.5 else 0.5
+end
+
 ----------------------------------------------------------------------------------------
 -- The frog chorus from pieces
 

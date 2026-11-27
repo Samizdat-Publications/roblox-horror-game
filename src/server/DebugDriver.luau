@@ -40,6 +40,9 @@ Scenarios (name, opts):
     "force_rule"      opts.rule (RuleId), opts.variant, opts.teaching, opts.only, opts.form.
                       Calls Night.debugForce and returns the event kinds it caused.
     "status"          The last async run (quiet_night) with its progress or result.
+
+S3 scenarios (the rules on screen) are in DebugRules.luau: <rule>_pass and <rule>_fail for
+Hum, WrongCatch, Neighbor, Knocking and Watcher, "fakeouts" and "death_card".
 ]]
 
 local Players = game:GetService("Players")
@@ -363,14 +366,14 @@ local function myView(id: number): (any, any)
 	return nil, v
 end
 
-local function botIntent(bot: Bot, kind: string, num: number?, flag: boolean?)
+local function botIntent(bot: Bot, kind: string, num: number?, flag: boolean?, text: string?)
 	if bot.via == "client" then
 		local remote = botRemote()
 		if remote then
-			remote:FireClient(bot.player, { cmd = "intent", kind = kind, num = num, flag = flag })
+			remote:FireClient(bot.player, { cmd = "intent", kind = kind, num = num, flag = flag, text = text })
 		end
 	else
-		Net.handlers.Intent(bot.player, kind, num, flag, nil)
+		Net.handlers.Intent(bot.player, kind, num, flag, text)
 	end
 end
 
@@ -744,6 +747,29 @@ scenarios.force_rule = function(opts: Opts)
 	return { rule = rule, events = kinds }
 end
 
+-- S3: the rules' scenarios live in DebugRules and register here with these helpers.
+function DebugDriver.register(name: string, fn: (opts: Opts) -> ...any)
+	scenarios[name] = fn
+end
+
+DebugDriver.helpers = {
+	makeBot = makeBot,
+	botIntent = botIntent,
+	botRemote = botRemote,
+	waitAck = waitAck,
+	fishOne = fishOne,
+	driveTo = driveTo,
+	goHome = goHome,
+	fishingSpot = fishingSpot,
+	myView = myView,
+	kinSpeed = kinSpeed,
+	clearAck = function(name: string)
+		botAcks[name] = nil
+	end,
+	runs = runs,
+	round = round,
+}
+
 function DebugDriver.active(): boolean
 	return RunService:IsStudio()
 end
@@ -763,6 +789,7 @@ function DebugDriver.init()
 			}
 		end)
 	end
+	require(script.Parent:WaitForChild("DebugRules")).register(DebugDriver)
 	local bot = Net.debugRemote("DebugBot")
 	if bot then
 		bot.OnServerEvent:Connect(function(player: Player, msg: any)

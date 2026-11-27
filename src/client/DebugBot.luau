@@ -12,10 +12,19 @@
 --                                        holds the tension inside the band by sending the
 --                                        same ReelHold intents the reel button sends (MCP
 --                                        input is too slow for timed reeling)
+--   { cmd = "knock" }                    one knock through Input.knock (the Q key's path)
+--   { cmd = "bail", on }                 hold or let go of bailing through Input.bail
+--   { cmd = "callout", phrase }          says a phrase through Callouts.choose (the wheel's
+--                                        path; "Wave" also sends the Wave intent)
+--   { cmd = "look", x, z, offset }       turns the camera to face (x, z) plus `offset`
+--                                        radians of yaw, every frame, so the gaze the server
+--                                        gets follows; { cmd = "look" } with no x lets go
+--   { cmd = "cardhold", on }             keeps the death card up (DeathCard.hold)
 -- Each command is answered with { ack = cmd, seat = <seat name or nil> }.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
@@ -24,6 +33,9 @@ local Remotes = require(Shared:WaitForChild("Remotes"))
 local BoatClient = require(script.Parent:WaitForChild("BoatClient"))
 local Input = require(script.Parent:WaitForChild("Input"))
 local ViewState = require(script.Parent:WaitForChild("ViewState"))
+local ui = script.Parent:WaitForChild("ui")
+local Callouts = require(ui:WaitForChild("Callouts"))
+local DeathCard = require(ui:WaitForChild("DeathCard"))
 
 local DebugBot = {}
 
@@ -86,6 +98,20 @@ local function reelStep()
 	end
 end
 
+-- Where the bot looks (scenarios that need the gaze: the Neighbor, the Watcher).
+local lookAt: { x: number, z: number, offset: number }? = nil
+
+local function lookStep()
+	local la = lookAt
+	local cam = Workspace.CurrentCamera
+	if la == nil or cam == nil or cam.CameraType == Enum.CameraType.Scriptable then
+		return
+	end
+	local pos = cam.CFrame.Position
+	local yaw = math.atan2(la.x - pos.X, la.z - pos.Z) + la.offset
+	cam.CFrame = CFrame.lookAt(pos, pos + Vector3.new(math.sin(yaw), -0.06, math.cos(yaw)))
+end
+
 -- Throttle and steer toward (tx, tz). Same law as DebugDriver's server autopilot.
 function DebugBot.steerToward(tx: number, tz: number, arrive: number): (number, number)
 	local pos, heading = BoatClient.pose()
@@ -118,6 +144,8 @@ function DebugBot.init()
 		end
 	end)
 	RunService.Heartbeat:Connect(reelStep)
+	-- After the camera scripts (Enum.RenderPriority.Camera is 200), so this frame shows it.
+	RunService:BindToRenderStep("DeadCalmBotLook", Enum.RenderPriority.Camera.Value + 1, lookStep)
 	task.spawn(function()
 		local folder = ReplicatedStorage:WaitForChild(Remotes.DEBUG_FOLDER, 10)
 		local remote = folder and folder:FindFirstChild("DebugBot")
@@ -140,7 +168,26 @@ function DebugBot.init()
 			elseif msg.cmd == "intent" and type(msg.kind) == "string" then
 				local num = if type(msg.num) == "number" then msg.num else nil
 				local flag = if type(msg.flag) == "boolean" then msg.flag else nil
-				Input.sendIntent(msg.kind, num, flag)
+				local text = if type(msg.text) == "string" then msg.text else nil
+				Input.sendIntent(msg.kind, num, flag, text)
+			elseif msg.cmd == "knock" then
+				Input.knock()
+			elseif msg.cmd == "bail" then
+				Input.bail(msg.on == true)
+			elseif msg.cmd == "callout" and type(msg.phrase) == "string" then
+				Callouts.choose(msg.phrase)
+			elseif msg.cmd == "look" then
+				if type(msg.x) == "number" and type(msg.z) == "number" then
+					lookAt = {
+						x = msg.x,
+						z = msg.z,
+						offset = if type(msg.offset) == "number" then msg.offset else 0,
+					}
+				else
+					lookAt = nil
+				end
+			elseif msg.cmd == "cardhold" then
+				DeathCard.hold = msg.on == true
 			elseif msg.cmd == "autoreel" then
 				reel.on = msg.on == true
 				if not reel.on and reel.held then

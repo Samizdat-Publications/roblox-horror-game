@@ -15,6 +15,7 @@ local BoatService = require(server:WaitForChild("BoatService"))
 local Net = require(server:WaitForChild("Net"))
 local FishingService = require(server:WaitForChild("FishingService"))
 local NightService = require(server:WaitForChild("NightService"))
+local EntityPresenter = require(server:WaitForChild("EntityPresenter"))
 
 local startupWarnings: { string } = {}
 
@@ -25,6 +26,7 @@ end
 Net.init()
 BoatService.init(WorldBuilder.context())
 FishingService.init()
+EntityPresenter.init()
 
 -- Seat a fresh character in the first free seat. Seat:Sit can miss while the character is
 -- still loading, so retry a few times and say so loudly if it never works.
