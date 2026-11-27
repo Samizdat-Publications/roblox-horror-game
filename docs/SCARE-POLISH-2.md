@@ -1,0 +1,11 @@
+# Scare polish pass 2 (queued 11/26/2026)
+
+From Neon's second Hum fail review (`docs/critic/11-26-2026-scare-hum-fail-v2-neon.md`, 4.5/10, up from 3.5) and the main session's own Studio checks. Do these after the derived-sounds work lands (same files).
+
+1. **Capsize lasts about 1.2 s and reads in the dark.** Violent roll and heave, a white foam burst (a short ParticleEmitter or a few Neon flecks), loose gear and the bucket flung over the gunwale as visible parts, then the camera plunges underwater with bubbles and the drag sound. Right now it is a half-second snap in near darkness.
+2. **The motor must be heard.** When the HUD says "Motor: on", the outboard putters clearly (check `AudioDirector.debugState().motorIdle`: loaded, playing, parent, volume) and the stern vibrates a little. Neon could not hear it in two clips.
+3. **A hum you can hear on a phone.** Add a mid-range layer (hull resonance, roughly 150 to 400 Hz: a derived sound from hum-hold-loop pitched up an octave and band-passed, or hull-creak slowed) over the sub-bass, plus a subtle camera rattle and expanding rings on the water around the hull during the build.
+4. **Silence to hum in about 1.5 s,** not 4 to 5. Check where the gap comes from (Config.Rules.Hum.silence is 2.5; the client may add its own delay) and tighten it. Core change if needed: Config only, with a note in CLOUD-DECISIONS.
+5. **Death card for phones.** About 70 percent of the screen width, thicker and higher-contrast text, held 5 s or until tapped. Mute any ambience (the stray frog) while the card is up.
+6. **Clean state after death.** Hide the cast prompt on impact; reset "Motor: on" after death; while the player is drowned, show the boat still rocking for a few seconds; add a small label "You" over the drowned player's own ghost light so it is not a mystery orb.
+7. **The Neighbor never appears dead ahead** (fixed in Core 11/26/2026: spawns at least 30 degrees off the bow). Re-record neighbor_pass and neighbor_fail and check the figure reads at the moment of the fail.

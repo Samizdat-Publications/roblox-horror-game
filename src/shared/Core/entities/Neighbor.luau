@@ -67,14 +67,25 @@ local function onWater(cfg: any, p: Vec2): boolean
 end
 
 -- A spot `d` from the boat on open water (for the false beacon never within 60 degrees of
--- the dock's bearing). Falls back toward the lake center.
-local function placeAt(cfg: any, rng: Rng.RngState, boatPos: Vec2, d: number, avoidDock: boolean): Vec2
+-- the dock's bearing). Never within 30 degrees of the bow: seen dead ahead it hides behind the
+-- crew's own bow lantern (found in Studio 11/26/2026), and off the bow different seats see it
+-- first. Falls back toward the lake center.
+local BOW_CLEAR = math.rad(30)
+local function placeAt(
+	cfg: any,
+	rng: Rng.RngState,
+	boatPos: Vec2,
+	d: number,
+	avoidDock: boolean,
+	heading: number?
+): Vec2
 	local dock = EntityBase.bearing(boatPos, cfg.Lake.dockEnd)
 	for _ = 1, 32 do
 		local a = Rng.range(rng, -math.pi, math.pi)
 		local p = along(boatPos, a, d)
 		local farFromDock = math.abs(EntityBase.wrapAngle(a - dock)) >= math.pi / 3
-		if onWater(cfg, p) and (farFromDock or not avoidDock) and not LakeMap.isSafe(cfg, p) then
+		local offBow = heading == nil or math.abs(EntityBase.wrapAngle(a - heading)) >= BOW_CLEAR
+		if onWater(cfg, p) and offBow and (farFromDock or not avoidDock) and not LakeMap.isSafe(cfg, p) then
 			return p
 		end
 	end
@@ -112,7 +123,7 @@ function Neighbor.new(cfg: any, rng: Rng.RngState, ctx: EntityBase.SpawnCtx): Ne
 		base = base,
 		form = form,
 		phase = if form == "Boat" then "Creak" else "Burn",
-		pos = placeAt(cfg, rng, boatPos, d, form == "FalseBeacon"),
+		pos = placeAt(cfg, rng, boatPos, d, form == "FalseBeacon", if ctx.boat then ctx.boat.heading else nil),
 		lastSeen = nil,
 		giveUpLen = Rng.range(rng, R.lingerMin, R.lingerMax),
 		darkFor = 0,
