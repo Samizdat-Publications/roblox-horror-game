@@ -191,6 +191,43 @@
     ]
   },
   {
+    "id": "m9-hero-models",
+    "date": "11/27/2026",
+    "milestone": "M9",
+    "title": "Hero models: a real rowboat, a hanging lantern, a taller Watcher",
+    "story": "Until now everything on the lake was built from plain blocks by code. M9 adds eight models made by script in Blender, in the same dark palette: the rowboat (its outer planks and its insides), the bow lantern, the Watcher, the sunken steeple, the bait shack and two dead shoreline trees. They were uploaded privately to Stewart's account and are laid over the block versions when the game starts. The blocks are still there underneath, see-through, so seats, walls and the rules work exactly as before, and if a model ever fails to load the block version simply stays. The boat now has a curved, lapped hull with ribs, oarlocks and a bow ring, and the boat paint still works on it. The lantern is a wire-caged hurricane lamp hanging from an iron arm, with the glow inside it. The shack has board walls, a braced door, a cross-barred window and a hand-painted BAIT sign. The steeple has pointed belfry openings, a kinked spire and a bent cross. The Watcher is thinner, with a long coat and arms that hang past its knees. One surprise: Roblox turns imported models half a turn, which put the shack's chimney on the wrong side until it was fixed.",
+    "stills": [
+      {
+        "file": "stills/27-m9-models.jpg",
+        "caption": "All eight models, rendered in Blender before upload."
+      },
+      {
+        "file": "stills/28-m9-boat.jpg",
+        "caption": "The boat at the dock, before and after."
+      },
+      {
+        "file": "stills/34-m9-boat-lit.jpg",
+        "caption": "The new boat in a brighter frame: the curved hull, ribs and the caged lantern."
+      },
+      {
+        "file": "stills/29-m9-lantern.jpg",
+        "caption": "The bow lantern: a block on a post before, a hanging hurricane lamp after."
+      },
+      {
+        "file": "stills/30-m9-shack.jpg",
+        "caption": "The bait shack: the BAIT sign, the door and the window bars."
+      },
+      {
+        "file": "stills/32-m9-steeple-close.jpg",
+        "caption": "The sunken steeple from the boat, in the lantern light."
+      },
+      {
+        "file": "stills/33-m9-shore.jpg",
+        "caption": "The shore: the Watcher and a dead tree, before and after."
+      }
+    ]
+  },
+  {
     "date": "11/27/2026",
     "milestone": "Polish",
     "title": "The strange boats, readable at last",

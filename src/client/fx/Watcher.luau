@@ -19,6 +19,7 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
+local HeroLook = require(Shared:WaitForChild("HeroLook"))
 
 local client = script.Parent.Parent
 local AudioDirector = require(client:WaitForChild("AudioDirector"))
@@ -59,6 +60,34 @@ local function rootAt(pos: Vector3): CFrame
 		look = feet + Vector3.new(0, 0, -1)
 	end
 	return CFrame.lookAt(feet, look)
+end
+
+-- M9: when the server shared the hero Watcher mesh (HeroModels), lay it over the part-built
+-- figure in the same root frame and make the body parts see-through. The Neon pin eyes stay.
+-- Without the mesh the part-built figure is the Watcher, as before.
+local function dress(f: Common.Figure)
+	local folder = ReplicatedStorage:FindFirstChild(HeroLook.FOLDER)
+	local t = folder and folder:FindFirstChild("Watcher")
+	if not (t and t:IsA("MeshPart")) then
+		return
+	end
+	local center = Vector3.new(
+		tonumber(t:GetAttribute("CenterX")) or 0,
+		tonumber(t:GetAttribute("CenterY")) or 0,
+		tonumber(t:GetAttribute("CenterZ")) or 0
+	)
+	local mesh = t:Clone()
+	mesh.Anchored = true
+	mesh.CanCollide = false
+	mesh.CanQuery = false
+	mesh.CanTouch = false
+	for part in f.locals do
+		if not table.find(f.eyes, part) then
+			part.Transparency = 1
+		end
+	end
+	mesh.Parent = f.model
+	f.locals[mesh] = CFrame.new(center) * HeroLook.MESH_TURN
 end
 
 local function remove()
@@ -202,6 +231,7 @@ function Watcher.handle(e: any)
 		end
 		local f = Common.figure("Watcher", { height = Watcher.HEIGHT, width = Watcher.WIDTH, eyes = true })
 		figure = f
+		dress(f)
 		Common.placeFigure(f, rootAt(pos))
 		Common.outline(f.model)
 		lastStep = tonumber(data.step)

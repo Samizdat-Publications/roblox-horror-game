@@ -1,0 +1,146 @@
+{
+  "BoatInterior": {
+    "name": "BoatInterior",
+    "studs": [
+      5.76,
+      3.44,
+      16.27
+    ],
+    "center": [
+      0.0,
+      0.978,
+      -1.711
+    ],
+    "vertexColors": true,
+    "triangles": 944,
+    "parts": 33,
+    "replaces": "Boat: GunwalePort, GunwaleStarboard, Keel, ThwartStern, ThwartMid, ThwartBow and the four Seat parts (made see-through)",
+    "notes": "Thwart tops at y = 1.15 so seated characters sit on them."
+  },
+  "BoatShell": {
+    "name": "BoatShell",
+    "studs": [
+      5.74,
+      2.97,
+      15.97
+    ],
+    "center": [
+      0.0,
+      1.123,
+      -1.536
+    ],
+    "vertexColors": false,
+    "triangles": 808,
+    "parts": 9,
+    "replaces": "Boat: SidePort, SideStarboard, Transom, BowPort, BowStarboard, BowFloor, Hull (made see-through, still collide)",
+    "notes": "No vertex colours: the game sets MeshPart.Color from the boat paint (Cosmetics)."
+  },
+  "DeadTreeA": {
+    "name": "DeadTreeA",
+    "studs": [
+      11.64,
+      40.64,
+      7.94
+    ],
+    "center": [
+      1.891,
+      19.552,
+      1.321
+    ],
+    "vertexColors": true,
+    "triangles": 536,
+    "parts": 16,
+    "replaces": "Shore dead trees (Tree*Dead: Trunk, TrunkTop, Branch*), made see-through; one mesh per tree, scaled to its height",
+    "notes": "40 studs tall, base at the origin."
+  },
+  "DeadTreeB": {
+    "name": "DeadTreeB",
+    "studs": [
+      11.99,
+      41.82,
+      12.19
+    ],
+    "center": [
+      2.454,
+      20.101,
+      0.202
+    ],
+    "vertexColors": true,
+    "triangles": 572,
+    "parts": 17,
+    "replaces": "Shore dead trees (Tree*Dead: Trunk, TrunkTop, Branch*), made see-through; one mesh per tree, scaled to its height",
+    "notes": "40 studs tall, base at the origin."
+  },
+  "Lantern": {
+    "name": "Lantern",
+    "studs": [
+      1.09,
+      3.58,
+      1.86
+    ],
+    "center": [
+      0.048,
+      1.989,
+      -8.118
+    ],
+    "vertexColors": true,
+    "triangles": 676,
+    "parts": 19,
+    "replaces": "Boat: LanternPost, LanternArm, LanternCap (made see-through); LanternGlow and its light stay",
+    "notes": "Cast no shadow (the post threw a black wedge down the boat, 11/26/2026)."
+  },
+  "Shack": {
+    "name": "Shack",
+    "studs": [
+      18.22,
+      18.34,
+      15.51
+    ],
+    "center": [
+      0.0,
+      5.668,
+      0.545
+    ],
+    "vertexColors": true,
+    "triangles": 1648,
+    "parts": 128,
+    "replaces": "Dock Shack folder: Floor, Walls*, Door, Roof*, Gable*, Step (made see-through); Window, Shelf, ShackRadio, RadioDial, ShackLightHolder stay",
+    "notes": "Origin of the authoring frame is the floor top centre; the lake side is +z."
+  },
+  "Steeple": {
+    "name": "Steeple",
+    "studs": [
+      13.0,
+      57.13,
+      13.0
+    ],
+    "center": [
+      0.0,
+      28.565,
+      -0.0
+    ],
+    "vertexColors": true,
+    "triangles": 1556,
+    "parts": 127,
+    "replaces": "Landmarks Steeple folder: Shaft, Belfry*, Cornice, RoofBase, Spire1-4, CrossUp, CrossBar (made see-through); Bell and BellLip stay",
+    "notes": "Origin of the authoring frame is the tower's foot; +y runs up the leaning axis."
+  },
+  "Watcher": {
+    "name": "Watcher",
+    "studs": [
+      1.69,
+      12.28,
+      0.87
+    ],
+    "center": [
+      0.0,
+      6.14,
+      -0.053
+    ],
+    "vertexColors": true,
+    "triangles": 476,
+    "parts": 17,
+    "replaces": "client/fx/Watcher figure: Legs, Torso, Head, Arms (made see-through); the Neon pin eyes stay",
+    "notes": "13 studs tall, 1.25 wide at the shoulders, feet at the model base."
+  }
+}

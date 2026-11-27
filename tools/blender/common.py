@@ -2,9 +2,8 @@
 = 1 stud while modelling), then `finish()` exports GLB and FBX to art/models/, renders a
 preview to art/previews/ and records size and triangle count in art/models/manifest.json.
 
-Run one model:   blender -b -P art/scripts/dock.py
-            or:  python art/scripts/dock.py   (with the `bpy` module from PyPI)
-Run them all:    python art/scripts/build_all.py
+Run one model:   blender -b -P tools/blender/boat.py
+Run them all:    blender -b -P tools/blender/build_all.py
 """
 
 import json
@@ -17,7 +16,7 @@ import bpy
 import bmesh
 from mathutils import Vector
 
-ART = Path(__file__).resolve().parents[1]
+ART = Path(__file__).resolve().parents[2] / "art"  # tools/blender -> repo/art
 MODELS = ART / "models"
 PREVIEWS = ART / "previews"
 MANIFEST = MODELS / "manifest.json"
@@ -219,7 +218,7 @@ def _setup_render(lo, hi, view):
     return ground, sun, cam
 
 
-def finish(name, replaces, notes="", view=(35, 28), max_tris=10000):
+def finish(name, replaces, notes="", view=(35, 28), max_tris=10000, vertex_colors=True):
     """Export, preview and record the model now in the scene. Returns the manifest entry."""
     MODELS.mkdir(parents=True, exist_ok=True)
     PREVIEWS.mkdir(parents=True, exist_ok=True)
@@ -233,9 +232,15 @@ def finish(name, replaces, notes="", view=(35, 28), max_tris=10000):
     if tris > max_tris:
         raise SystemExit(f"{name}: {tris} triangles is over the {max_tris} budget")
 
+    # Where the model's bounding-box centre sits in the frame it was authored in, in Roblox
+    # axes (Blender x, z, -y). The game places the MeshPart at anchorCFrame * CFrame.new(center)
+    # because a MeshPart's origin is the centre of its mesh bounds.
+    c = (lo + hi) / 2
+    center = [round(c.x, 3), round(c.z, 3), round(-c.y, 3)]
+
     # One mesh, one material: each part's flat colour becomes a vertex colour, then the
     # parts join into a single mesh (Roblox allows one material per mesh).
-    single = bake_to_vertex_colors(meshes, name)
+    single = bake_to_vertex_colors(meshes, name) if vertex_colors else join_plain(meshes, name)
     meshes = [single]
     _export(single, name)
     lo, hi = bounds(meshes)
@@ -251,6 +256,8 @@ def finish(name, replaces, notes="", view=(35, 28), max_tris=10000):
     entry = {
         "name": name,
         "studs": [round(size.x, 2), round(size.z, 2), round(size.y, 2)],  # Roblox X, Y (up), Z
+        "center": center,
+        "vertexColors": vertex_colors,
         "triangles": tris,
         "parts": n_parts,
         "replaces": replaces,
@@ -261,6 +268,20 @@ def finish(name, replaces, notes="", view=(35, 28), max_tris=10000):
     MANIFEST.write_text(json.dumps(dict(sorted(data.items())), indent=2) + "\n")
     print(f"[art] {name}: {entry['studs']} studs, {tris} triangles, {n_parts} parts joined")
     return entry
+
+
+def preview_only(name, view=(35, 28)):
+    """Render the scene as it stands to previews/<name>.png (no export, no manifest): used to
+    see several meshes that ship separately (the boat's shell, interior and lantern) together."""
+    PREVIEWS.mkdir(parents=True, exist_ok=True)
+    apply_all_modifiers()
+    flat_shade_all()
+    meshes = [o for o in bpy.context.scene.objects if o.type == "MESH"]
+    lo, hi = bounds(meshes)
+    ground, sun, cam = _setup_render(lo, hi, view)
+    bpy.context.scene.render.filepath = str(PREVIEWS / f"{name}.png")
+    bpy.ops.render.render(write_still=True)
+    _shrink_png(PREVIEWS / f"{name}.png")
 
 
 def paint(obj, fn):
@@ -310,6 +331,29 @@ def bake_to_vertex_colors(meshes, name):
     single.data.materials.clear()
     single.data.materials.append(vc)
     # Origin at the bottom centre, so the model sits on the ground where it's placed.
+    lo, hi = bounds([single])
+    bpy.context.scene.cursor.location = ((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, lo.z)
+    bpy.ops.object.select_all(action="DESELECT")
+    single.select_set(True)
+    bpy.context.view_layer.objects.active = single
+    bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
+    single.location = (0, 0, 0)
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    return single
+
+
+def join_plain(meshes, name):
+    """Join without vertex colours: the game colours this mesh with MeshPart.Color (the boat
+    shell takes the boat paint cosmetic). Keeps the first part's material for the preview."""
+    single = join(meshes, name) if len(meshes) > 1 else meshes[0]
+    single.name = name
+    single.data.name = name
+    keep = single.data.materials[0] if single.data.materials else None
+    single.data.materials.clear()
+    if keep is not None:
+        single.data.materials.append(keep)
+    for p in single.data.polygons:
+        p.material_index = 0
     lo, hi = bounds([single])
     bpy.context.scene.cursor.location = ((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, lo.z)
     bpy.ops.object.select_all(action="DESELECT")

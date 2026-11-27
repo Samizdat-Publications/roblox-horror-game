@@ -69,7 +69,8 @@ Cosmetics.ITEMS = {
 Cosmetics.SLOT_NAMES = { lantern = "Lantern", paint = "Boat paint", hat = "Hat" } :: { [string]: string }
 
 -- The planks that take paint (the floor, thwarts and trim stay wood).
-Cosmetics.PAINTED = { "SidePort", "SideStarboard", "Transom", "BowPort", "BowStarboard" }
+-- HeroBoatShell is the M9 hull mesh (HeroModels) when it loads; it carries DeadCalmWood itself.
+Cosmetics.PAINTED = { "SidePort", "SideStarboard", "Transom", "BowPort", "BowStarboard", "HeroBoatShell" }
 
 Cosmetics.HAT_NAME = "DeadCalmHat"
 Cosmetics.STOWED = "DeadCalmStowed" -- attribute on an avatar hat hidden under ours

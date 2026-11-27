@@ -19,6 +19,7 @@ local NightService = require(server:WaitForChild("NightService"))
 local EntityPresenter = require(server:WaitForChild("EntityPresenter"))
 local DataService = require(server:WaitForChild("DataService"))
 local LobbyService = require(server:WaitForChild("LobbyService"))
+local HeroModels = require(server:WaitForChild("HeroModels"))
 
 local startupWarnings: { string } = {}
 
@@ -28,6 +29,9 @@ for _, w in LightingController.apply() do
 end
 Net.init()
 BoatService.init(WorldBuilder.context())
+-- M9 hero meshes over the part-built boat and world, in their own thread (a slow or failed
+-- load leaves the part-built versions as they are).
+task.spawn(HeroModels.start, if WorldBuilder.last then WorldBuilder.last.root else nil, BoatService.get())
 FishingService.init()
 EntityPresenter.init()
 -- Saves before the lobby: the lobby reads profiles (Endless unlock, the host's boat look).
