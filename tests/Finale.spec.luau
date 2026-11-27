@@ -17,6 +17,7 @@ return function(t, Shared)
 	Calm.Rules.Finale = table.clone(Config.Rules.Finale)
 	Calm.Rules.Finale.hazardMin = 5000 -- off the lake: never placed
 	Calm.Rules.Finale.hazardMax = 5001
+	Calm.Rules.Finale.crossCount = 0 -- M8: the boat across the bow is the nearest; none here
 
 	local function params(over)
 		local p = {
@@ -216,7 +217,7 @@ return function(t, Shared)
 	end)
 
 	t.test(
-		"a run home from the steeple shows three or more hazards, two ahead of the bow, a beacon to the side, none on the way home",
+		"a run home from the steeple shows three or more hazards, two ahead of the bow (one across it), a beacon to the side, none on the way home",
 		function()
 			local N = Config.Rules.Neighbor
 			local Rule = require(Shared.Core.entities.Finale)
@@ -231,7 +232,7 @@ return function(t, Shared)
 				local dx, dz = dock.x - start.x, dock.z - start.z
 				local len = math.sqrt(dx * dx + dz * dz)
 				local vel = { x = dx / len * Config.Boat.motorSpeed, z = dz / len * Config.Boat.motorSpeed }
-				local boats, beacons, ahead, sideBeacons = 0, 0, 0, 0
+				local boats, beacons, ahead, sideBeacons, crosses = 0, 0, 0, 0, 0
 				for _ = 1, 400 do -- 40 s
 					local e = Night.step(s, input({ pos = { x = pos.x, z = pos.z }, vel = vel }))
 					for _, ev in all(e, "EntityMoved", "Finale") do
@@ -259,9 +260,25 @@ return function(t, Shared)
 								and d <= F.hazardMax + 1
 								and angle >= F.hazardAngleMin - 1e-3
 								and angle <= F.hazardAngleMax + 1e-3
-							t.ok(isAhead or isSide, "seed " .. seed .. ": ahead or to the side")
-							if isAhead then
+							-- M8: across the bow, crossAlong down the way home and just past the
+							-- clearance off it (the nearest any hazard is placed).
+							local along = d * cosA
+							local clear = kill + F.hazardClear
+							local isCross = ev.data.form == "Boat"
+								and along >= F.crossAlong[1] - 1e-3
+								and along <= F.crossAlong[2] + 1e-3
+								and off <= clear + F.crossExtra + 0.1
+							t.ok(
+								isAhead or isSide or isCross,
+								"seed " .. seed .. ": ahead, across the bow or to the side"
+							)
+							if isAhead or isCross then
 								ahead += 1
+							end
+							if isCross then
+								crosses += 1
+								-- Never within kill distance plus hazardClear of the boat either.
+								t.ok(d >= clear, "seed " .. seed .. ": the crossing boat is placed clear of the boat")
 							end
 							if ev.data.form == "FalseBeacon" and isSide then
 								-- Rowing for it leaves the way home: it sits well off the line.
@@ -278,6 +295,8 @@ return function(t, Shared)
 				t.ok(boats >= 2, "seed " .. seed .. ": two or more boats (" .. boats .. ")")
 				t.ok(ahead >= 2, "seed " .. seed .. ": two or more ahead of the bow (" .. ahead .. ")")
 				t.ok(sideBeacons >= 1, "seed " .. seed .. ": a false beacon off to the side (" .. sideBeacons .. ")")
+				t.ok(crosses >= 1, "seed " .. seed .. ": a boat across the bow (" .. crosses .. ")")
+				t.eq(s.rules[1].state.crossPlaced, F.crossCount, "seed " .. seed .. ": placed across the bow once")
 			end
 		end
 	)

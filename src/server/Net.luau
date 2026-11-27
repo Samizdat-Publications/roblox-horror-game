@@ -14,6 +14,7 @@ local Config = require(Shared:WaitForChild("Config"))
 local Remotes = require(Shared:WaitForChild("Remotes"))
 local Types = require(Shared:WaitForChild("Core"):WaitForChild("Types"))
 local Validate = require(Shared:WaitForChild("Core"):WaitForChild("Validate")) :: any
+local RateLimit = require(Shared:WaitForChild("Core"):WaitForChild("RateLimit"))
 
 local BoatService = require(script.Parent:WaitForChild("BoatService"))
 
@@ -47,108 +48,37 @@ local HANDS: { [string]: boolean } = {
 	CatchDecision = true,
 }
 
-----------------------------------------------------------------------------------------
--- SEAM: Core.Validate, Core.RateLimit
--- Local payload checks and token buckets until the Core modules land.
+-- Payload checks are Core.Validate and the token buckets Core.RateLimit, both covered by
+-- the Lune specs (tests/Validate.spec.luau, tests/RateLimit.spec.luau), so what ships is
+-- what is tested.
 
-local function finite(v: any): boolean
-	return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge
-end
-
-local function inRange(v: any, lo: number, hi: number): boolean
-	return finite(v) and v >= lo and v <= hi
-end
-
-local INTENT_KINDS: { [string]: boolean } = {
-	ToggleLantern = true,
-	ToggleMotor = true,
-	Cast = true,
-	ReelHold = true,
-	CutLine = true,
-	CatchDecision = true,
-	Bank = true,
-	RefillOil = true,
-	Knock = true,
-	Wave = true,
-	BailHold = true,
-	GhostBell = true,
-	Callout = true,
-}
-
-local CALLOUTS: { [string]: boolean } = {}
-for _, phrase in Config.Callouts do
-	CALLOUTS[phrase] = true
-end
-
--- Returns a clean Intent or nil.
-local function validateIntent(player: Player, kind: any, num: any, flag: any, text: any): Intent?
-	if type(kind) ~= "string" or not INTENT_KINDS[kind] then
-		return nil
-	end
-	if num ~= nil and not inRange(num, 0, 1) then
-		return nil
-	end
-	if flag ~= nil and type(flag) ~= "boolean" then
-		return nil
-	end
-	if text ~= nil and (type(text) ~= "string" or #text > 32) then
-		return nil
-	end
-	if kind == "Callout" and (text == nil or not CALLOUTS[text]) then
-		return nil
-	end
-	if kind == "Cast" and num == nil then
-		return nil
-	end
-	if (kind == "ReelHold" or kind == "BailHold" or kind == "CatchDecision") and flag == nil then
-		return nil
-	end
-	return {
-		kind = kind :: any,
-		player = player.UserId,
-		num = num,
-		flag = flag,
-		text = text,
-	}
-end
-
-type Bucket = { tokens: number, last: number }
+type Bucket = RateLimit.Bucket
 local buckets: { [Player]: { [string]: Bucket } } = {}
 
-local LIMITS: { [string]: { rate: number, burst: number } } = {
-	BoatInput = { rate = Config.Net.boatHz, burst = Config.Net.boatHz },
-	Gaze = { rate = Config.Net.gazeHz, burst = Config.Net.gazeHz },
-	Intent = { rate = Config.Net.intentPerSec, burst = Config.Net.intentBurst },
-	Lobby = { rate = 2, burst = 4 },
-	Book = { rate = 4, burst = 6 },
-	Cosmetic = { rate = 2, burst = 4 },
-	DebugBot = { rate = 10, burst = 10 },
-	DebugCamera = { rate = 10, burst = 10 },
+-- Studio-only debug remotes get their own buckets (RateLimit.forPlayer covers the game's).
+local DEBUG_LIMITS: { [string]: { burst: number, rate: number } } = {
+	DebugBot = { burst = 10, rate = 10 },
+	DebugCamera = { burst = 10, rate = 10 },
 }
 
+-- Takes one token from this player's bucket for `remote`. Unknown names are refused.
 local function allow(player: Player, remote: string): boolean
-	local lim = LIMITS[remote]
-	local now = os.clock()
 	local per = buckets[player]
 	if per == nil then
-		per = {}
+		per = RateLimit.forPlayer(Config)
 		buckets[player] = per
 	end
 	local b = per[remote]
 	if b == nil then
-		b = { tokens = lim.burst, last = now }
+		local lim = DEBUG_LIMITS[remote]
+		if lim == nil then
+			return false
+		end
+		b = RateLimit.new(lim.burst, lim.rate)
 		per[remote] = b
 	end
-	b.tokens = math.min(lim.burst, b.tokens + (now - b.last) * lim.rate)
-	b.last = now
-	if b.tokens < 1 then
-		return false
-	end
-	b.tokens -= 1
-	return true
+	return RateLimit.take(b, os.clock())
 end
--- END SEAM
-----------------------------------------------------------------------------------------
 
 local function count(tbl: { [string]: number }, key: string)
 	tbl[key] = (tbl[key] or 0) + 1
@@ -172,16 +102,17 @@ Net.isDrowned = function(_userId: number): boolean
 	return false
 end
 
-function Net.handlers.BoatInput(player: Player, throttle: any, steer: any): boolean
-	if
-		not allow(player, "BoatInput")
-		or not inRange(throttle, -1, 1)
-		or not inRange(steer, -1, 1)
-		or Net.isDrowned(player.UserId)
-	then
+function Net.handlers.BoatInput(player: Player, rawThrottle: any, rawSteer: any): boolean
+	if not allow(player, "BoatInput") or Net.isDrowned(player.UserId) then
 		count(Net.stats.rejected, "BoatInput")
 		return false
 	end
+	local ok, clean = Validate.BoatInput(Config, rawThrottle, rawSteer)
+	if not ok then
+		count(Net.stats.rejected, "BoatInput")
+		return false
+	end
+	local throttle: number, steer: number = clean.throttle, clean.steer
 	if bookOpen[player.UserId] then
 		-- Reading, not steering: the helm goes slack.
 		throttle, steer = 0, 0
@@ -194,8 +125,13 @@ function Net.handlers.BoatInput(player: Player, throttle: any, steer: any): bool
 	return true
 end
 
-function Net.handlers.Gaze(player: Player, yaw: any): boolean
-	if not allow(player, "Gaze") or not inRange(yaw, -math.pi - 0.01, math.pi + 0.01) then
+function Net.handlers.Gaze(player: Player, rawYaw: any): boolean
+	if not allow(player, "Gaze") then
+		count(Net.stats.rejected, "Gaze")
+		return false
+	end
+	local ok, yaw = Validate.Gaze(Config, rawYaw)
+	if not ok then
 		count(Net.stats.rejected, "Gaze")
 		return false
 	end
@@ -209,11 +145,18 @@ function Net.handlers.Intent(player: Player, kind: any, num: any, flag: any, tex
 		count(Net.stats.rejected, "Intent")
 		return false
 	end
-	local intent = validateIntent(player, kind, num, flag, text)
-	if intent == nil then
+	local ok, clean = Validate.Intent(Config, kind, num, flag, text)
+	if not ok then
 		count(Net.stats.rejected, "Intent")
 		return false
 	end
+	local intent: Intent = {
+		kind = clean.kind,
+		player = player.UserId,
+		num = clean.num,
+		flag = clean.flag,
+		text = clean.text,
+	}
 	if HANDS[intent.kind] and bookOpen[player.UserId] then
 		count(Net.stats.rejected, "Intent")
 		return false
@@ -238,21 +181,21 @@ end
 -- LobbyService sets this: what a valid Lobby message does (difficulty, start).
 Net.onLobby = function(_player: Player, _action: string, _value: any) end
 
--- Lobby actions: "Difficulty" (value "Normal" | "Nightmare"), "Start", "Title", "Hello",
--- "Book" (value 1 open, 0 closed), "Touch" (value 1 on a touch screen, else 0). Type check and rate limit here; LobbyService decides.
-function Net.handlers.Lobby(player: Player, action: any, value: any): boolean
-	local ok = allow(player, "Lobby")
-		and type(action) == "string"
-		and #action <= 24
-		and (value == nil or (type(value) == "string" and #value <= 24) or finite(value))
-	-- The book flag changes often (open, close): it has its own small bucket.
-	if not ok and type(action) == "string" and action == "Book" and finite(value) then
-		ok = allow(player, "Book")
+-- Lobby actions (Validate.LOBBY): "Difficulty" (value "Normal" | "Nightmare"), "Mode",
+-- "Start", "Title", "Hello", "Book" (value 1 open, 0 closed), "Touch" (value 1 on a touch
+-- screen, else 0). Type check and rate limit here; LobbyService decides.
+function Net.handlers.Lobby(player: Player, rawAction: any, rawValue: any): boolean
+	-- The book flag changes often (open, close): it spends only its own bucket.
+	local bucket = if rawAction == "Book" then "Book" else "Lobby"
+	local ok: boolean, clean: any = false, nil
+	if allow(player, bucket) then
+		ok, clean = Validate.Lobby(Config, rawAction, rawValue)
 	end
 	count(if ok then Net.stats.accepted else Net.stats.rejected, "Lobby")
 	if not ok then
 		return false
 	end
+	local action: string, value: any = clean.action, clean.value
 	if action == "Touch" then
 		touch[player.UserId] = if value == 1 then true else nil
 		return true
@@ -303,6 +246,14 @@ function Net.init()
 		local remote = f:FindFirstChild(name) :: RemoteEvent
 		remote.OnServerEvent:Connect(function(player: Player, ...)
 			handler(player, ...)
+		end)
+	end
+	-- Server-to-client remotes: a client firing one is dropped and counted. With no handler
+	-- connected Roblox would queue the calls and warn, letting a client spam the console.
+	for _, name in Remotes.toClient do
+		local remote = f:FindFirstChild(name) :: RemoteEvent
+		remote.OnServerEvent:Connect(function()
+			count(Net.stats.rejected, name)
 		end)
 	end
 	f.Parent = ReplicatedStorage

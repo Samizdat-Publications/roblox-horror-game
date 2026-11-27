@@ -319,6 +319,18 @@ local function observe(dt: number, intents: { any }): any
 			local o = observePlayer(id)
 			if o then
 				table.insert(players, o)
+			else
+				-- Left the game: Core must not fill a seated default, or a rule could count
+				-- or take a player who is not there.
+				table.insert(players, {
+					id = id,
+					seated = false,
+					helm = false,
+					inWater = false,
+					gazeYaw = 0,
+					bookOpen = false,
+					present = false,
+				})
 			end
 		end
 	end

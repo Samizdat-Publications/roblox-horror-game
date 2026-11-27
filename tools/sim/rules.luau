@@ -111,10 +111,15 @@ end
 local cells = {}
 local amendedDeathRules = {}
 local contract = { checks = 0, bad = {} }
+local cueAudit = { checks = 0, bad = {} }
 local function audit(out)
 	contract.checks += out.contractChecks
 	for _, b in out.contractBad do
 		table.insert(contract.bad, b)
+	end
+	cueAudit.checks += out.cueChecks or 0
+	for _, b in out.cueBad or {} do
+		table.insert(cueAudit.bad, b)
 	end
 end
 local t0 = os.clock()
@@ -353,6 +358,17 @@ table.insert(
 )
 for j = 1, math.min(10, #contract.bad) do
 	table.insert(lines, "- " .. contract.bad[j])
+end
+table.insert(
+	lines,
+	string.format(
+		"Cue received (every player a rule took had received that rule's cue): %d deaths checked, %d violations.",
+		cueAudit.checks,
+		#cueAudit.bad
+	)
+)
+for j = 1, math.min(10, #cueAudit.bad) do
+	table.insert(lines, "- " .. cueAudit.bad[j])
 end
 table.insert(lines, "")
 table.insert(lines, string.format("Simulated in %.1f s.", elapsed))

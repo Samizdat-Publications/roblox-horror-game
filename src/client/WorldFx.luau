@@ -99,6 +99,32 @@ function WorldFx.beaconDark(t: number): boolean
 	return phase >= second and phase < second + b.blinkOn
 end
 
+-- M8 polish (Neon: the "off" lantern stayed orange): the lantern's glass ball reads its state.
+-- Lit: deep orange Neon. Out: a dull brass (no Neon), and every light in it is off (the
+-- PointLight, and the finale's SpotLight cone if there is one). Checked every frame and written
+-- only where it differs, so a late server write (BoatService.setLantern) never wins.
+function WorldFx.setGlow(glow: BasePart, lit: boolean)
+	local color = if lit then Look.Lantern.glowLit else Look.Lantern.glowOut
+	local mat = if lit then Enum.Material.Neon else Enum.Material.Metal
+	local tr = if lit then 0 else 0.1
+	if glow.Color ~= color then
+		glow.Color = color
+	end
+	if glow.Material ~= mat then
+		glow.Material = mat
+	end
+	if glow.Transparency ~= tr then
+		glow.Transparency = tr
+	end
+	if not lit then
+		for _, d in glow:GetDescendants() do
+			if d:IsA("Light") and d.Enabled then
+				d.Enabled = false
+			end
+		end
+	end
+end
+
 function WorldFx.init()
 	local beaconColor = Look.Beacon.Color
 	local dimColor = beaconColor:Lerp(Color3.new(0, 0, 0), 0.75)
@@ -108,8 +134,14 @@ function WorldFx.init()
 		local glow = BoatClient.part("LanternGlow")
 		local light = glow and glow:FindFirstChild("LanternLight")
 		local lit = false
-		if light and light:IsA("PointLight") then
+		local attr = BoatClient.attr("LanternOn")
+		if type(attr) == "boolean" then
+			lit = attr
+		elseif light and light:IsA("PointLight") then
 			lit = light.Enabled
+		end
+		if glow then
+			WorldFx.setGlow(glow, lit)
 		end
 		stepMoon(dt, lit)
 		if light and light:IsA("PointLight") and light.Enabled then

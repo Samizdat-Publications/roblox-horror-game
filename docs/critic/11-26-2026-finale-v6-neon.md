@@ -68,5 +68,3 @@ Hide the top-left HUD when the dawn banner appears at 00:25 so they stop overlap
 ## Action taken
 
 Scores so far: 1.5, 2, 2, 2, now 3. The orchestrator's own read of this clip is much better than the score: the bell, the lit boat, the fish on deck, lights on the horizon and a real dawn with the shoreline and dock (still `docs/making-of/stills/18-dawn.jpg`). Two caveats on the critic: it contradicts the last round (it asked to remove the tall home beam because it made false beacons pointless, and now asks for a tall home beam), and it judges a test bot that drives straight and never steers. Taken into the final polish list (M8): ease the dawn over 3 seconds instead of one frame; keep the fish in the boat at dawn; hide the HUD under the dawn banner; bring the closest hazards in a little (still never on the path); lay the fish on the floor, clear of the rods; the oil bar shows its real level from the start. Not taken: a single bell toll instead of three (the design calls for three slow tolls), and removing the caption (it teaches the rule to players who do not read the book).
-
-(fill in: what we changed, or why we did not)

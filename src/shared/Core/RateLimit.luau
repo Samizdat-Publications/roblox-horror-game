@@ -53,6 +53,9 @@ function RateLimit.forPlayer(cfg: any): { [string]: Bucket }
 		Gaze = RateLimit.new(math.max(1, N.gazeHz), N.gazeHz),
 		BoatInput = RateLimit.new(math.max(1, N.boatHz), N.boatHz),
 		Lobby = RateLimit.new(4, 2),
+		-- The book flag (Lobby action "Book") changes often (open, close): its own bucket, so
+		-- toggling the book never delays the player's Start or Hello.
+		Book = RateLimit.new(6, 4),
 		Cosmetic = RateLimit.new(4, 2),
 	}
 end

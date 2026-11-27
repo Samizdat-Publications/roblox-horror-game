@@ -97,6 +97,41 @@ return function(t, Shared)
 		t.ok(not Validate.Lobby(Config, "Kick", 1), "unknown action")
 	end)
 
+	t.test("lobby actions the shipped client sends (Net routes every one through here)", function()
+		-- Exactly what LobbyClient.send fires today.
+		local sent = {
+			{ "Hello" },
+			{ "Start" },
+			{ "Title" },
+			{ "Difficulty", "Normal" },
+			{ "Difficulty", "Nightmare" },
+			{ "Mode", "Story" },
+			{ "Mode", "Endless" },
+			{ "Book", 1 },
+			{ "Book", 0 },
+			{ "Touch", 1 },
+			{ "Touch", 0 },
+		}
+		for _, a in sent do
+			local ok, v = Validate.Lobby(Config, a[1], a[2])
+			t.ok(ok, a[1] .. " " .. tostring(a[2]) .. ": " .. tostring(v))
+			t.eq(v.action, a[1], "action kept")
+		end
+		local _, book = Validate.Lobby(Config, "Book", 1)
+		t.eq(book.value, 1, "book value kept")
+		local _, hello = Validate.Lobby(Config, "Hello", "junk")
+		t.eq(hello.value, nil, "a none action drops any value")
+	end)
+
+	t.test("Book and Touch take only the number 0 or 1", function()
+		for _, action in { "Book", "Touch" } do
+			for _, bad in { 2, -1, 0.5, true, false, "1", 0 / 0, math.huge, {} } do
+				t.ok(not Validate.Lobby(Config, action, bad), action .. " " .. tostring(bad))
+			end
+			t.ok(not Validate.Lobby(Config, action), action .. " with no value")
+		end
+	end)
+
 	t.test("cosmetics must name a real slot and id", function()
 		t.ok(Validate.Cosmetic(Config, "lantern", "BoneWhite"), "valid")
 		t.ok(not Validate.Cosmetic(Config, "lantern", "Gold"), "unknown id")

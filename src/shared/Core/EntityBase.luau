@@ -154,6 +154,17 @@ function EntityBase.pass(b: Base, events: { Event }, data: { [string]: any }?): 
 	return true
 end
 
+-- Withdraws a fail that is still held for the warning time and passes instead. For a rule
+-- whose only cued player is gone: the fail would land on someone who never got the cue.
+-- Returns true if the rule passed now.
+function EntityBase.withdraw(b: Base, events: { Event }, data: { [string]: any }?): boolean
+	if b.outcome ~= nil then
+		return false
+	end
+	b.pending = nil
+	return EntityBase.pass(b, events, data)
+end
+
 local function sendFail(b: Base, effects: Effects, events: { Event })
 	b.outcome = "Fail"
 	b.pending = nil

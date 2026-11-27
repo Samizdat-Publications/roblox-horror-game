@@ -238,10 +238,11 @@ local sounds: { [string]: SoundEntry } = {
 		maxDist = 90,
 	},
 	-- Scare polish 2: Neon could not hear the motor in two clips. Louder, and full level
-	-- anywhere in the boat (minDist 12).
+	-- anywhere in the boat (minDist 12). M8 polish: still lost under the hum on a phone
+	-- speaker, so +6 dB on the loop only (1.4 x 2 = 2.8; Sound.Volume goes to 10).
 	["motor-idle-loop"] = {
 		id = 112605178204236,
-		volume = 1.4,
+		volume = 2.8,
 		looped = true,
 		spatial = true,
 		group = "Boat",

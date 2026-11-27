@@ -12,8 +12,9 @@
 -- unwatchedStep seconds. Staring never makes it lunge.
 -- It is gone (pass) after `presence` seconds, or once the boat is retreatDist away.
 -- At the waterline: every lantern dies and it takes the nearest player (EntityFail).
--- A first sighting with `only` set is seen by that one player: only their gaze counts
--- (they can answer it alone) until they die.
+-- A first sighting with `only` set is seen by that one player: only their gaze counts and
+-- only they can be taken. If that player dies or leaves while it stands, it passes quietly
+-- (nobody else ever saw it).
 -- Inside the dock light it never steps; its presence clock still runs.
 
 local Types = require(script.Parent.Parent.Types)
@@ -127,6 +128,10 @@ function Watcher.step(s: WatcherState, obs: EntityObs): { Event }
 	local cfg = b.cfg
 	local R = cfg.Rules.Watcher
 	local dt = obs.dt
+	if b.only ~= nil and b.cueAt ~= nil and b.outcome == nil and obs.alive[b.only :: PlayerId] ~= true then
+		-- The one player who saw it is gone (dead or left): pass, even over a held fail.
+		EntityBase.withdraw(b, events, { pos = { x = s.pos.x, z = s.pos.z }, spotterGone = true })
+	end
 	if not EntityBase.advance(b, dt, events) then
 		return events
 	end
@@ -150,9 +155,9 @@ function Watcher.step(s: WatcherState, obs: EntityObs): { Event }
 	end
 
 	local anyStare, anyEdge = false, false
-	local soloAlive = b.only ~= nil and obs.alive[b.only :: PlayerId] == true
+	-- A solo sighting: only the spotter's gaze counts (they are alive here, see the top).
 	for _, p in obs.players do
-		if obs.alive[p.id] and (not soloAlive or p.id == b.only) then
+		if obs.alive[p.id] and (b.only == nil or p.id == b.only) then
 			local g = Watcher.gazeAt(cfg, obs.boat.pos, s.pos, p)
 			if g == "Stare" then
 				anyStare = true
@@ -194,7 +199,8 @@ function Watcher.step(s: WatcherState, obs: EntityObs): { Event }
 	end
 
 	if s.step <= 0 then
-		local who = nearest(s, obs)
+		-- A solo sighting takes only the player who saw it.
+		local who = if b.only ~= nil then b.only else nearest(s, obs)
 		EntityBase.fail(b, events, { kill = if who then { who } else {}, cause = "Reached", snuff = true })
 	end
 	return events

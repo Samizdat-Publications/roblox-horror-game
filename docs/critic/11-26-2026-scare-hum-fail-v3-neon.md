@@ -61,4 +61,4 @@ Major placeholders undercut the moment: the yellow block and white/blue spheres 
 
 ## Action taken
 
-(fill in: what we changed, or why we did not)
+Score 5/10, up from 3.5 and 4.5. Taken into the M8 polish list (`docs/M8-POLISH.md`, items 1 to 5 and 12): real debris instead of primitive blocks and spheres, with a particle spray; murky dark ripples instead of cyan rings; a louder motor loop plus a faint stern vibration while it runs; the lantern glow goes fully dark when off; the drowned player's character is hidden while they spectate; Studio scenarios hold 3 seconds of full chorus before the Hum. Not taken: a camera plunge under the water (the fade plus splash already reads, and a forced camera dive is the kind of motion that makes some players sick). The "no motor sound" note was checked in Studio: the loop does play, it was buried in the mix, so this is a volume fix, not a missing sound.

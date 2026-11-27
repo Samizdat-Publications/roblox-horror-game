@@ -28,7 +28,10 @@ Validate.INTENTS = {
 	Callout = "callout",
 } :: { [string]: string }
 
--- Lobby actions and the value each takes. "none", "difficulty", "mode", "supply", "flag".
+-- Lobby actions and the value each takes. "none", "difficulty", "mode", "supply", "flag",
+-- "flag01" (the number 0 or 1: the client sends these as numbers).
+-- Book: the rulebook or Field Guide is open (1) or closed (0). Touch: plays on a touch screen.
+-- Title: the host leaves the end card. Hello: a client asks for the lobby state and profile.
 Validate.LOBBY = {
 	Start = "none",
 	Ready = "flag",
@@ -36,6 +39,10 @@ Validate.LOBBY = {
 	Mode = "mode",
 	Supply = "supply",
 	Retry = "none",
+	Book = "flag01",
+	Touch = "flag01",
+	Title = "none",
+	Hello = "none",
 } :: { [string]: string }
 
 local function isFinite(v: any): boolean
@@ -116,6 +123,10 @@ function Validate.Lobby(cfg: any, action: any, value: any): (boolean, any)
 	elseif shape == "flag" then
 		if type(value) ~= "boolean" then
 			return false, action .. " needs a boolean"
+		end
+	elseif shape == "flag01" then
+		if value ~= 0 and value ~= 1 then
+			return false, action .. " needs 0 or 1"
 		end
 	elseif shape == "difficulty" then
 		if not isShortString(value) or cfg.Difficulty[value] == nil then

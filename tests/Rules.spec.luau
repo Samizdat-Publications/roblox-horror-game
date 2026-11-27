@@ -564,6 +564,56 @@ return function(t, Shared)
 		t.eq(fail.only, nil, "the outcome is for everyone")
 	end)
 
+	t.test("Watcher solo sighting: the spotter dies mid-window, it passes and takes nobody", function()
+		local s = watcher(10, "EdgeOfSight", 1)
+		local events = run(Watcher, s, 80, function(time, st)
+			-- Everyone looks away: with the spotter's eyes gone, nobody else ever saw it.
+			return {
+				pos = NEAR,
+				players = { player(1, { gaze = gazeFor(st, math.pi) }), player(2, { gaze = gazeFor(st, math.pi) }) },
+				alive = if time >= 5 then { [1] = false, [2] = true } else { [1] = true, [2] = true },
+			}
+		end)
+		t.eq(contract(events, s, "spotter dies"), "Pass", "passes quietly")
+		t.eq(count(events, "EntityFail"), 0, "no fail")
+		t.ok(find(events, "EntityPass").data.spotterGone, "passed because the spotter is gone")
+		t.eq(find(events, "EntityCue").only, 1, "the cue is unchanged: for the spotter")
+	end)
+
+	t.test("Watcher solo sighting: a fail held for the warning time is withdrawn if the spotter dies", function()
+		local s = watcher(11, "EdgeOfSight", 1)
+		local heldSeen = false
+		local events = run(Watcher, s, 80, function(time, st)
+			if st.base.pending ~= nil then
+				heldSeen = true
+			end
+			-- The spotter stares: it lunges to the waterline before the 12 s solo warning is up.
+			return {
+				pos = NEAR,
+				players = { player(1, { gaze = gazeFor(st, 0) }), player(2, { gaze = gazeFor(st, math.pi) }) },
+				alive = if time >= 11 then { [1] = false, [2] = true } else { [1] = true, [2] = true },
+			}
+		end)
+		t.ok(heldSeen, "the fail was held for the warning time")
+		t.eq(contract(events, s, "held fail withdrawn"), "Pass", "passes quietly")
+		t.eq(count(events, "EntityFail"), 0, "no fail")
+	end)
+
+	t.test("Watcher solo sighting: the fail takes the spotter, not whoever faces away most", function()
+		local s = watcher(12, "EdgeOfSight", 1)
+		local events = run(Watcher, s, 80, function(_, st)
+			-- The spotter looks away (outside the edge); player 2 faces even further away.
+			return {
+				pos = NEAR,
+				players = { player(1, { gaze = gazeFor(st, 2.0) }), player(2, { gaze = gazeFor(st, math.pi) }) },
+			}
+		end)
+		t.eq(contract(events, s, "solo fail"), "Fail", "reached")
+		local fx = find(events, "EntityFail").data.effects
+		t.eq(#fx.kill, 1, "takes one")
+		t.eq(fx.kill[1], 1, "takes the spotter")
+	end)
+
 	t.test("Watcher: it never steps in the dock light", function()
 		local s = watcher(9)
 		local events = run(Watcher, s, 80, function()

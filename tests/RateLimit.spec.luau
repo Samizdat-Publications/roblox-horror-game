@@ -49,9 +49,15 @@ return function(t, Shared)
 
 	t.test("forPlayer builds one bucket per client remote", function()
 		local buckets = RateLimit.forPlayer(Config)
-		for _, name in { "Intent", "Gaze", "BoatInput", "Lobby", "Cosmetic" } do
+		for _, name in { "Intent", "Gaze", "BoatInput", "Lobby", "Book", "Cosmetic" } do
 			t.ok(buckets[name] ~= nil, name)
 		end
 		t.eq(buckets.Intent.capacity, Config.Net.intentBurst, "intent burst")
+		-- Toggling the book never spends the Lobby bucket (Start, Hello stay free).
+		for _ = 1, 6 do
+			RateLimit.take(buckets.Book, 0)
+		end
+		t.ok(not RateLimit.take(buckets.Book, 0), "book bucket spent")
+		t.ok(RateLimit.take(buckets.Lobby, 0), "lobby bucket untouched")
 	end)
 end

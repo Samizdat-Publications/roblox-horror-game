@@ -61,14 +61,25 @@ end
 -- text size, align right). Mouse and keys: bottom centre, 520 wide. Touch: on the right
 -- half just above the button cluster (MobileButtons.clusterTop), right-aligned, no wider
 -- than the cluster's side of the screen, so it never runs into a button or the thumbstick.
+-- M8 polish (Neon: a hint was "microscopic"): never under MIN_TEXT pixels on any screen, and
+-- a little larger on tall screens (Paper.fit scales with the viewport height).
+Prompt.MIN_TEXT = 16
+
+function Prompt.textSize(h: number, touch: boolean): number
+	if touch and h < 450 then
+		return Prompt.MIN_TEXT
+	end
+	return math.max(Prompt.MIN_TEXT, Paper.fit(18, 18, 24))
+end
+
 function Prompt.placement(w: number, h: number, touch: boolean): (number, number, number, number, number, boolean)
 	if not touch then
-		return 0.5, w / 2, h - 40, math.min(520, w - 24), 18, false
+		return 0.5, w / 2, h - 40, math.min(560, w - 24), Prompt.textSize(h, false), false
 	end
 	local edge = MobileButtons.EDGE
 	local left = math.max(w * MobileButtons.STICK_W, math.min(w * 0.5, MobileButtons.clusterLeft(w, h)))
 	local width = w - edge - left
-	local size = if h < 450 then 15 else 18
+	local size = Prompt.textSize(h, true)
 	return 1, w - edge, MobileButtons.clusterTop(w, h) - 6, width, size, true
 end
 

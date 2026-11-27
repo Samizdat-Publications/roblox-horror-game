@@ -127,6 +127,7 @@ export type NightState = {
 	lastMotor: PlayerId?,
 	neighborEarliest: number,
 	lastObs: EntityObs?,
+	absent: { [PlayerId]: boolean }, -- left the game (PlayerObs.present == false): no rule counts or takes them
 	tally: { [PlayerId]: PlayerTally },
 	staring: { [PlayerId]: boolean }, -- staring at a Watcher last tick (for the tally)
 	finaleNight: boolean, -- "Finale" is in tonight's rules
@@ -252,6 +253,7 @@ function Night.new(cfg: any, params: NightParams): NightState
 		lastMotor = nil,
 		neighborEarliest = Rng.range(ruleRng, R.spawnMin, R.spawnMax),
 		lastObs = nil,
+		absent = {},
 		tally = tally,
 		staring = {},
 		finaleNight = has(params.rules, "Finale"),
@@ -281,7 +283,7 @@ end
 local function aliveIds(s: NightState): { PlayerId }
 	local out = {}
 	for _, id in s.order do
-		if s.crew[id].alive then
+		if s.crew[id].alive and not s.absent[id] then
 			table.insert(out, id)
 		end
 	end
@@ -519,6 +521,7 @@ local function reelers(s: NightState): number
 end
 
 -- Every crew member gets an observation, in crew order (missing ones are seated defaults).
+-- The server reports a player who left with present = false; that entry is kept as given.
 local function playersObs(s: NightState, given: { PlayerObs }): { PlayerObs }
 	local byId: { [PlayerId]: PlayerObs } = {}
 	for _, p in given do
@@ -553,8 +556,9 @@ local function entityObs(s: NightState, dt: number, input: NightInput, players: 
 	local reeling: { [PlayerId]: boolean } = {}
 	for _, id in s.order do
 		local m = s.crew[id]
-		alive[id] = m.alive
-		reeling[id] = m.alive and Fishing.isReeling(m.fishing)
+		-- A player who left the game is not alive to the rules: none can count or take them.
+		alive[id] = m.alive and not s.absent[id]
+		reeling[id] = alive[id] and Fishing.isReeling(m.fishing)
 	end
 	local l = s.lantern
 	return {
@@ -934,6 +938,13 @@ function Night.step(s: NightState, input: NightInput): { Event }
 	s.boatSpeed = math.sqrt(boat.vel.x * boat.vel.x + boat.vel.z * boat.vel.z)
 	s.lastIntents = {}
 	local players = playersObs(s, input.players)
+	local absent: { [PlayerId]: boolean } = {}
+	for _, po in players do
+		if po.present == false then
+			absent[po.id] = true
+		end
+	end
+	s.absent = absent
 
 	for _, intent in input.intents do
 		handleIntent(s, intent, boat.pos, events)

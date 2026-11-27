@@ -355,6 +355,56 @@ return function(t, Shared)
 		t.eq(s.tally[1].timesStaredAtWatcher, 2, "two looks")
 	end)
 
+	t.test("a player who left the game is never taken or counted by any rule", function()
+		local near = { x = L.radiusX - 120, z = 0 }
+		local function seat(id, at, present)
+			return {
+				id = id,
+				seated = present ~= false,
+				helm = id == 1,
+				inWater = false,
+				gazeYaw = at,
+				bookOpen = false,
+				present = present,
+			}
+		end
+		-- A shared sighting: player 2 left and faces away the most, player 1 looks away too.
+		local s = Night.new(Config, params())
+		stepFor(s, 1, { pos = near })
+		Night.debugForce(s, "Watcher", {})
+		local w = s.rules[1].state
+		local bearing = math.atan2(w.pos.x - near.x, w.pos.z - near.z)
+		local events = {}
+		stepFor(s, 60, function()
+			return { pos = near, players = { seat(1, bearing + 2.0), seat(2, bearing + math.pi, false) } }
+		end, events)
+		local fail = find(events, "EntityFail")
+		t.ok(fail ~= nil, "it reached the waterline")
+		for _, id in fail.data.effects.kill do
+			t.ok(id ~= 2, "the departed player is never taken")
+		end
+		t.ok(s.crew[2].alive, "player 2 untouched")
+
+		-- A solo sighting cued to the player who then left: it passes and takes nobody.
+		local s2 = Night.new(Config, params())
+		stepFor(s2, 1, { pos = near })
+		Night.debugForce(s2, "Watcher", { only = 2 })
+		local e2 = {}
+		stepFor(s2, 60, function()
+			return { pos = near, players = { seat(1, bearing + math.pi), seat(2, 0, false) } }
+		end, e2)
+		t.eq(#all(e2, "EntityFail"), 0, "no fail")
+		t.ok(find(e2, "EntityPass") ~= nil, "passed")
+		t.ok(s2.crew[1].alive and s2.crew[2].alive, "nobody taken")
+
+		-- Every rule sees the departed player as gone (and the director's alive list skips them).
+		local s3 = Night.new(Config, params())
+		stepFor(s3, 1, { pos = near, players = { seat(1, 0), seat(2, 0, false) } })
+		t.eq(s3.lastObs.alive[2], false, "rules see the departed player as gone")
+		t.eq(s3.lastObs.alive[1], true, "the present player is alive")
+		t.ok(s3.absent[2] == true, "marked absent")
+	end)
+
 	t.test("rules replay from the seed", function()
 		local function play()
 			local s = Night.new(Config, params({ real = 4, fake = 4, newRules = { "Neighbor" }, night = 3 }))

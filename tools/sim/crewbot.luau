@@ -61,6 +61,9 @@ local function wrap(a: number): number
 	return a
 end
 
+-- Every rule id (Types.RuleId): a death with one of these as its rule came from a rule.
+local RULE_IDS = { Hum = true, WrongCatch = true, Neighbor = true, Knocking = true, Watcher = true, Finale = true }
+
 local ANSWERS = { AnswerTwo = 2, AnswerOne = 1, AnswerNone = 0 }
 
 function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRun
@@ -126,6 +129,11 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 	-- Finale's bell).
 	local open = {} -- entity -> { at, warn, outcomes, ran }
 	local contractChecks, contractBad = 0, {}
+	-- Every player a rule kills must have received that rule's cue: the last EntityCue of
+	-- that rule went to everyone, or to that player (`only`). Deaths not from a rule (the
+	-- water) are not checked.
+	local cueTo = {} -- entity -> { only = PlayerId? }, the rule's latest cue
+	local cueChecks, cueBad = 0, {}
 
 	-- A Shallows spot, kept with the chance a bite comes there (Fishing.dockFactor): a crew
 	-- learns that fish do not bite near the dock and fishes further out.
@@ -577,6 +585,7 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 					end
 					open[e.entity] = { at = s.clock.elapsed, warn = e.data.warn or 0, outcomes = 0, ran = 0 }
 				end
+				cueTo[e.entity] = { only = e.only }
 				known[e.entity] = {
 					variant = e.data.variant,
 					pos = e.data.pos,
@@ -639,6 +648,24 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 					end
 				end
 			elseif kind == "PlayerDied" then
+				local rule = e.data.rule
+				if RULE_IDS[rule] then
+					cueChecks += 1
+					local c = cueTo[rule]
+					if c == nil then
+						table.insert(cueBad, string.format("%s: took player %s with no cue", rule, tostring(e.player)))
+					elseif c.only ~= nil and c.only ~= e.player then
+						table.insert(
+							cueBad,
+							string.format(
+								"%s: took player %s, but its cue went only to player %s",
+								rule,
+								tostring(e.player),
+								tostring(c.only)
+							)
+						)
+					end
+				end
 				table.insert(deaths, { t = s.clock.elapsed, rule = e.data.rule, player = e.player, text = e.data.text })
 			elseif kind == "NightFailed" then
 				failReason = e.data.reason
@@ -692,6 +719,8 @@ function crewbot.runNight(core: any, cfg: any, params: any, opts: any?): NightRu
 		amendments = amend,
 		contractChecks = contractChecks,
 		contractBad = contractBad,
+		cueChecks = cueChecks,
+		cueBad = cueBad,
 		result = result,
 		finalePassed = s.finalePassed,
 		finaleDebug = fdbg,

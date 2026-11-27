@@ -489,6 +489,14 @@ Config.Rules = {
 		aheadMax = 120,
 		aheadAngleMin = math.rad(25),
 		aheadAngleMax = math.rad(45),
+		-- M8 polish (Neon finale-v6: the hazards were "tiny faint pixels"): the first crossCount
+		-- of those ahead boats come in across the bow instead, crossAlong studs down the way
+		-- home and only crossExtra studs beyond the clearance (kill distance plus hazardClear)
+		-- off the line: the nearest any hazard is placed, still never on the way home and never
+		-- within kill distance plus hazardClear of it. fx/Finale draws it nearer still (pull).
+		crossCount = 1,
+		crossAlong = { 50, 80 },
+		crossExtra = 10,
 		hazardRetry = 1, -- seconds to the next try when no fair spot was found
 		boatDrift = 3, -- a Neighbor boat drifts toward the locked lantern this fast
 		beaconChance = 0.4, -- chance a hazard is a false beacon (only when hazardForms is unset)

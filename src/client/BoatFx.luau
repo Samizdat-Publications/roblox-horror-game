@@ -11,14 +11,14 @@
 --     server's motor part is hidden on this client with LocalTransparencyModifier).
 --   * capsize(seconds, fish): the boat is thrown. A local copy of the boat rolls and heaves
 --     in one big throw that dies away (the server's boat is hidden on this client meanwhile)
---     and the camera rolls with it; white foam bursts at both gunwales under a brief cold
---     flash, and the held fish, a bucket, an oar and the tackle box fly over the gunwale and
---     splash (hold-lost-splash).
+--     and the camera rolls with it; spray bursts at both gunwales (ParticleEmitter droplets)
+--     under a brief cold flash, and the held fish (the Field Guide's models), a pail, an oar
+--     and the tackle box fly over the gunwale and splash (hold-lost-splash).
 --   * plunge(): the camera drops under the surface with a cold blue-green underwater tint,
 --     blur and bubbles rushing up, and stays there until clearCamera() (Drowned) or a new
 --     night.
 --   * rock(seconds): the drowned see the boat still rocking for a few seconds.
---   * rings(on): expanding rings on the water around the hull (the Hum building).
+--   * rings(on): slow, murky dark ripples on the water around the hull (the Hum building).
 -- The slats and the water are local parts that follow the hull every frame.
 
 local Players = game:GetService("Players")
@@ -44,7 +44,22 @@ BoatFx.SCOOP_EVERY = 1.1
 -- Scare polish 2: one big throw that dies away over the whole 1.2 s (the old fast wobble read
 -- as a half-second snap), with a foam burst and a cold flash so it reads in the dark.
 BoatFx.CAPSIZE = { roll = 0.85, heave = 1.8, pitch = 0.2, rollPeriod = 0.95, heavePeriod = 0.6 }
-BoatFx.FOAM = { flecks = 30, color = Color3.fromRGB(236, 246, 246), life = 1.0 }
+-- M8 polish (Neon: "giant white spheres and blue spheres"): the foam and the splashes are short
+-- ParticleEmitter bursts of small soft droplets (Emit, no Neon balls). `bursts` points along
+-- each gunwale, `count` droplets each. The pale foam ring on the water stays, dimmer.
+BoatFx.FOAM = { bursts = 4, count = 14, color = Color3.fromRGB(200, 214, 214), life = 1.0 }
+-- The droplets: an engine texture (rbxasset://, not an uploaded asset id), soft and small,
+-- thrown up and pulled down fast, fading out.
+BoatFx.SPRAY = {
+	texture = "rbxasset://textures/particles/smoke_main.dds",
+	color = Color3.fromRGB(196, 210, 212),
+	size = { 0.45, 0.12 },
+	lifetime = { 0.45, 0.9 },
+	speed = { 9, 17 },
+	spread = 28,
+	gravity = 46,
+	drag = 1.2,
+}
 BoatFx.FLASH = { color = Color3.fromRGB(190, 215, 230), brightness = 1.8, range = 30 }
 -- After the death card the drowned see the boat still rocking for a few seconds.
 BoatFx.ROCK = { seconds = 5, roll = 0.16, heave = 0.35, rollPeriod = 2.3, heavePeriod = 1.7 }
@@ -53,10 +68,28 @@ BoatFx.BUBBLES = 22
 BoatFx.UNDERWATER = Color3.fromRGB(60, 160, 150) -- the tint under the surface
 BoatFx.GRAVITY = 42
 -- The Hum's rings: expanding circles on the water around the hull while it builds.
-BoatFx.RINGS = { every = 0.8, from = 10, to = 44, life = 2.6, color = Color3.fromRGB(150, 175, 180) }
+-- M8 polish (Neon: "the glowing cyan rings look sci-fi"): murky, low-contrast dark ripples
+-- (no Neon) with a faint pale edge just outside, slower and closer to the hull.
+BoatFx.RINGS = {
+	every = 1.5,
+	from = 7,
+	to = 24,
+	life = 3.8,
+	segments = 24,
+	color = Color3.fromRGB(16, 24, 26),
+	alpha = 0.45, -- the dark band at its most opaque (transparency 1 - alpha)
+	width = 0.55,
+	edge = Color3.fromRGB(122, 136, 134),
+	edgeAlpha = 0.22,
+	edgeWidth = 0.12,
+}
 BoatFx.BUZZ_CAMERA = 0.04 -- camera rattle at full buzz (was 0.02, Neon wanted it felt)
-BoatFx.MOTOR_RUMBLE = 0.008 -- camera rumble while the outboard runs
-BoatFx.MOTOR_SHAKE = 0.06 -- the outboard copy's jitter in studs (was 0.035)
+-- M8 polish (Neon: the motor did not read): a little more rumble and jitter at the stern, and
+-- a faint churn of droplets behind the shaft while the outboard runs.
+BoatFx.MOTOR_RUMBLE = 0.012 -- camera rumble while the outboard runs (was 0.008)
+BoatFx.MOTOR_SHAKE = 0.08 -- the outboard copy's jitter in studs (was 0.06)
+BoatFx.MOTOR_PARTS = { "Motor", "MotorShaft", "Tiller" } -- the stern pieces that vibrate
+BoatFx.MOTOR_CHURN = { rate = 14, speed = { 2, 5 }, size = { 0.3, 0.08 }, lifetime = { 0.4, 0.8 } }
 
 local buzzLevel = 0
 local buzzTarget = 0
@@ -142,39 +175,94 @@ function BoatFx.rings(on: boolean)
 end
 
 local function spawnRing(hull: BasePart)
-	-- A ring of short flat segments on the water, growing and fading.
+	-- A murky ripple: a ring of short flat dark segments on the water, with a faint pale edge
+	-- just outside it, growing slowly and fading. It eases in, so it never pops.
 	local R = BoatFx.RINGS
-	local center = Vector3.new(hull.Position.X, Config.Lake.waterY + 0.08, hull.Position.Z)
-	local n = 28
-	local segs: { BasePart } = {}
+	local center = Vector3.new(hull.Position.X, Config.Lake.waterY + 0.06, hull.Position.Z)
+	local n = R.segments
+	local dark: { BasePart } = {}
+	local edge: { BasePart } = {}
 	for i = 1, n do
-		segs[i] = Common.part(
+		dark[i] = Common.part(
 			"HumRing",
-			Vector3.new(1, 0.06, 0.22),
+			Vector3.new(1, 0.04, R.width),
 			CFrame.new(center),
 			R.color,
-			Enum.Material.Neon,
-			{ transparency = 0.55 }
+			Enum.Material.SmoothPlastic,
+			{ transparency = 1 }
+		)
+		edge[i] = Common.part(
+			"HumRingEdge",
+			Vector3.new(1, 0.04, R.edgeWidth),
+			CFrame.new(center + Vector3.new(0, 0.01, 0)),
+			R.edge,
+			Enum.Material.SmoothPlastic,
+			{ transparency = 1 }
 		)
 	end
 	task.spawn(function()
 		local t0 = os.clock()
-		while os.clock() - t0 < R.life and segs[1].Parent do
+		while os.clock() - t0 < R.life and dark[1].Parent do
 			local t = (os.clock() - t0) / R.life
 			local r = (R.from + (R.to - R.from) * (1 - (1 - t) * (1 - t))) / 2
-			local len = 2 * math.pi * r / n * 1.05
-			for i, s in segs do
+			local rEdge = r + R.width * 0.5 + R.edgeWidth
+			-- In over the first fifth, then out.
+			local k = math.min(1, t / 0.2) * (1 - t)
+			for i = 1, n do
 				local a = (i - 1) * 2 * math.pi / n
-				s.Size = Vector3.new(len, 0.06, 0.22)
-				s.CFrame = CFrame.new(center + Vector3.new(math.cos(a) * r, 0, math.sin(a) * r))
-					* CFrame.Angles(0, -a + math.pi / 2, 0)
-				s.Transparency = 0.55 + t * 0.45
+				local turn = CFrame.Angles(0, -a + math.pi / 2, 0)
+				local dir = Vector3.new(math.cos(a), 0, math.sin(a))
+				local d, e = dark[i], edge[i]
+				d.Size = Vector3.new(2 * math.pi * r / n * 1.08, 0.04, R.width)
+				d.CFrame = CFrame.new(center + dir * r) * turn
+				d.Transparency = 1 - R.alpha * k
+				e.Size = Vector3.new(2 * math.pi * rEdge / n * 1.08, 0.04, R.edgeWidth)
+				e.CFrame = CFrame.new(center + dir * rEdge + Vector3.new(0, 0.01, 0)) * turn
+				e.Transparency = 1 - R.edgeAlpha * k
 			end
 			task.wait()
 		end
-		for _, s in segs do
-			s:Destroy()
+		for i = 1, n do
+			dark[i]:Destroy()
+			edge[i]:Destroy()
 		end
+	end)
+end
+
+-- A short burst of small soft droplets (a ParticleEmitter Emit) at `cf`, thrown along the
+-- frame's up axis. `count` droplets, `speedMul` on the speed range. Cleans itself up.
+local function spray(cf: CFrame, count: number, speedMul: number?)
+	local S = BoatFx.SPRAY
+	local k = speedMul or 1
+	local anchor = Common.part("Spray", Vector3.new(0.2, 0.2, 0.2), cf, Color3.new(), nil, { transparency = 1 })
+	local att = Instance.new("Attachment")
+	att.Parent = anchor
+	local pe = Instance.new("ParticleEmitter")
+	pe.Name = "Droplets"
+	pe.Enabled = false
+	pe.Rate = 0
+	pe.Texture = S.texture
+	pe.Color = ColorSequence.new(S.color)
+	pe.Size = NumberSequence.new(S.size[1], S.size[2])
+	pe.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.15),
+		NumberSequenceKeypoint.new(0.6, 0.45),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	pe.Lifetime = NumberRange.new(S.lifetime[1], S.lifetime[2])
+	pe.Speed = NumberRange.new(S.speed[1] * k, S.speed[2] * k)
+	pe.SpreadAngle = Vector2.new(S.spread, S.spread)
+	pe.EmissionDirection = Enum.NormalId.Top
+	pe.Acceleration = Vector3.new(0, -S.gravity, 0)
+	pe.Drag = S.drag
+	pe.LightInfluence = 0.7
+	pe.LightEmission = 0.1
+	pe.Rotation = NumberRange.new(0, 360)
+	pe.RotSpeed = NumberRange.new(-90, 90)
+	pe.Parent = att
+	pe:Emit(count)
+	task.delay(S.lifetime[2] + 0.3, function()
+		anchor:Destroy()
 	end)
 end
 
@@ -210,11 +298,32 @@ local function setMotorCopies(on: boolean)
 	if #motorCopies > 0 then
 		return
 	end
-	for _, name in { "Motor", "MotorShaft" } do
+	for _, name in BoatFx.MOTOR_PARTS do
 		local real = BoatClient.part(name)
 		if real then
 			local p = Common.part("Local" .. name, real.Size, real.CFrame, real.Color, real.Material)
 			table.insert(motorCopies, { part = p, real = real })
+			if name == "MotorShaft" then
+				-- A faint churn of droplets at the foot of the shaft while it runs.
+				local C, S = BoatFx.MOTOR_CHURN, BoatFx.SPRAY
+				local att = Instance.new("Attachment")
+				att.Position = Vector3.new(0, -real.Size.Y / 2, 0)
+				att.Parent = p
+				local pe = Instance.new("ParticleEmitter")
+				pe.Name = "Churn"
+				pe.Texture = S.texture
+				pe.Color = ColorSequence.new(S.color)
+				pe.Size = NumberSequence.new(C.size[1], C.size[2])
+				pe.Transparency = NumberSequence.new(0.45, 1)
+				pe.Lifetime = NumberRange.new(C.lifetime[1], C.lifetime[2])
+				pe.Speed = NumberRange.new(C.speed[1], C.speed[2])
+				pe.SpreadAngle = Vector2.new(35, 35)
+				pe.EmissionDirection = Enum.NormalId.Top
+				pe.Acceleration = Vector3.new(0, -S.gravity * 0.6, 0)
+				pe.LightInfluence = 0.7
+				pe.Rate = C.rate
+				pe.Parent = att
+			end
 		end
 	end
 end
@@ -239,6 +348,10 @@ local function stepMotor()
 		) * CFrame.Angles(math.noise(clock * 37, i) * 0.03, 0, math.noise(clock * 43, i + 2) * 0.03)
 		c.part.CFrame = c.real.CFrame * j
 		c.part.Transparency = if hidden then 1 else c.real.Transparency
+		local churn = c.part:FindFirstChild("Churn", true)
+		if churn and churn:IsA("ParticleEmitter") then
+			churn.Enabled = not hidden
+		end
 	end
 end
 
@@ -261,44 +374,59 @@ local function endCapsize()
 end
 
 local function splash(at: Vector3, size: number)
+	-- A pale ring spreading on the water and a short burst of droplets (no spheres).
 	local ring = Common.part(
 		"Splash",
-		Vector3.new(0.2, size, size),
+		Vector3.new(0.12, size, size),
 		CFrame.new(at.X, Config.Lake.waterY + 0.05, at.Z) * CFrame.Angles(0, 0, math.rad(90)),
-		Look.Palette.water:Lerp(Color3.new(1, 1, 1), 0.55),
+		Look.Palette.water:Lerp(Color3.new(1, 1, 1), 0.45),
 		Enum.Material.SmoothPlastic,
-		{ shape = Enum.PartType.Cylinder, transparency = 0.25 }
+		{ shape = Enum.PartType.Cylinder, transparency = 0.45 }
 	)
-	local spout = Common.part(
-		"Spout",
-		Vector3.new(size * 0.35, size * 0.9, size * 0.35),
-		CFrame.new(at.X, Config.Lake.waterY + size * 0.45, at.Z),
-		Look.Palette.water:Lerp(Color3.new(1, 1, 1), 0.7),
-		Enum.Material.SmoothPlastic,
-		{ shape = Enum.PartType.Ball, transparency = 0.3 }
-	)
+	spray(CFrame.new(at.X, Config.Lake.waterY + 0.1, at.Z), math.floor(6 + size * 3), 0.6 + size * 0.12)
 	task.spawn(function()
 		local t0 = os.clock()
 		while os.clock() - t0 < 0.9 do
 			local t = (os.clock() - t0) / 0.9
-			ring.Size = Vector3.new(0.2, size * (1 + t * 2.5), size * (1 + t * 2.5))
-			ring.Transparency = 0.25 + t * 0.75
-			spout.Size = Vector3.new(size * 0.35, math.max(0.05, size * 0.9 * (1 - t)), size * 0.35)
-			spout.Transparency = 0.3 + t * 0.7
+			ring.Size = Vector3.new(0.12, size * (1 + t * 2.5), size * (1 + t * 2.5))
+			ring.Transparency = 0.45 + t * 0.55
 			task.wait()
 		end
 		ring:Destroy()
-		spout:Destroy()
 	end)
 	AudioDirector.play("hold-lost-splash", at)
 end
 
--- Something thrown over the gunwale: flies, spins, splashes, sinks.
-local function throwItem(item: BasePart, from: CFrame, vel: Vector3, spin: Vector3)
-	item.CFrame = from
+-- Every part of a thrown item (one part or a model).
+local function itemParts(item: Instance): { BasePart }
+	local list: { BasePart } = {}
+	if item:IsA("BasePart") then
+		table.insert(list, item)
+	end
+	for _, d in item:GetDescendants() do
+		if d:IsA("BasePart") then
+			table.insert(list, d)
+		end
+	end
+	return list
+end
+
+local function placeItem(item: Instance, cf: CFrame)
+	if item:IsA("Model") then
+		item:PivotTo(cf)
+	elseif item:IsA("BasePart") then
+		item.CFrame = cf
+	end
+end
+
+-- Something thrown over the gunwale (a part or a model): flies, spins, splashes, sinks.
+local function throwItem(item: Instance, from: CFrame, vel: Vector3, spin: Vector3)
+	placeItem(item, from)
+	local parts = itemParts(item)
 	task.spawn(function()
 		local t0 = os.clock()
 		local splashed = false
+		local fade = 0
 		while item.Parent and os.clock() - t0 < 3 do
 			local t = os.clock() - t0
 			local pos = from.Position + vel * t + Vector3.new(0, -0.5 * BoatFx.GRAVITY * t * t, 0)
@@ -308,9 +436,12 @@ local function throwItem(item: BasePart, from: CFrame, vel: Vector3, spin: Vecto
 			end
 			if splashed then
 				pos = Vector3.new(pos.X, math.max(pos.Y, Config.Lake.waterY - 2), pos.Z)
-				item.Transparency = math.min(1, item.Transparency + 0.06)
+				fade = math.min(1, fade + 0.06)
+				for _, p in parts do
+					p.LocalTransparencyModifier = fade
+				end
 			end
-			item.CFrame = CFrame.new(pos) * from.Rotation * CFrame.Angles(spin.X * t, spin.Y * t, spin.Z * t)
+			placeItem(item, CFrame.new(pos) * from.Rotation * CFrame.Angles(spin.X * t, spin.Y * t, spin.Z * t))
 			task.wait()
 		end
 		item:Destroy()
@@ -318,19 +449,109 @@ local function throwItem(item: BasePart, from: CFrame, vel: Vector3, spin: Vecto
 end
 
 local FISH_SPECIES = { "YellowPerch", "Pumpkinseed", "Walleye", "Bullhead", "ChainPickerel" }
+BoatFx.GUIDE_FOLDER = "DeadCalmFieldGuide" -- the server's fish models (the ones the catch uses)
+
+-- A real fish model (the Field Guide's drawing), inert and local; a plain body as a fallback.
+local function thrownFish(species: string, at: CFrame): Instance
+	local folder = ReplicatedStorage:FindFirstChild(BoatFx.GUIDE_FOLDER)
+	local src = folder and folder:FindFirstChild(species)
+	if src and src:IsA("Model") then
+		local m = src:Clone()
+		m.Name = "ThrownFish"
+		for _, d in m:GetDescendants() do
+			if d:IsA("BasePart") then
+				d.Anchored = true
+				d.CanCollide = false
+				d.CanQuery = false
+				d.CanTouch = false
+				d.CastShadow = false
+			elseif d:IsA("LuaSourceContainer") or d:IsA("Sound") then
+				d:Destroy()
+			end
+		end
+		m.Parent = Common.folder()
+		m:PivotTo(at)
+		return m
+	end
+	local spec = (Look.Fish :: any)[species]
+	return Common.part(
+		"ThrownFish",
+		if spec then Vector3.new(spec.width, spec.height, spec.length) else Vector3.new(0.45, 0.7, 1.8),
+		at,
+		if spec then spec.body else Color3.fromRGB(150, 140, 90),
+		Enum.Material.SmoothPlastic
+	)
+end
+
+-- A bait bucket: an upright pail, a darker rim and a wire handle.
+local function thrownBucket(at: CFrame): Model
+	local m = Instance.new("Model")
+	m.Name = "ThrownBucket"
+	local tin = Look.Palette.metal:Lerp(Color3.new(1, 1, 1), 0.4)
+	local up = CFrame.Angles(0, 0, math.rad(90)) -- a Cylinder's axis is X: stand it up
+	local body = Common.part(
+		"Pail",
+		Vector3.new(1.15, 1.05, 1.05),
+		at * up,
+		tin,
+		Enum.Material.Metal,
+		{ shape = Enum.PartType.Cylinder, parent = m }
+	)
+	Common.part(
+		"Rim",
+		Vector3.new(0.1, 1.2, 1.2),
+		at * CFrame.new(0, 0.55, 0) * up,
+		tin:Lerp(Color3.new(0, 0, 0), 0.35),
+		Enum.Material.Metal,
+		{ shape = Enum.PartType.Cylinder, parent = m }
+	)
+	local wire = tin:Lerp(Color3.new(0, 0, 0), 0.5)
+	Common.part("HandleL", Vector3.new(0.06, 0.6, 0.06), at * CFrame.new(-0.55, 0.85, 0), wire, nil, { parent = m })
+	Common.part("HandleR", Vector3.new(0.06, 0.6, 0.06), at * CFrame.new(0.55, 0.85, 0), wire, nil, { parent = m })
+	Common.part("HandleTop", Vector3.new(1.16, 0.06, 0.06), at * CFrame.new(0, 1.15, 0), wire, nil, { parent = m })
+	m.PrimaryPart = body
+	return m
+end
+
+-- An oar: a round shaft, a grip and a flat blade (pale enough to read in the dark).
+local function thrownOar(at: CFrame): Model
+	local m = Instance.new("Model")
+	m.Name = "ThrownOar"
+	local wood = Look.Palette.boatWood:Lerp(Color3.new(1, 1, 1), 0.35)
+	local along = CFrame.Angles(0, math.rad(90), 0) -- the Cylinder's X axis along the oar (Z)
+	local shaft = Common.part(
+		"Shaft",
+		Vector3.new(5.2, 0.24, 0.24),
+		at * along,
+		wood,
+		Enum.Material.Wood,
+		{ shape = Enum.PartType.Cylinder, parent = m }
+	)
+	Common.part(
+		"Grip",
+		Vector3.new(0.7, 0.3, 0.3),
+		at * CFrame.new(0, 0, -2.75) * along,
+		wood:Lerp(Color3.new(0, 0, 0), 0.3),
+		Enum.Material.Wood,
+		{ shape = Enum.PartType.Cylinder, parent = m }
+	)
+	Common.part(
+		"Blade",
+		Vector3.new(0.7, 0.1, 1.6),
+		at * CFrame.new(0, 0, 3.3),
+		wood,
+		Enum.Material.Wood,
+		{ parent = m }
+	)
+	m.PrimaryPart = shaft
+	return m
+end
 
 local function launchHold(hull: BasePart, fishCount: number)
 	local base = hull.CFrame * CFrame.new(0, 1.9, 1.6)
 	local side = if rnd:NextNumber() < 0.5 then -1 else 1
 	for i = 1, fishCount do
-		local spec = (Look.Fish :: any)[FISH_SPECIES[(i - 1) % #FISH_SPECIES + 1]]
-		local fish = Common.part(
-			"ThrownFish",
-			if spec then Vector3.new(spec.width, spec.height, spec.length) else Vector3.new(0.45, 0.7, 1.8),
-			base,
-			if spec then spec.body else Color3.fromRGB(150, 140, 90),
-			Enum.Material.SmoothPlastic
-		)
+		local fish = thrownFish(FISH_SPECIES[(i - 1) % #FISH_SPECIES + 1], base)
 		local out = hull.CFrame.RightVector * side * rnd:NextNumber(7, 11)
 			+ hull.CFrame.LookVector * rnd:NextNumber(-3, 3)
 		task.delay((i - 1) * 0.12, function()
@@ -338,38 +559,19 @@ local function launchHold(hull: BasePart, fishCount: number)
 		end)
 		side = -side
 	end
-	-- A bait bucket goes too.
-	local bucket = Common.part(
-		"ThrownBucket",
-		Vector3.new(1.3, 1.2, 1.2),
-		base,
-		Look.Palette.metal:Lerp(Color3.new(1, 1, 1), 0.45),
-		Enum.Material.Metal,
-		{ shape = Enum.PartType.Cylinder }
-	)
+	-- The bait bucket goes too.
+	local bucketAt = hull.CFrame * CFrame.new(0, 1.6, 3.4)
+	local bucket = thrownBucket(bucketAt)
+	bucket.Parent = Common.folder()
 	task.delay(0.08, function()
-		throwItem(
-			bucket,
-			hull.CFrame * CFrame.new(0, 1.6, 3.4),
-			hull.CFrame.RightVector * side * 9 + Vector3.new(0, 15, 0),
-			Vector3.new(6, 2, 8)
-		)
+		throwItem(bucket, bucketAt, hull.CFrame.RightVector * side * 9 + Vector3.new(0, 15, 0), Vector3.new(6, 2, 8))
 	end)
-	-- Loose gear: an oar and the tackle box (pale enough to read in the dark).
-	local oar = Common.part(
-		"ThrownOar",
-		Vector3.new(0.3, 0.3, 6.5),
-		base,
-		Look.Palette.boatWood:Lerp(Color3.new(1, 1, 1), 0.35),
-		Enum.Material.Wood
-	)
+	-- Loose gear: an oar and the tackle box.
+	local oarAt = hull.CFrame * CFrame.new(-side * 1.4, 1.8, -1)
+	local oar = thrownOar(oarAt)
+	oar.Parent = Common.folder()
 	task.delay(0.15, function()
-		throwItem(
-			oar,
-			hull.CFrame * CFrame.new(-side * 1.4, 1.8, -1),
-			hull.CFrame.RightVector * -side * 8 + Vector3.new(0, 14, 0),
-			Vector3.new(2, 7, 1)
-		)
+		throwItem(oar, oarAt, hull.CFrame.RightVector * -side * 8 + Vector3.new(0, 14, 0), Vector3.new(2, 7, 1))
 	end)
 	local box = Common.part(
 		"ThrownTackle",
@@ -388,52 +590,37 @@ local function launchHold(hull: BasePart, fishCount: number)
 	end)
 end
 
--- White foam at both gunwales: Neon flecks thrown up and out that fall and fade.
+-- Spray at both gunwales: droplet bursts thrown up and out along each side, and a pale ring of
+-- foam on the water on each side.
 local function foamBurst(hull: BasePart)
 	local F = BoatFx.FOAM
-	for i = 1, F.flecks do
-		local side = if i % 2 == 0 then 1 else -1
-		local from = hull.CFrame * CFrame.new(side * 2.3, 0.2, rnd:NextNumber(-5, 5))
-		local size = rnd:NextNumber(0.3, 0.75)
-		local fleck = Common.part(
-			"Foam",
-			Vector3.new(size, size, size),
-			from,
-			F.color,
-			Enum.Material.Neon,
-			{ shape = Enum.PartType.Ball, transparency = 0.15 }
-		)
-		local vel = hull.CFrame.RightVector * side * rnd:NextNumber(4, 10) + Vector3.new(0, rnd:NextNumber(8, 16), 0)
-		local delay = rnd:NextNumber(0, 0.25)
-		task.delay(delay, function()
-			local t0 = os.clock()
-			while fleck.Parent and os.clock() - t0 < F.life do
-				local t = os.clock() - t0
-				local pos = from.Position + vel * t + Vector3.new(0, -0.5 * BoatFx.GRAVITY * t * t, 0)
-				fleck.CFrame = CFrame.new(Vector3.new(pos.X, math.max(pos.Y, Config.Lake.waterY), pos.Z))
-				fleck.Transparency = 0.15 + 0.85 * (t / F.life)
-				task.wait()
-			end
-			fleck:Destroy()
-		end)
-	end
-	-- A pale ring of foam on the water on each side.
 	for _, side in { -1, 1 } do
+		for i = 1, F.bursts do
+			local z = -5 + (i - 1) * (10 / math.max(1, F.bursts - 1))
+			local at = hull.CFrame * CFrame.new(side * 2.4, 0.3, z)
+			-- Tilted out over the side so the droplets fly away from the boat.
+			-- The emitter's Top face points up and out (about 30 degrees off vertical).
+			local up = (hull.CFrame.UpVector + hull.CFrame.RightVector * side * 0.58).Unit
+			local cf = CFrame.fromMatrix(at.Position, hull.CFrame.LookVector, up)
+			task.delay(rnd:NextNumber(0, 0.2), function()
+				spray(cf, F.count)
+			end)
+		end
 		local at = hull.Position + hull.CFrame.RightVector * side * 3
 		local ring = Common.part(
 			"FoamRing",
 			Vector3.new(0.12, 6, 6),
 			CFrame.new(at.X, Config.Lake.waterY + 0.06, at.Z) * CFrame.Angles(0, 0, math.rad(90)),
 			F.color,
-			Enum.Material.Neon,
-			{ shape = Enum.PartType.Cylinder, transparency = 0.35 }
+			Enum.Material.SmoothPlastic,
+			{ shape = Enum.PartType.Cylinder, transparency = 0.5 }
 		)
 		task.spawn(function()
 			local t0 = os.clock()
-			while ring.Parent and os.clock() - t0 < 1.3 do
-				local t = (os.clock() - t0) / 1.3
+			while ring.Parent and os.clock() - t0 < F.life * 1.3 do
+				local t = (os.clock() - t0) / (F.life * 1.3)
 				ring.Size = Vector3.new(0.12, 6 + t * 12, 6 + t * 12)
-				ring.Transparency = 0.35 + t * 0.65
+				ring.Transparency = 0.5 + t * 0.5
 				task.wait()
 			end
 			ring:Destroy()

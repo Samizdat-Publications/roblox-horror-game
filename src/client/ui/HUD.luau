@@ -54,6 +54,28 @@ function HUD.clockText(hours: number): string
 	return string.format("%d:%02d %s", h12, m, suffix)
 end
 
+-- M8 polish (Neon: the dawn banner overlapped the HUD paper): other screens can hide the HUD
+-- for a while by key (fx/Finale under the dawn banner). Shown again when every key is off.
+local hideKeys: { [string]: boolean } = {}
+local hudGui: ScreenGui? = nil
+local lobbyShows = true
+
+local function applyEnabled()
+	local g = hudGui
+	if g then
+		g.Enabled = lobbyShows and next(hideKeys) == nil
+	end
+end
+
+function HUD.setHidden(key: string, on: boolean)
+	hideKeys[key] = if on then true else nil
+	applyEnabled()
+end
+
+function HUD.hidden(): boolean
+	return next(hideKeys) ~= nil
+end
+
 local labels: { [string]: TextLabel } = {}
 local oilFill: Frame? = nil
 local oilBar: Frame? = nil
@@ -63,6 +85,11 @@ local pulseClock = 0
 HUD.OIL_BAR_HEIGHT = 14
 HUD.PULSE_RED = Color3.fromRGB(205, 40, 28)
 HUD.PULSE_BRIGHT = Color3.fromRGB(255, 96, 70)
+-- M8 polish (Neon: on night 5 the bar "looks empty and black", then "snaps to full red at
+-- 4 AM"): a full bar filled with ink read as an empty black slot. Outside the finale the oil
+-- is now a lamp-oil amber on a pale ink track, so its real level reads from the first second
+-- of every night; the finale's red takes over at the bell (the refill to full is real).
+HUD.OIL_FILL = Color3.fromRGB(214, 140, 52)
 local shownOil = 1 -- the oil fill as drawn (eased toward the real level)
 
 -- 0..1: how hard the oil bar pulses right now (0 = steady). Finale v6 (Neon: "the oil bar
@@ -197,9 +224,9 @@ local function stepPulse(dt: number)
 	local red = view.phase == "Finale"
 	if p <= 0 then
 		-- In the finale the bar is red all along (the oil is the clock); otherwise ink.
-		fill.BackgroundColor3 = if red then HUD.PULSE_RED else Look.UI.ink
+		fill.BackgroundColor3 = if red then HUD.PULSE_RED else HUD.OIL_FILL
 		bar.BackgroundColor3 = if red then HUD.PULSE_RED else Look.UI.ink
-		bar.BackgroundTransparency = if red then 0.78 else 0.75
+		bar.BackgroundTransparency = if red then 0.78 else 0.8
 		fill.BackgroundTransparency = 0
 		return
 	end
@@ -212,7 +239,7 @@ local function stepPulse(dt: number)
 		fill.BackgroundColor3 = HUD.PULSE_RED:Lerp(HUD.PULSE_BRIGHT, w * p)
 		fill.BackgroundTransparency = 0.25 * (1 - w) * p
 	else
-		fill.BackgroundColor3 = Look.Palette.amendInk:Lerp(HUD.PULSE_RED, w * p)
+		fill.BackgroundColor3 = HUD.OIL_FILL:Lerp(HUD.PULSE_RED, w * p)
 		fill.BackgroundTransparency = 0
 	end
 	bar.BackgroundColor3 = HUD.PULSE_RED
@@ -292,7 +319,7 @@ function HUD.init()
 	local fill = Instance.new("Frame")
 	fill.Name = "Fill"
 	fill.Size = UDim2.fromScale(1, 1)
-	fill.BackgroundColor3 = Look.UI.ink
+	fill.BackgroundColor3 = HUD.OIL_FILL
 	fill.BorderSizePixel = 0
 	fill.Parent = bar
 	oilFill = fill
@@ -375,9 +402,12 @@ function HUD.init()
 		end
 	end
 	game:GetService("RunService").Heartbeat:Connect(stepPulse)
+	hudGui = gui
 	LobbyClient.onChange(function(st)
-		gui.Enabled = st.phase ~= "Title"
+		lobbyShows = st.phase ~= "Title"
+		applyEnabled()
 	end)
+	applyEnabled()
 	gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 end
 

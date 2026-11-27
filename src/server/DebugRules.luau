@@ -39,6 +39,9 @@ how far the server's gaze was off the figure (off the edge offset in watcher_pas
 
     hum_pass         lantern and motor on; at the cue the bot cuts both and sits still
     hum_fail         lantern out; when the hum rises the bot starts the motor (Death.Hum.Motor)
+                     Both (M8): the reset waits for the clients' chorus to climb back to full,
+                     then the scenario holds HUM_LEAD s of full chorus before the cue
+                     (result field chorusHeld)
     wrongcatch_pass  the next fish is wrong; the bot looks at it, then throws it back
     wrongcatch_fail  the bot keeps it, rows home and banks it; the cooler knocks (the knock
                      delay is shortened to 8..10 s for the scenario with rulesPatch)
@@ -66,6 +69,7 @@ local Config = require(Shared:WaitForChild("Config"))
 local Core = Shared:WaitForChild("Core")
 local Rng = require(Core:WaitForChild("Rng"))
 local Fakeouts = require(Core:WaitForChild("Fakeouts"))
+local Look = require(Shared:WaitForChild("Look"))
 
 local server = script.Parent
 local BoatService = require(server:WaitForChild("BoatService"))
@@ -96,6 +100,35 @@ end
 
 local function view(): any
 	return NightService.view()
+end
+
+-- M8 polish (item 12): a clip of a Hum scenario must show the change, so it starts with at
+-- least HUM_LEAD seconds of the full frog chorus before the cue. The clients' chorus climbs
+-- back from silence gradually (Look.Mix.chorusRisePerSecond, 9 s from 0 to the full band),
+-- so the Hum scenarios' reset first waits CHORUS_RISE seconds of band 3 (before any
+-- recording starts), then the scenario itself holds HUM_LEAD more seconds before it forces
+-- the rule.
+DebugRules.HUM_LEAD = 3.5
+DebugRules.CHORUS_RISE = 3 / Look.Mix.chorusRisePerSecond + 0.5
+
+-- Waits until the server's chorus band has been 3 (full) for `seconds` in a row, at most
+-- `timeout` seconds. Returns how long it held.
+local function holdFullChorus(seconds: number, timeout: number?): number
+	local t0 = os.clock()
+	local since: number? = nil
+	while os.clock() - t0 < (timeout or seconds + 20) do
+		local v = NightService.view()
+		if v and (tonumber(v.chorus) or 0) >= 3 then
+			since = since or os.clock()
+			if os.clock() - (since :: number) >= seconds then
+				return os.clock() - (since :: number)
+			end
+		else
+			since = nil
+		end
+		task.wait(0.1)
+	end
+	return if since then os.clock() - since else 0
 end
 
 local function setLantern(bot: Bot, on: boolean)
@@ -318,6 +351,10 @@ local function fullReset(opts: Opts, name: string): (Bot?, { [string]: any })
 	end
 	BoatService.teleport(x, z, h)
 	task.wait(1.5)
+	if string.sub(name, 1, 4) == "hum_" then
+		-- The clients' chorus climbs back to full before anything is recorded (item 12).
+		holdFullChorus(DebugRules.CHORUS_RISE)
+	end
 	local v = view()
 	local alive = 0
 	for _, pv in (if v then v.players else {}) :: { any } do
@@ -403,6 +440,8 @@ local function humPass(opts: Opts)
 	end
 	setLantern(bot, true)
 	setMotor(bot, true)
+	-- At least HUM_LEAD seconds of the full chorus on screen before the cue (item 12).
+	local held = holdFullChorus(DebugRules.HUM_LEAD)
 	local w = watch()
 	forceRule("Hum")
 	local cue = waitFor(w, isKind("Hum", "EntityCue"), 5)
@@ -411,7 +450,7 @@ local function humPass(opts: Opts)
 	setMotor(bot, false)
 	setLantern(bot, false)
 	local out = waitFor(w, isOutcome("Hum"), 45)
-	return { result = outcomeName(out), cue = cue ~= nil }
+	return { result = outcomeName(out), cue = cue ~= nil, chorusHeld = H.round(held, 1) }
 end
 
 local function humFail(opts: Opts)
@@ -421,6 +460,8 @@ local function humFail(opts: Opts)
 	end
 	setMotor(bot, false)
 	setLantern(bot, false)
+	-- At least HUM_LEAD seconds of the full chorus on screen before the cue (item 12).
+	local held = holdFullChorus(DebugRules.HUM_LEAD)
 	local w = watch()
 	forceRule("Hum")
 	waitFor(w, isStage("Hum", "Window"), 8)
@@ -432,7 +473,11 @@ local function humFail(opts: Opts)
 	end, 2)
 	task.wait(1)
 	setMotor(bot, false)
-	return { result = outcomeName(out), death = if died then died.data.text else nil }
+	return {
+		result = outcomeName(out),
+		death = if died then died.data.text else nil,
+		chorusHeld = H.round(held, 1),
+	}
 end
 
 ----------------------------------------------------------------------------------------

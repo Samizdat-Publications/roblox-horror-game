@@ -160,6 +160,50 @@ local function stepWisps(dt: number)
 	end
 end
 
+-- M8 polish (Neon: "a player model clipping half-submerged under the boat" after the death
+-- card): every drowned crewmate's character is hidden on this client while they are dead
+-- (LocalTransparencyModifier on its parts and decals), written after the camera scripts so
+-- the first-person transparency code cannot show it again. The server hides it too
+-- (EntityPresenter); this also covers parts that load or come back later.
+local hiddenChars: { [Model]: boolean } = {}
+
+local function setCharHidden(char: Model, on: boolean)
+	local k = if on then 1 else 0
+	for _, d in char:GetDescendants() do
+		if d:IsA("BasePart") or d:IsA("Decal") then
+			if (d :: any).LocalTransparencyModifier ~= k then
+				(d :: any).LocalTransparencyModifier = k
+			end
+		end
+	end
+end
+
+local function stepHideDrowned()
+	local view = ViewState.get()
+	local want: { [Model]: boolean } = {}
+	for _, p in view.players or {} do
+		if type(p) == "table" and p.alive == false and type(p.id) == "number" then
+			local pl = Players:GetPlayerByUserId(p.id)
+			local char = pl and pl.Character
+			if char then
+				want[char] = true
+			end
+		end
+	end
+	for char in hiddenChars do
+		if not want[char] then
+			hiddenChars[char] = nil
+			if char.Parent then
+				setCharHidden(char, false)
+			end
+		end
+	end
+	for char in want do
+		hiddenChars[char] = true
+		setCharHidden(char, true)
+	end
+end
+
 local function updateTag()
 	local t = tag
 	if t == nil then
@@ -562,6 +606,7 @@ function Drowned.init()
 		stepCues()
 	end)
 	RunService:BindToRenderStep("DeadCalmDrowned", Enum.RenderPriority.Camera.Value + 1, stepCamera)
+	RunService:BindToRenderStep("DeadCalmDrownedHide", Enum.RenderPriority.Camera.Value + 3, stepHideDrowned)
 	-- The Neighbor's silhouette in the boat (a server model) is outlined for the drowned.
 	local outlinedSilhouettes: { [Instance]: boolean } = {}
 	task.spawn(function()

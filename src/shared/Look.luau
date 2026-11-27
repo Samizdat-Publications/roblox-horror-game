@@ -85,8 +85,16 @@ Look.Lighting = {
 -- Dawn after the finale (Polish 3, Neon's fix 4): fx/Finale tweens the client's Lighting,
 -- Atmosphere and ColorCorrection from the night (Look.Lighting) to these over `seconds`, and
 -- puts them back at the next night or on the title. The fog lifts a little and turns warm.
+-- M8 polish (Neon: "night hard-cuts to daylight in a single frame"): fx/Finale now eases it
+-- by hand over `seconds` as the boat enters the dock light: the horizon warms first (the
+-- colours, the sky), the fog lifts and thins from `fogDelay` of the way in, and the banner
+-- shows only at the end. ClockTime starts from `clockFrom` (still night to the eye) so the
+-- sunrise in the sky spreads over the whole ease instead of the last few frames.
 Look.Dawn = {
-	seconds = 2.6,
+	seconds = 3,
+	clockFrom = 5.2,
+	fogDelay = 0.25,
+	bannerHold = 4.5, -- seconds the banner stays before it fades (the HUD is hidden under it)
 	ClockTime = 6.3,
 	Brightness = 2.4,
 	Ambient = Color3.fromRGB(118, 98, 86),
@@ -172,6 +180,10 @@ Look.Lantern = {
 	Shadows = true,
 	flickerLow = 0.88,
 	flickerSpeed = 7, -- noise steps per second
+	-- M8 polish (Neon: the "off" lantern kept its orange glow): the glass ball is this deep
+	-- orange Neon while lit (BoatHull's colour) and a dull brass, not Neon, while out (WorldFx).
+	glowLit = Color3.fromRGB(255, 118, 36),
+	glowOut = Color3.fromRGB(78, 64, 38),
 }
 
 -- The dock beacon: a steady warm light that blinks off twice every `period` seconds.

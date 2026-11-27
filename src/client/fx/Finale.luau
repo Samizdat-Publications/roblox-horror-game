@@ -37,6 +37,10 @@
 --   column are gone: home is a modest light post with a small halo at the dock end, and false
 --   beacons wear the same halo but blink wrong (steady or one flicker); the wake is thin faint
 --   streaks; the real Steeple Cat lies on the hold lid while it is aboard.
+-- M8 polish (Neon finale-v6 3/10, docs/M8-POLISH.md items 6 to 8): the dawn eases in by hand
+--   over 3 s in stages (horizon, then fog, then the banner); the Steeple Cat lies on the floor
+--   boards clear of the rods and stays in the boat through the dawn; the HUD hides under the
+--   banner.
 -- This module never writes a SoundGroup: sound goes through AudioDirector only.
 
 local Lighting = game:GetService("Lighting")
@@ -58,6 +62,7 @@ local ViewState = require(client:WaitForChild("ViewState"))
 local WorldFx = require(client:WaitForChild("WorldFx"))
 local Common = require(script.Parent:WaitForChild("Common"))
 local Paper = require(client:WaitForChild("ui"):WaitForChild("Paper"))
+local HUD = require(client:WaitForChild("ui"):WaitForChild("HUD"))
 
 local Finale = {}
 
@@ -294,7 +299,10 @@ local function showBanner()
 		st.Transparency = 0
 	end
 	b.Visible = true
-	task.delay(5.5, function()
+	-- M8 polish (Neon: the banner overlapped the HUD paper): the HUD hides under the banner
+	-- and comes back once it has faded.
+	HUD.setHidden(Finale.KEY, true)
+	task.delay(Look.Dawn.bannerHold, function()
 		if b.Visible then
 			local info = TweenInfo.new(1.5)
 			TweenService:Create(b, info, { BackgroundTransparency = 1 }):Play()
@@ -302,6 +310,12 @@ local function showBanner()
 			if st then
 				TweenService:Create(st, info, { Transparency = 1 }):Play()
 			end
+			task.delay(1.5, function()
+				if b.Visible then
+					b.Visible = false
+					HUD.setHidden(Finale.KEY, false)
+				end
+			end)
 		end
 	end)
 end
@@ -311,6 +325,7 @@ local function hideBanner()
 	if b then
 		b.Visible = false
 	end
+	HUD.setHidden(Finale.KEY, false)
 end
 
 local function setVignette(level: number)
@@ -959,7 +974,13 @@ end
 -- stands for is hidden on this client (LocalTransparencyModifier). No model: nothing shows.
 
 Finale.GUIDE_FOLDER = "DeadCalmFieldGuide"
-Finale.DECK_CAT = { length = 2.6, offset = Vector3.new(0, 1.84, 1.6), yaw = 75 }
+-- M8 polish (Neon: "the fish clips across the two fishing rods", and it "deletes itself" at
+-- dawn): the cat lies on the floor boards along the port side, beside the hold box (hull
+-- frame: the box spans x -1.1..1.1, the port side is at x -2.3, the floor top is y 0.33; the
+-- mid thwart ends at z -0.7 and the stern thwart starts at z 3.7), clear of every rod (the
+-- port and starboard rods sit at z -1.4, the helm rod leans out to starboard). It stays in
+-- the boat through the dawn, after the owner has taken the hold.
+Finale.DECK_CAT = { length = 2.4, offset = Vector3.new(-1.7, 0.34, 1.6), yaw = 0 }
 
 local deckCat: Model? = nil
 local deckRel: CFrame = CFrame.identity -- pivot relative to the bounding box center
@@ -1012,7 +1033,12 @@ end
 local function stepDeckCat()
 	local view: any = ViewState.get()
 	local hull = BoatClient.hull()
-	local want = active and view.specialAboard == true and (tonumber(view.hold) or 0) > 0 and hull ~= nil
+	local aboard = active and view.specialAboard == true and (tonumber(view.hold) or 0) > 0
+	-- At dawn the cat that was aboard stays where it lies (the hold token is banked by then).
+	-- The view that banks the hold may land a moment before the pass event: inside the dock
+	-- light a cat already shown is kept too.
+	local atDawn = deckCat ~= nil and (phase == "Dawn" or (active and view.safe == true))
+	local want = (aboard or atDawn) and hull ~= nil
 	if not want or hull == nil then
 		if deckCat or hiddenToken then
 			clearDeckCat()
@@ -1025,7 +1051,7 @@ local function stepDeckCat()
 			return
 		end
 	end
-	if hiddenToken == nil or hiddenToken.Parent == nil then
+	if aboard and (hiddenToken == nil or hiddenToken.Parent == nil) then
 		local boat = BoatClient.model()
 		for i = 8, 1, -1 do
 			local t = boat and boat:FindFirstChild("HoldFish" .. i, true)
@@ -1104,24 +1130,84 @@ local function restoreLighting()
 	end
 end
 
-local function dawn()
-	phase = "Dawn"
-	local D = Look.Dawn
-	saveLighting()
-	WorldFx.ambientOverride = true
-	local info = TweenInfo.new(D.seconds, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
-	local atmo, cc = lightingTargets()
-	local goal: { [string]: any } = {}
-	for _, k in LIGHT_PROPS do
-		goal[k] = (D :: any)[k]
+-- M8 polish: the dawn eases in by hand (no TweenService), one stage after another: the horizon
+-- (the Lighting colours, the sky's ClockTime, the fog's colour and the colour grade) warms over
+-- the whole Look.Dawn.seconds; the fog lifts and thins (Density, Offset, Haze) from fogDelay of
+-- the way in; the banner shows at the end. Values are lerped from what was on screen.
+local dawnT0: number? = nil
+local dawnBannerShown = false
+local FOG_PROPS = { Density = true, Offset = true, Haze = true }
+
+local function smooth(x: number): number
+	local u = math.clamp(x, 0, 1)
+	return u * u * (3 - 2 * u)
+end
+
+local function mix(a: any, b: any, k: number): any
+	if typeof(a) == "Color3" and typeof(b) == "Color3" then
+		return (a :: Color3):Lerp(b :: Color3, k)
+	elseif type(a) == "number" and type(b) == "number" then
+		return a + (b - a) * k
 	end
-	TweenService:Create(Lighting, info, goal):Play()
+	return if k >= 1 then b else a
+end
+
+-- 0..1 for the horizon and for the fog at `u` (0..1 of the way through the dawn).
+function Finale.dawnStages(u: number): (number, number)
+	local D = Look.Dawn
+	local f = D.fogDelay or 0
+	return smooth(u), smooth((u - f) / math.max(1e-3, 1 - f))
+end
+
+local function stepDawn()
+	local t0, s = dawnT0, saved
+	if t0 == nil or s == nil then
+		return
+	end
+	local D = Look.Dawn
+	local u = math.clamp((clock - t0) / math.max(0.01, D.seconds), 0, 1)
+	local kH, kF = Finale.dawnStages(u)
+	local atmo, cc = lightingTargets()
+	local light: any = Lighting
+	local dawnLook: any = D
+	for _, k in LIGHT_PROPS do
+		local from = if k == "ClockTime" then D.clockFrom or s.lighting[k] else s.lighting[k]
+		light[k] = mix(from, dawnLook[k], kH)
+	end
 	if atmo then
-		TweenService:Create(atmo, info, D.atmosphere):Play()
+		local a: any = atmo
+		local goals: any = D.atmosphere
+		for _, k in ATMO_PROPS do
+			if goals[k] ~= nil and s.atmo[k] ~= nil then
+				a[k] = mix(s.atmo[k], goals[k], if FOG_PROPS[k] then kF else kH)
+			end
+		end
 	end
 	if cc then
-		TweenService:Create(cc, info, D.colorCorrection):Play()
+		local c: any = cc
+		local goals: any = D.colorCorrection
+		for _, k in CC_PROPS do
+			if goals[k] ~= nil and s.cc[k] ~= nil then
+				c[k] = mix(s.cc[k], goals[k], kH)
+			end
+		end
 	end
+	if u >= 1 then
+		dawnT0 = nil -- done: the values stay at the dawn
+		if not dawnBannerShown then
+			dawnBannerShown = true
+			showBanner()
+		end
+	end
+end
+
+local function dawn()
+	phase = "Dawn"
+	saveLighting()
+	WorldFx.ambientOverride = true
+	dawnT0 = clock
+	dawnBannerShown = false
+	stepDawn()
 	-- The water and the morning come back.
 	AudioDirector.muteAmbience(Finale.KEY, false, 2.5)
 	AudioDirector.play("dawn-cue")
@@ -1130,7 +1216,6 @@ local function dawn()
 			AudioDirector.play("dawn-birds")
 		end
 	end)
-	showBanner()
 end
 
 ----------------------------------------------------------------------------------------
@@ -1145,6 +1230,7 @@ local function step(dt: number)
 		stepWake(dt, alive)
 	end
 	stepDeckCat()
+	stepDawn()
 	stepChase(dt, alive)
 	stepHazards(dt)
 	stepBell(dt)
@@ -1156,7 +1242,7 @@ local function ensureLoop()
 	end
 end
 
-local function endFinale(fade: number)
+local function endFinale(fade: number, keepCat: boolean?)
 	active = false
 	cueToken += 1
 	if phase ~= "Dawn" then
@@ -1164,7 +1250,9 @@ local function endFinale(fade: number)
 	end
 	clearLock()
 	clearWake()
-	clearDeckCat()
+	if not keepCat then
+		clearDeckCat()
+	end
 	clearHazards(fade)
 	clearShaft(fade)
 	stopChase(math.min(fade, 1.5))
@@ -1305,8 +1393,12 @@ function Finale.handle(e: any)
 		BoatFx.shake(1.0, 1.2)
 		AudioDirector.play("lake-groan")
 	elseif kind == "EntityPass" then
-		endFinale(2.5)
-		if data.home == true then
+		local home = data.home == true
+		if home then
+			phase = "Dawn" -- before endFinale, so the cat on the floor stays (stepDeckCat)
+		end
+		endFinale(2.5, home)
+		if home then
 			dawn()
 		else
 			AudioDirector.muteAmbience(Finale.KEY, false, 2)
@@ -1321,6 +1413,8 @@ function Finale.reset()
 	endFinale(0)
 	phase = "Off"
 	AudioDirector.muteAmbience(Finale.KEY, false)
+	dawnT0 = nil
+	dawnBannerShown = false
 	restoreLighting()
 	local bl = bell
 	bell = nil
