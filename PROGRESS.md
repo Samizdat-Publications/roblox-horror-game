@@ -13,7 +13,7 @@ The overnight run is finished: M0 to M8 are built, and the final self-review and
 - 212 automated tests. A bot that follows the rules clears Normal every time and Nightmare about 95 percent of the time; a bot that ignores them is dead by night 2.
 
 **What is stubbed or rough**
-- About 30 of our own sounds wait on disk because the Roblox upload cap is used up; free Roblox library sounds stand in. 18 more sounds need ElevenLabs credits.
+- Our own sounds are all uploaded (22 more went up 11/27/2026 after ID verification); their volumes are a first pass. 11 library stand-ins remain, and 18 sounds still need ElevenLabs credits (2 characters left).
 - Real DataStores and a two-player test need the game published privately (HUMAN_TODO).
 - The critic (Gemini Neon) scores the two big moments 5 out of 10. It started at 1.5 and 3.5. It is harsh, and it judges a test bot that drives straight.
 
@@ -28,7 +28,7 @@ To play: double-click `C:\Users\stewa\Documents\Claude\Roblox\dead-calm\DeadCalm
 
 **Top five next builds**
 1. (Done 11/27/2026.) Readable strange boats.
-2. Upload our own sounds when the cap allows (ID verification or after 12/26/2026) and generate the 18 missing ones.
+2. (Uploads done 11/27/2026.) Generate the 18 missing sounds when ElevenLabs credits are topped up, then tune levels by ear.
 3. Publish privately and run a two-device test with Liam: real saves, two players in one boat, cues that go to one player only.
 4. Liam's style pick from the style board (https://claude.ai/artifact/5jPTuiWZoUpbFAozsNgzQN), then a look pass in that style.
 5. (Done 11/27/2026.) Hero models from Blender (M9). A follow-up could give the strange boat's figure the same treatment.
