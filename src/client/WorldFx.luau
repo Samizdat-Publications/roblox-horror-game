@@ -29,6 +29,10 @@ WorldFx.MOON = {
 	ambient = Color3.fromRGB(82, 100, 108),
 }
 
+-- fx/Finale's dawn owns the Lighting while it shows (Polish 3): the moon then leaves
+-- OutdoorAmbient alone.
+WorldFx.ambientOverride = false
+
 local moonPart: BasePart? = nil
 local moonLight: PointLight? = nil
 local moonLevel = 0
@@ -72,7 +76,9 @@ local function stepMoon(dt: number, lanternLit: boolean)
 	l.Brightness = WorldFx.MOON.brightness * moonLevel
 	l.Enabled = moonLevel > 0.01
 	local q = math.floor(moonLevel * 20 + 0.5) / 20
-	if q ~= lastAmbientLevel then
+	if WorldFx.ambientOverride then
+		lastAmbientLevel = -1 -- written again once the dawn lets go
+	elseif q ~= lastAmbientLevel then
 		lastAmbientLevel = q
 		Lighting.OutdoorAmbient = Look.Lighting.OutdoorAmbient:Lerp(WorldFx.MOON.ambient, q)
 	end

@@ -7,6 +7,11 @@
 -- the printed line crossed out and the owner's new line under it in his second ink.
 -- Every line of text comes from Core.Rulebook (Rulebook.page, Rulebook.TEXT).
 -- On the title screen the same page shows the Lake Rules as printed, all seven ("lake").
+-- Polish 3: an amendment that adds to a rule (its text starts with "And", like the
+-- Neighbor's "AND ROW AWAY FROM IT") leaves the printed rule unstruck and adds the new line
+-- in red ink under it; one that replaces the rule strikes the printed line. The rules are
+-- not rotated (rotation stops clipping), the tape is translucent strips across the top
+-- corners, and the list scrolls inside the paper.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -32,6 +37,12 @@ local gui: ScreenGui? = nil
 local heading: TextLabel? = nil
 local list: ScrollingFrame? = nil
 local lastLines: { { [string]: any } } = {}
+
+-- True when an amendment adds to the printed rule rather than replacing it.
+function Rulebook_.additive(text: string): boolean
+	local head = string.lower(string.sub(text, 1, 6))
+	return string.find(head, "^and%s") ~= nil or string.find(head, "^also%s") ~= nil
+end
 
 local function esc(s: string): string
 	return (string.gsub(string.gsub(string.gsub(s, "&", "&amp;"), "<", "&lt;"), ">", "&gt;"))
@@ -77,6 +88,23 @@ local function clearList(l: ScrollingFrame)
 	end
 end
 
+-- Rotated strips can escape a scroll frame's clipping, so a strip is shown only while it is
+-- inside the visible part of the list.
+local function cullTape()
+	local l = list
+	if l == nil then
+		return
+	end
+	local top = l.AbsolutePosition.Y
+	local bottom = l.AbsolutePosition.Y + l.AbsoluteSize.Y
+	for _, d in l:GetDescendants() do
+		if d:IsA("Frame") and d.Name == "Tape" then
+			local cy = d.AbsolutePosition.Y + d.AbsoluteSize.Y / 2
+			d.Visible = cy >= top and cy <= bottom
+		end
+	end
+end
+
 local function fill(page: string)
 	local l, h = list, heading
 	if l == nil or h == nil then
@@ -96,12 +124,11 @@ local function fill(page: string)
 		block.BorderSizePixel = 0
 		block.Size = UDim2.new(1, -16, 0, 0)
 		block.AutomaticSize = Enum.AutomaticSize.Y
-		block.Rotation = if i % 2 == 0 then 0.5 else -0.4
 		block.Parent = l
 		local pad = Instance.new("UIPadding")
 		pad.PaddingLeft = UDim.new(0, 10)
 		pad.PaddingRight = UDim.new(0, 10)
-		pad.PaddingTop = UDim.new(0, 8)
+		pad.PaddingTop = UDim.new(0, 12)
 		pad.PaddingBottom = UDim.new(0, 8)
 		pad.Parent = block
 		local inner = Instance.new("UIListLayout")
@@ -117,15 +144,21 @@ local function fill(page: string)
 		t.AutomaticSize = Enum.AutomaticSize.Y
 		t.Size = UDim2.fromScale(1, 0)
 		if line.amended then
-			-- Crossed out in the owner's pen.
-			t.Text = "<s>" .. esc(line.text) .. "</s>"
-			t.TextTransparency = 0.35
+			local adds = Rulebook_.additive(line.amended)
+			if adds then
+				-- Adds to the rule: the printed line still stands.
+				t.Text = esc(line.text)
+			else
+				-- Replaces it: crossed out in the owner's pen.
+				t.Text = "<s>" .. esc(line.text) .. "</s>"
+				t.TextTransparency = 0.35
+			end
 			local a = Paper.text(block, "Amended", line.amended, size + 1, Paper.hand())
 			a.LayoutOrder = 2
 			a.AutomaticSize = Enum.AutomaticSize.Y
 			a.Size = UDim2.fromScale(1, 0)
 			a.TextColor3 = Look.Palette.amendInk
-			a.Rotation = -1
+			a:SetAttribute("Additive", adds)
 		else
 			t.Text = esc(line.text)
 		end
@@ -138,17 +171,26 @@ local function fill(page: string)
 		end
 	end
 	l.CanvasPosition = Vector2.zero
+	task.defer(cullTape)
 end
 
 -- For checks (DebugBot "book"): what the open page shows.
 function Rulebook_.debugState(): { [string]: any }
-	local amended = 0
+	local amended, additive = 0, 0
 	for _, line in lastLines do
 		if line.amended then
 			amended += 1
+			if Rulebook_.additive(line.amended) then
+				additive += 1
+			end
 		end
 	end
-	return { open = gui ~= nil and (gui :: ScreenGui).Enabled, lines = #lastLines, amended = amended }
+	return {
+		open = gui ~= nil and (gui :: ScreenGui).Enabled,
+		lines = #lastLines,
+		amended = amended,
+		additive = additive,
+	}
 end
 
 -- The book you can see in the boat: a little paper block on the thwart by the helm. Click
@@ -221,6 +263,8 @@ function Rulebook_.init()
 	pad.PaddingBottom = UDim.new(0, 8)
 	pad.Parent = l
 	list = l
+	l:GetPropertyChangedSignal("CanvasPosition"):Connect(cullTape)
+	l:GetPropertyChangedSignal("AbsoluteSize"):Connect(cullTape)
 	close.Activated:Connect(function()
 		BookState.close()
 	end)

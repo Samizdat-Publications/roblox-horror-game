@@ -19,8 +19,10 @@ run through the same bindable:
                 opts.timeout, opts.async (default true: poll "status"). Returns cleared,
                 the outcome and one line per night played. SCENARIO DONE full_run
                 cleared | over | timeout.
-    finale      Night 5 of a run at 3:50 AM with a true Steeple Cat in the hold, the boat at
-                the steeple; the crew bot waits for the bell and runs home on the motor.
+    finale      Night 5 of a run, opts.lead seconds before the 4 AM bell (default 22, so the
+                night card and the night 5 tape are done before it), with a true Steeple Cat
+                in the hold, the boat at the steeple; the crew bot waits for the bell and
+                runs home on the motor.
                 opts.seed (default 905), opts.quota (default 3: the cat covers it),
                 opts.hold (default true: the run-cleared card stays up), opts.async.
                 Returns passed, outcome, strikes, deaths, seconds. SCENARIO DONE finale
@@ -251,10 +253,12 @@ local function finale(opts: Opts, progress: { [string]: any }): { [string]: any 
 		logging = false
 		return { result = "error:no night" }
 	end
-	-- 3:50 AM.
+	-- opts.lead seconds before the bell (Polish 3: the card and the tape finish first).
 	local N = Config.Night
-	local hour = 27 + 50 / 60
-	s.clock.elapsed = (hour - N.startHour) / (N.endHour - N.startHour) * s.clock.length
+	local lead = math.max(2, tonumber(opts.lead) or 22)
+	local bellAt = tonumber(s.finaleAt)
+		or (Config.Rules.Finale.hour - N.startHour) / (N.endHour - N.startHour) * s.clock.length
+	s.clock.elapsed = math.max(s.clock.elapsed, bellAt - lead)
 	-- A true Steeple Cat in the hold (caught by the steeple after three, as the book says).
 	local def = Config.Fish.SteepleCat
 	table.insert(s.hold, {

@@ -5,7 +5,10 @@
 -- It is lit by the world (the boat's lantern), so with the lantern out it is hard to see.
 -- Beside it, the Field Guide opens as a half-screen card on the species the fish claims to
 -- be: a drawing (the book-true fish the server built) and the facts to check. Keep (E) or
--- throw back (X); if time runs out the fish is kept.
+-- throw back (X); if time runs out the fish slips back into the lake (Core: a timeout throws
+-- it back). Polish 3: over the last THRASH_SECONDS of the timer the held fish thrashes harder
+-- and harder and the timer bar turns red, as the countdown; a timeout says "Too slow. It
+-- slipped back." for a moment.
 --
 -- The client never knows whether a fish is wrong. It only sees the shape.
 
@@ -28,6 +31,9 @@ local CatchInspect = {}
 
 CatchInspect.FISHING_FOLDER = "DeadCalmFishing"
 CatchInspect.GUIDE_FOLDER = "DeadCalmFieldGuide"
+CatchInspect.THRASH_SECONDS = 3
+CatchInspect.SLIPPED_TEXT = "Too slow. It slipped back."
+CatchInspect.SLIPPED_SECONDS = 2.5
 
 local TAIL_TEXT = { Forked = "forked", Round = "round", Square = "square", Uneven = "uneven, top lobe long" }
 
@@ -44,6 +50,8 @@ local openAt = 0
 local clock = 0
 local active = false
 local localFolder: Folder? = nil
+local slipped: TextLabel? = nil
+local slippedToken = 0
 
 local function count(n: number, none: string): string
 	if n <= 0 then
@@ -407,6 +415,22 @@ local function build()
 	fill.BorderSizePixel = 0
 	fill.Parent = bar
 	timerFill = fill
+
+	local sl = Paper.text(g, "Slipped", CatchInspect.SLIPPED_TEXT, Paper.fit(26, 18, 32), Paper.hand())
+	sl.AnchorPoint = Vector2.new(0.5, 0.5)
+	sl.Position = UDim2.fromScale(0.5, 0.62)
+	sl.Size = UDim2.new(0.8, 0, 0, Paper.fit(26, 18, 32) + 10)
+	sl.TextXAlignment = Enum.TextXAlignment.Center
+	sl.TextColor3 = Look.UI.paper
+	sl.TextStrokeColor3 = Look.UI.ink
+	sl.TextStrokeTransparency = 0.2
+	sl.Visible = false
+	slipped = sl
+end
+
+-- 0..1: how hard the held fish thrashes `left` seconds before the timer runs out.
+function CatchInspect.thrash(left: number): number
+	return math.clamp(1 - left / CatchInspect.THRASH_SECONDS, 0, 1)
 end
 
 function CatchInspect.init()
@@ -434,7 +458,21 @@ function CatchInspect.init()
 		end
 	end
 	Events.on("Kept", done)
-	Events.on("Released", done)
+	Events.on("Released", function(e)
+		done(e)
+		local data = e.data
+		local sl = slipped
+		if e.player == me.UserId and type(data) == "table" and data.timeout == true and sl then
+			slippedToken += 1
+			local my = slippedToken
+			sl.Visible = true
+			task.delay(CatchInspect.SLIPPED_SECONDS, function()
+				if slippedToken == my then
+					sl.Visible = false
+				end
+			end)
+		end
+	end)
 	Events.on("PlayerDied", done)
 	Events.on("NightStarted", function()
 		close()
@@ -451,10 +489,13 @@ function CatchInspect.init()
 			close()
 			return
 		end
+		local secondsLeft = Config.Fishing.decideSeconds - (clock - openAt)
+		local thrash = CatchInspect.thrash(secondsLeft)
 		local tf = timerFill
 		if tf then
 			local left = 1 - (clock - openAt) / Config.Fishing.decideSeconds
 			tf.Size = UDim2.fromScale(math.clamp(left, 0, 1), 1)
+			tf.BackgroundColor3 = Look.UI.paper:Lerp(Color3.fromRGB(205, 40, 28), thrash)
 		end
 		local h = held
 		local cam = Workspace.CurrentCamera
@@ -474,6 +515,15 @@ function CatchInspect.init()
 			local target = CFrame.fromMatrix(pos, toCam, up, back)
 			-- A slow, gentle sway that never loses the profile.
 			local sway = CFrame.Angles(0, math.sin(clock * 0.5) * 0.12, math.sin(clock * 0.37) * 0.05)
+			-- The countdown: the fish fights harder as time runs out (yaw flips the tail,
+			-- roll twists it, a little jump), faster and wider toward the end.
+			if thrash > 0 then
+				local f = 9 + 9 * thrash
+				local yaw = math.sin(clock * f) * 0.45 * thrash
+				local roll = math.sin(clock * f * 1.3 + 1) * 0.22 * thrash
+				local hop = math.abs(math.sin(clock * f * 0.5)) * 0.12 * thrash
+				sway = sway * CFrame.new(0, hop, 0) * CFrame.Angles(0, yaw, roll)
+			end
 			h:PivotTo(target * sway * rel)
 			-- Blinking eyelids, if this fish has them.
 			if h:GetAttribute("Blinks") then

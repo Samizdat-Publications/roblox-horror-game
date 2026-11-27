@@ -13,6 +13,7 @@ local Remotes = require(Shared:WaitForChild("Remotes"))
 local Types = require(Shared:WaitForChild("Core"):WaitForChild("Types"))
 
 local BoatClient = require(script.Parent:WaitForChild("BoatClient"))
+local Events = require(script.Parent:WaitForChild("Events"))
 
 type NightView = Types.NightView
 
@@ -126,6 +127,15 @@ function ViewState.init()
 		ViewState.source = "server"
 		view = v :: NightView
 		emit()
+	end)
+	-- Polish 3: Core says when the motor dies (a Hum fail throws the boat and kills it). The
+	-- HUD and the motor loop follow at once, before the next view arrives.
+	Events.on("MotorChanged", function(e)
+		local data = e.data
+		if type(data) == "table" and type(data.on) == "boolean" and view.motorOn ~= data.on then
+			view.motorOn = data.on
+			emit()
+		end
 	end)
 	local acc = 0
 	RunService.Heartbeat:Connect(function(dt)

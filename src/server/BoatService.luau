@@ -30,6 +30,11 @@ BoatService.INPUT_TIMEOUT = 0.6 -- helm input older than this counts as zero
 BoatService.BOAT_RADIUS = 6.5 -- for keeping clear of the dock, steeple and buoy
 BoatService.SHORE_MARGIN = 14
 BoatService.TIE_OFFSET = 9 -- the boat ties up this far past the dock end, bow out
+-- Polish 3 (Hydrogen review, row 3): the boat slides along the shore and the obstacles
+-- with drag instead of stopping dead, and a nearly still boat turns about 35 percent slower.
+BoatService.SCRAPE_DRAG = 5 -- per second, times how squarely the bow meets the edge
+BoatService.STILL_TURN_DAMP = 0.35 -- turning lost when nearly stopped
+BoatService.STILL_TURN_SPEED = 3 -- studs per second: at or above this, no damping
 
 local built: BoatHull.Built? = nil
 local kin: Kin = { x = 0, z = 0, heading = 0, speed = 0 }
@@ -59,6 +64,9 @@ local function stepKinematics(s: Kin, throttle: number, steer: number, motor: bo
 	end
 	-- Oars can pivot a still boat a little; steering bites harder with way on.
 	local turnScale = 0.35 + 0.65 * math.min(1, math.abs(s.speed) / b.rowSpeed)
+	-- Nearly stopped: damped further, so a still boat does not spin on the spot.
+	local still = 1 - math.min(1, math.abs(s.speed) / BoatService.STILL_TURN_SPEED)
+	turnScale *= 1 - BoatService.STILL_TURN_DAMP * still
 	-- steer +1 is a turn to starboard (right). Facing +z, right is -x, so heading decreases.
 	s.heading -= steer * b.turnRate * turnScale * dt
 	s.heading = math.atan2(math.sin(s.heading), math.cos(s.heading))
@@ -69,9 +77,35 @@ end
 -- END SEAM
 ----------------------------------------------------------------------------------------
 
+-- How squarely the boat is driving into a surface whose outward normal is (nx, nz): 0 when
+-- sliding along it or moving away, 1 head on. Backing up uses the reversed heading.
+local function squareness(s: Kin, nx: number, nz: number): number
+	local dir = if s.speed >= 0 then 1 else -1
+	local hx, hz = math.sin(s.heading) * dir, math.cos(s.heading) * dir
+	return math.max(0, -(hx * nx + hz * nz))
+end
+
+-- Speed lost on contact. With dt (the live step) the loss is drag over time, scaled by how
+-- squarely the bow meets the edge: a glancing boat slides along it, a head-on one stops.
+-- Without dt (a teleport) the old halving applies.
+local function scrape(s: Kin, nx: number, nz: number, dt: number?)
+	if dt == nil then
+		s.speed *= 0.5
+		return
+	end
+	local k = squareness(s, nx, nz)
+	if k > 0.85 then
+		-- Nearly head on: the boat stops (it is not moving, so it must not count as moving).
+		s.speed *= 0.5
+		return
+	end
+	s.speed *= 1 - math.min(1, BoatService.SCRAPE_DRAG * k * dt)
+end
+
 -- Keep the boat on the lake and clear of the dock, the steeple and the buoy. World parts
 -- do not collide with the boat (collision groups), so this is the only thing that does.
-local function confine(s: Kin)
+-- The position is pushed back onto the edge, so heading into it at an angle slides along it.
+local function confine(s: Kin, dt: number?)
 	local lake = Config.Lake
 	local r = BoatService.BOAT_RADIUS
 	local rx, rz = lake.radiusX - BoatService.SHORE_MARGIN, lake.radiusZ - BoatService.SHORE_MARGIN
@@ -80,7 +114,14 @@ local function confine(s: Kin)
 		local k = 1 / math.sqrt(e)
 		s.x *= k
 		s.z *= k
-		s.speed *= 0.5
+		-- The ellipse's outward normal at the contact point.
+		local nx, nz = s.x / (rx * rx), s.z / (rz * rz)
+		local nl = math.sqrt(nx * nx + nz * nz)
+		if nl > 1e-9 then
+			scrape(s, nx / nl, nz / nl, dt)
+		else
+			scrape(s, 0, 0, dt)
+		end
 	end
 	-- Dock: a rectangle from inland of its foot to its end, half width 4.5.
 	local foot, tip = lake.dockFoot, lake.dockEnd
@@ -95,7 +136,7 @@ local function confine(s: Kin)
 		end
 		s.x = cx + dx / d * r
 		s.z = cz + dz / d * r
-		s.speed *= 0.5
+		scrape(s, dx / d, dz / d, dt)
 	end
 	-- Round obstacles.
 	local sx, sz = Landmarks.steepleWaterline(Config)
@@ -112,7 +153,7 @@ local function confine(s: Kin)
 			end
 			s.x = c.x + ox / od * c.r
 			s.z = c.z + oz / od * c.r
-			s.speed *= 0.5
+			scrape(s, ox / od, oz / od, dt)
 		end
 	end
 end
@@ -231,7 +272,7 @@ function BoatService.step(dt: number)
 		throttle, steer = 0, 0
 	end
 	stepKinematics(kin, throttle, steer, motorOn, dt)
-	confine(kin)
+	confine(kin, dt)
 	local pose = poseFor(kin, clock, steer)
 	local ap, ao = alignPos, alignOri
 	if ap and ao then

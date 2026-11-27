@@ -124,7 +124,10 @@ function Paper.bookPage(name: string, order: number, heading: string): (ScreenGu
 	local sheet =
 		Paper.sheet(gui, "Sheet", UDim2.fromScale(0.92, 0.9), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), 12)
 	sheet.BackgroundTransparency = 0.02
-	sheet.Rotation = -0.6
+	-- Polish 3: no rotation. ClipsDescendants is ignored under a rotated ancestor (creator
+	-- docs, GuiObject.ClipsDescendants), so a crooked page let the rule list run past the
+	-- paper's bottom edge instead of scrolling inside it.
+	sheet.Rotation = 0
 	local limit = Instance.new("UISizeConstraint")
 	limit.MaxSize = Vector2.new(820, 680)
 	limit.Parent = sheet
@@ -144,19 +147,36 @@ function Paper.bookPage(name: string, order: number, heading: string): (ScreenGu
 	return gui, sheet, body, close
 end
 
--- A strip of tape (a translucent pale rectangle, a little crooked) on a corner of `parent`.
-function Paper.tape(parent: Instance, anchor: Vector2, fresh: boolean)
+-- A strip of tape across a top corner of `parent` (Polish 3: translucent, only slightly
+-- crooked, straddling the top edge, with a faint sheen). anchor.X picks the corner (below
+-- 0.5 is the left); anchor.Y is ignored. Returns the strip.
+function Paper.tape(parent: Instance, anchor: Vector2, fresh: boolean): Frame
+	local left = anchor.X < 0.5
 	local t = Instance.new("Frame")
 	t.Name = "Tape"
 	t.AnchorPoint = Vector2.new(0.5, 0.5)
-	t.Position = UDim2.fromScale(anchor.X, anchor.Y)
-	t.Size = UDim2.fromOffset(46, 14)
-	t.Rotation = if anchor.X < 0.5 then -32 else 28
-	t.BackgroundColor3 = if fresh then Color3.fromRGB(246, 238, 200) else Color3.fromRGB(214, 200, 160)
-	t.BackgroundTransparency = if fresh then 0.25 else 0.45
+	t.Position = UDim2.new(if left then 0 else 1, if left then 22 else -22, 0, 1)
+	t.Size = UDim2.fromOffset(58, 17)
+	t.Rotation = if left then -7 else 6
+	t.BackgroundColor3 = if fresh then Color3.fromRGB(252, 246, 214) else Color3.fromRGB(236, 226, 190)
+	t.BackgroundTransparency = if fresh then 0.4 else 0.55
 	t.BorderSizePixel = 0
 	t.ZIndex = 3
+	local sheen = Instance.new("UIGradient")
+	sheen.Rotation = 90
+	sheen.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.1),
+		NumberSequenceKeypoint.new(0.5, 0.35),
+		NumberSequenceKeypoint.new(1, 0.15),
+	})
+	sheen.Parent = t
+	local edge = Instance.new("UIStroke")
+	edge.Color = Color3.fromRGB(160, 145, 110)
+	edge.Transparency = 0.75
+	edge.Thickness = 1
+	edge.Parent = t
 	t.Parent = parent
+	return t
 end
 
 -- "10:42 PM" from game hours (22.0 is 10 PM, 29.0 is 5 AM).

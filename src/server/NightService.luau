@@ -216,6 +216,7 @@ local function signature(v: NightView): string
 		r(v.flood, 0.01),
 		v.safe,
 		#v.rules,
+		(v :: any).specialAboard,
 	}
 	for _, p in v.players do
 		table.insert(bits, p.id)
@@ -231,6 +232,27 @@ local function signature(v: NightView): string
 		s[i] = tostring(b)
 	end
 	return table.concat(s, ",")
+end
+
+-- Polish 3: the finale night's objective for the HUD ("The owner's fish: aboard"). Only the
+-- species is checked (any fish the players can see is a Steeple Cat), never whether it is
+-- true to the book: that would leak a catch's `wrong` flag. Nil on other nights.
+local function decorate(v: NightView, s: any): NightView
+	local out: any = v
+	if s ~= nil and s.finaleNight == true then
+		local want = cfg.Rules.Finale.needSpecies
+		local aboard = false
+		for _, list in { s.hold or {}, s.cooler or {} } do
+			for _, c in list do
+				if type(c) == "table" and c.species == want then
+					aboard = true
+				end
+			end
+		end
+		out.specialAboard = aboard
+		out.specialSpecies = want
+	end
+	return out
 end
 
 local function replicate(v: NightView, force: boolean)
@@ -352,7 +374,7 @@ local function stepOnce(dt: number)
 		end
 	end
 	local events = Night.step(s, observe(dt, intents)) :: { Event }
-	local v = Night.view(s) :: NightView
+	local v = decorate(Night.view(s) :: NightView, s)
 	syncWorld(v)
 	dispatch(events)
 	FishingService.step(dt, v)
@@ -544,7 +566,7 @@ function NightService.start(o: StartOpts?): NightParams?
 		BoatService.teleport(x, z, h)
 	end
 	Net.drainIntents()
-	local v = Night.view(state) :: NightView
+	local v = decorate(Night.view(state) :: NightView, state)
 	syncWorld(v)
 	replicate(v, true)
 	for _, fn in startListeners do

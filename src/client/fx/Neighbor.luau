@@ -9,7 +9,7 @@
 --         silhouette in your boat).
 --   FalseBeacon: a steady warm light on a pole where the dock is not. It never blinks.
 --         Pass or fail: it goes out.
--- The drowned see the boat and the light outlined. Fake callouts are the Callouts module's.
+-- The drowned see the boat outlined; a false beacon is not (only the real beacon is). Fake callouts are the Callouts module's.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -150,7 +150,8 @@ local function buildBeacon(pos: Vector3): Built
 	light.Brightness = Look.Beacon.Brightness
 	light.Shadows = false
 	light.Parent = lamp
-	Common.outline(m)
+	-- Not outlined (Polish 3): the drowned see a faint outline on the real dock beacon only,
+	-- so a light with no outline is a false one (Drowned.luau).
 	return { model = m, hullPart = pole, figure = nil, parts = list, light = light }
 end
 

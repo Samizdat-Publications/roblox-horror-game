@@ -10,6 +10,10 @@
 -- interact key). Gamepad: A plays, X toggles the
 -- difficulty, Y opens the Lake Rules, R1 opens the Locker (the buttons are also
 -- selectable).
+-- Polish 3: the game's name is large hand lettering straight over the lake (not boxed in
+-- paper), the two paper panels shrink to their content (AutomaticSize), the wash is lighter
+-- so the lake shows, and everything fits on the smallest phone (705 by 338). The notes
+-- about tries come from Config.Difficulty (retries), so they cannot drift from the rules.
 
 local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -46,9 +50,24 @@ local newItems: { string } = {}
 local shown = false
 local theme: Sound? = nil
 
+local NUMBER_WORDS = { "One", "Two", "Three", "Four", "Five", "Six" }
+
+-- "Three retries if a night goes wrong." from a retry count (nil means no limit).
+function Title.retriesText(n: number?): string
+	if n == nil then
+		return "As many retries as it takes."
+	elseif n <= 0 then
+		return "No retries."
+	elseif n == 1 then
+		return "One retry if a night goes wrong."
+	end
+	return (NUMBER_WORDS[n] or tostring(n)) .. " retries if a night goes wrong."
+end
+
 Title.DIFF_NOTE = {
-	Normal = "The book as printed. Three tries if a night goes wrong.",
-	Nightmare = "Shorter warnings, more of them, and the owner changes the book early. Two tries.",
+	Normal = "The book as printed. " .. Title.retriesText(Config.Difficulty.Normal.retries),
+	Nightmare = "Shorter warnings, more of them, and the owner changes the book early. "
+		.. Title.retriesText(Config.Difficulty.Nightmare.retries),
 } :: { [string]: string }
 
 local function gamepad(): boolean
@@ -82,10 +101,16 @@ local function refresh()
 	local bt = boardText
 	if bt then
 		local lines = {}
+		-- Short screens show the top five.
+		local cam = workspace.CurrentCamera
+		local maxRows = if cam and cam.ViewportSize.Y < 450 then 5 else 10
 		if #s.board == 0 then
 			table.insert(lines, "Nobody has lasted an Endless night yet.")
 		else
-			for _, row in s.board do
+			for i, row in s.board do
+				if i > maxRows then
+					break
+				end
 				table.insert(lines, string.format("%d. %s, night %d", row.rank, row.name, row.night))
 			end
 		end
@@ -193,47 +218,81 @@ function Title.init()
 	g.IgnoreGuiInset = true
 	g.Enabled = false
 	gui = g
-	-- A soft dark wash so the paper reads over the lake.
+	-- A soft dark wash on the left only, so the paper reads and the lake still shows.
 	local wash = Instance.new("Frame")
 	wash.Name = "Wash"
 	wash.Size = UDim2.fromScale(1, 1)
 	wash.BackgroundColor3 = Look.Palette.water
-	wash.BackgroundTransparency = 0.35
+	wash.BackgroundTransparency = 0.5
 	wash.BorderSizePixel = 0
 	wash.Parent = g
 	local grad = Instance.new("UIGradient")
 	grad.Transparency = NumberSequence.new({
 		NumberSequenceKeypoint.new(0, 0),
-		NumberSequenceKeypoint.new(0.55, 0.5),
+		NumberSequenceKeypoint.new(0.45, 0.7),
 		NumberSequenceKeypoint.new(1, 1),
 	})
 	grad.Parent = wash
 
-	local sheet =
-		Paper.sheet(g, "Sheet", UDim2.fromScale(0.46, 0.84), UDim2.new(0, 24, 0.5, 0), Vector2.new(0, 0.5), 16)
+	local safe = Instance.new("Frame")
+	safe.Name = "Safe"
+	safe.BackgroundTransparency = 1
+	safe.Position = UDim2.fromOffset(16, 8)
+	safe.Size = UDim2.new(1, -32, 1, -16)
+	safe.Parent = g
+
+	-- The name, hand lettered over the lake: pale paper ink with a dark edge.
+	local big = Paper.fit(72, 34, 96)
+	local name = Paper.text(safe, "Name", Config.TITLE, big, Paper.hand())
+	name.Position = UDim2.fromOffset(4, 0)
+	name.Size = UDim2.new(0.62, 0, 0, big + 6)
+	name.TextColor3 = Look.Palette.paper
+	name.TextWrapped = false
+	name.TextScaled = false
+	name.Rotation = -2
+	local nameStroke = Instance.new("UIStroke")
+	nameStroke.Color = Look.Palette.silhouette
+	nameStroke.Thickness = math.max(2, math.floor(big / 18))
+	nameStroke.Transparency = 0.1
+	nameStroke.Parent = name
+	local subSize = Paper.fit(17, 11, 20)
+	local sub = Paper.text(safe, "Sub", "Night shift on Blackwater Lake. Fill the cooler. Follow the rules.", subSize)
+	sub.Position = UDim2.fromOffset(8, big + 4)
+	sub.Size = UDim2.new(0.62, 0, 0, subSize + 6)
+	sub.TextColor3 = Look.Palette.paper
+	sub.TextWrapped = false
+	sub.TextTruncate = Enum.TextTruncate.AtEnd
+	sub.TextStrokeColor3 = Look.Palette.silhouette
+	sub.TextStrokeTransparency = 0.3
+	local top = big + subSize + 18
+	-- Keep the name clear of Roblox's own buttons at the top left (GuiService.TopbarInset is
+	-- the free area right of them; its Min.X is where they end).
+	local function clearTopbar()
+		local ok, inset = pcall(function()
+			return GuiService.TopbarInset
+		end)
+		local left = if ok and typeof(inset) == "Rect" then math.max(0, inset.Min.X - 12) else 0
+		local h = if ok and typeof(inset) == "Rect" then inset.Height else 0
+		-- Only when the buttons would sit on the lettering (it starts near the top).
+		name.Position = UDim2.fromOffset(4 + (if h > 0 then left else 0), 0)
+	end
+	clearTopbar()
+	pcall(function()
+		GuiService:GetPropertyChangedSignal("TopbarInset"):Connect(clearTopbar)
+	end)
+
+	local sheet = Paper.sheet(safe, "Sheet", UDim2.fromScale(0.44, 0), UDim2.fromOffset(0, top), Vector2.zero, 10)
+	sheet.AutomaticSize = Enum.AutomaticSize.Y
 	sheet.BackgroundTransparency = 0.04
-	sheet.Rotation = -1.2
+	sheet.Rotation = -1
 	local limit = Instance.new("UISizeConstraint")
-	limit.MinSize = Vector2.new(300, 0)
-	limit.MaxSize = Vector2.new(520, 600)
+	limit.MinSize = Vector2.new(290, 0)
+	limit.MaxSize = Vector2.new(440, 560)
 	limit.Parent = sheet
 	local list = Instance.new("UIListLayout")
 	list.SortOrder = Enum.SortOrder.LayoutOrder
 	list.Padding = UDim.new(0, Paper.fit(10, 4, 12))
 	list.Parent = sheet
-
-	local big = Paper.fit(44, 26, 52)
-	local name = Paper.text(sheet, "Name", Config.TITLE, big, Paper.hand())
-	name.LayoutOrder = 1
-	name.Size = UDim2.new(1, 0, 0, big + 8)
-	local sub = Paper.text(
-		sheet,
-		"Sub",
-		"Night shift on Blackwater Lake. Fill the cooler. Follow the rules.",
-		Paper.fit(18, 12, 20)
-	)
-	sub.LayoutOrder = 2
-	sub.Size = UDim2.new(1, 0, 0, Paper.fit(18, 12, 20) * 2 + 8)
 
 	local bh = Paper.fit(46, 34, 52)
 	local p = Paper.button(sheet, "Play", "Play", UDim2.new(1, 0, 0, bh))
@@ -248,7 +307,8 @@ function Title.init()
 	diffBtn = d
 	local dn = Paper.text(sheet, "DifficultyNote", "", Paper.fit(15, 11, 17))
 	dn.LayoutOrder = 5
-	dn.Size = UDim2.new(1, 0, 0, Paper.fit(15, 11, 17) * 2 + 6)
+	dn.AutomaticSize = Enum.AutomaticSize.Y
+	dn.Size = UDim2.fromScale(1, 0)
 	dn.TextTransparency = 0.25
 	diffNote = dn
 	local r = Paper.button(sheet, "LakeRules", "The Lake Rules", UDim2.new(1, 0, 0, bh))
@@ -264,17 +324,19 @@ function Title.init()
 	endlessBtn = e
 	local st = Paper.text(sheet, "Status", "", Paper.fit(16, 11, 18), Paper.hand())
 	st.LayoutOrder = 8
-	st.Size = UDim2.new(1, 0, 0, Paper.fit(16, 11, 18) * 2 + 6)
+	st.AutomaticSize = Enum.AutomaticSize.Y
+	st.Size = UDim2.fromScale(1, 0)
 	st.TextColor3 = Look.Palette.amendInk
 	status = st
 
-	-- Right side: the Locker button and the best Endless nights.
-	local side = Paper.sheet(g, "Board", UDim2.fromScale(0.3, 0.6), UDim2.new(1, -24, 0.5, 0), Vector2.new(1, 0.5), 12)
+	-- Right side: the Locker button and the best Endless nights, as tall as its content.
+	local side = Paper.sheet(safe, "Board", UDim2.fromScale(0.28, 0), UDim2.fromScale(1, 0.5), Vector2.new(1, 0.5), 10)
+	side.AutomaticSize = Enum.AutomaticSize.Y
 	side.BackgroundTransparency = 0.06
 	side.Rotation = 1.4
 	local sideLimit = Instance.new("UISizeConstraint")
 	sideLimit.MinSize = Vector2.new(190, 0)
-	sideLimit.MaxSize = Vector2.new(340, 440)
+	sideLimit.MaxSize = Vector2.new(320, 440)
 	sideLimit.Parent = side
 	local sideList = Instance.new("UIListLayout")
 	sideList.SortOrder = Enum.SortOrder.LayoutOrder
@@ -287,7 +349,8 @@ function Title.init()
 	lockerBtn = lk
 	local nn = Paper.text(side, "NewItems", "", Paper.fit(14, 10, 16), Paper.hand())
 	nn.LayoutOrder = 2
-	nn.Size = UDim2.new(1, 0, 0, Paper.fit(14, 10, 16) * 2 + 6)
+	nn.AutomaticSize = Enum.AutomaticSize.Y
+	nn.Size = UDim2.fromScale(1, 0)
 	nn.TextColor3 = Look.Palette.amendInk
 	nn.Visible = false
 	newNote = nn
@@ -296,8 +359,8 @@ function Title.init()
 	bhead.LayoutOrder = 3
 	local btx = Paper.text(side, "BoardRows", "", Paper.fit(14, 10, 16))
 	btx.LayoutOrder = 4
-	btx.Size = UDim2.new(1, 0, 1, -(Paper.fit(40, 30, 46) + bh2 + Paper.fit(14, 10, 16) * 2 + 40))
-	btx.TextTruncate = Enum.TextTruncate.AtEnd
+	btx.AutomaticSize = Enum.AutomaticSize.Y
+	btx.Size = UDim2.fromScale(1, 0)
 	boardText = btx
 	side.Visible = false
 	boardSheet = side

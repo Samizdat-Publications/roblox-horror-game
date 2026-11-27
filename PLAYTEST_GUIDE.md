@@ -65,7 +65,7 @@ The book covers most of the view and stops your hands: no casting, steering, lan
 
 ## 3. What to test, night by night
 
-The first player in is the host. A run is five nights of about 6 minutes each. A failed night comes back while the run has tries left (Normal 3, Nightmare 2).
+The first player in is the host. A run is five nights of about 6 minutes each. A failed night comes back while the run has retries left (Normal 3, Nightmare 1).
 
 **Title screen**
 1. The lake from the dock, the owner's title tape, the paper menu on the left, the Locker and the "Longest Endless nights" list on the right.
@@ -80,7 +80,7 @@ The first player in is the host. A run is five nights of about 6 minutes each. A
 
 **Night 4: the knocking and the Watcher.** Three knocks on the hull: answer with two (Q), not one, not three. If water comes in, bail (hold E). Something tall on the shore: keep it at the edge of your eye, never stare, never turn your back on it.
 
-**Night 5: the special order.** Every rule so far, and the owner has changed one of them: read the book again (R). Catch the owner's fish by the steeple after 3 AM; at 4 AM the dock bell rings by itself, the lantern locks on and its oil is your clock. Go home without stopping, and avoid any boat or light that does not blink twice.
+**Night 5: the special order.** Every rule so far, and the owner has changed one of them: read the book again (R). The night card at the top says the quota and the owner's Steeple Cat; the paper under the quota says "Owner's fish: aboard" once you have one. Catch it by the steeple after 3 AM. At 4 AM everything goes silent, then the dock bell tolls and "The bell. Go home." fills the screen. The lantern locks on and throws a cone over the bow; its oil bar pulses red as it runs down. Head for the tall blinking beam of the real beacon, steer around the strange boats with swaying lanterns and the flickering lights on poles, and never stop: the screen edges close in if you slow down. Reach the dock light with the fish and the sun comes up.
 
 **After a cleared run: Endless Nights.** Back on the title, the host now has an Endless Nights button. Endless starts at night 6, any rule any night, one try. The paper tag says "Endless night 6". When it ends, your best night goes on the list (display names only).
 
@@ -100,5 +100,7 @@ Copy this list and fill it in:
 - [ ] Was it scary? Which moment was the scariest, and was anything too much?
 - [ ] Locker: did picking a color change the boat (host) and your hat? Did a locked item stay locked?
 - [ ] Endless: did the button appear after a cleared run, and did the night number show?
+- [ ] Night 5: did the bell land after the silence? Could you see the strange boats and false lights, and tell which light was home? Did the sunrise feel like a payoff?
+- [ ] When you were drowned: did your bell's ripple show up for the others, and could you see which beacon was real?
 - [ ] On a phone: were the buttons big enough, and did any text spill off the paper?
 - [ ] Anything that felt broken, slow or confusing, in your own words.

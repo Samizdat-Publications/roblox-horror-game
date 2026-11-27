@@ -114,6 +114,9 @@ local duckHoldUntil = -math.huge
 local duckLevel = 1 -- current Ambience duck multiplier (1 = none)
 local muteKeys: { [string]: boolean } = {}
 local muteLevel = 1
+local muteFadeSeconds: number? = nil -- the fade the last muteAmbience call asked for
+local hushKeys: { [string]: boolean } = {}
+local hushLevel = 1 -- every group but Rule (the finale's dead silence before the bell)
 local chorusOverrideUntil = -math.huge -- listening test: hold the chorus at band 3
 local ambienceBase = Look.Mix.groups.Ambience or 1 -- the group level before trim, duck, mute
 local ambienceLastSet = ambienceBase
@@ -462,9 +465,18 @@ function AudioDirector.ducking(): boolean
 	return duckLevel < 0.98
 end
 
--- Mutes the Ambience group (frogs, chorus, beds) while any key is on: the death card.
-function AudioDirector.muteAmbience(key: string, on: boolean)
+-- Mutes the Ambience group (frogs, chorus, beds, the water) while any key is on: the death
+-- card, the finale. `seconds` is how long the fade takes (default Look.Mix.muteFade).
+function AudioDirector.muteAmbience(key: string, on: boolean, seconds: number?)
 	muteKeys[key] = if on then true else nil
+	muteFadeSeconds = seconds
+end
+
+-- Hushes every group except Rule while any key is on (the motor, the lantern, fishing,
+-- music, the tapes): the finale's dead silence before the bell. Rule sounds (the bell) still
+-- play. Fades over Look.Mix.hushFade.
+function AudioDirector.hush(key: string, on: boolean)
+	hushKeys[key] = if on then true else nil
 end
 
 -- A sound that ducks the ambience while it plays (Rule group unless duck = false).
@@ -506,15 +518,23 @@ local function stepGroups(dt: number)
 		duckLevel = math.min(wantDuck, duckLevel + dt * (1 - M.cueDuck) / M.duckRelease)
 	end
 	local wantMute = if next(muteKeys) ~= nil then 0 else 1
-	local k = dt / M.muteFade
+	local k = dt / math.max(0.01, muteFadeSeconds or M.muteFade)
 	muteLevel += math.clamp(wantMute - muteLevel, -k, k)
-	-- fx/Finale tweens this group's Volume itself (the water goes silent at 4 AM). A change
-	-- made by someone else since the last frame moves the base, so this mix rides on top of
-	-- that tween instead of fighting it.
+	local wantHush = if next(hushKeys) ~= nil then 0 else 1
+	local kh = dt / math.max(0.01, M.hushFade or 0.12)
+	hushLevel += math.clamp(wantHush - hushLevel, -kh, kh)
+	for name, other in groups do
+		if name ~= "Ambience" and name ~= "Rule" then
+			other.Volume = (M.groups[name] or 1) * hushLevel
+		end
+	end
+	-- Polish 3: fx/Finale no longer writes this group (it calls muteAmbience). A change made
+	-- by anyone else since the last frame still moves the base, so this mix rides on top of
+	-- it instead of fighting it.
 	if math.abs(g.Volume - ambienceLastSet) > 1e-4 and ambienceLastFactor > 0.01 then
 		ambienceBase = g.Volume / ambienceLastFactor
 	end
-	local factor = trim * duckLevel * muteLevel
+	local factor = trim * duckLevel * muteLevel * hushLevel
 	g.Volume = math.clamp(ambienceBase * factor, 0, 10)
 	ambienceLastSet = g.Volume
 	ambienceLastFactor = factor
@@ -1254,6 +1274,7 @@ function AudioDirector.debugState(): { [string]: any }
 	out.groups = gv
 	out.duck = duckLevel
 	out.mute = muteLevel
+	out.hush = hushLevel
 	return out
 end
 

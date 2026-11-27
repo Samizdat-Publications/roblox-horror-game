@@ -2,7 +2,7 @@
 
 ALL CHUNKS DONE (S1 to S6 written; S5 and S6 on 11/26/2026). S1 and S2 are verified in Studio; S3, S4 and S5 are not yet played in Studio (see each "Studio must check" list).
 
-Last updated 11/26/2026 by a local builder (S5 and S6 written on the working tree of `main`; not committed, the main session commits).
+Last updated 11/26/2026 by a local builder (Polish 3 on the working tree of `main`; not committed, the main session commits).
 
 ## Needed from Core
 
@@ -13,12 +13,52 @@ These live behind clearly marked seams in the shell. When the Core module lands,
 - `Core.SoundMix` (seam in `src/client/AudioDirector.luau`, `mixFor`): `NightView -> { [layerKey]: 0..1 }` for the layer keys listed at the top of AudioDirector.
   Core.SoundMix still has ChorusThin and ChorusSparse layers, which no longer exist (the chorus is the full loop plus single calls); the shell keeps its own `mixFor` until SoundMix follows.
 - S5: nothing blocking. Nice to have: `Profile.recordNight` gets the crew's totals for every player (as decided in CLOUD-DECISIONS); a per-player fish count in `NightResult.tallies` would let "Bank 100 fish" count each player's own fish.
+- Polish 3: `Core.BoatModel`, when it replaces the seam, should carry the shore slide (drag scaled by how squarely the bow meets the edge, a stop when nearly head on) and the 35 percent turn damping below 3 studs per second, or the shell keeps both in `confine` and its turn scale.
+- Polish 3, nice to have: a direction on `GhostBell` (Validate takes no value today), so a drowned player could point the ripple at a danger instead of it spreading from their light.
 - `Core.Run`: DONE in S4. NightService owns the RunState and builds every night with `Run.nightParams`; nights outside the run (Studio scenarios) use a throwaway Normal first run at that night with the scenario's seed as the night seed.
 
 ## Needed from S4
 
-- `fx/Finale.luau` fades the DeadCalmAmbience SoundGroup with its own tween. Since Scare polish 2, AudioDirector writes that group every frame (band-3 trim, cue ducking, death-card mute); it detects outside changes and rides on top of the tween, so the finale still goes silent, but the clean way is `AudioDirector.muteAmbience("Finale", true)` at the cue and `false` on pass, fail and reset (the mute fades over Look.Mix.muteFade, 0.3 s; a longer fade would need a seconds argument).
-- Core or the server: after a Hum fail the motor stays on in the NightView. The HUD now hides "Motor: on" for the drowned, but the living crew still see it, and the motor loop keeps playing over the drowned view. Cutting the motor on a `rock = true` fail would match the boat being thrown.
+- Both items are done in Polish 3: fx/Finale uses `AudioDirector.muteAmbience` and `AudioDirector.hush` and never writes a SoundGroup; Core emits MotorChanged on a Hum fail and the client view follows it at once.
+
+## Polish 3 (11/26/2026)
+
+Neon's five finale fixes, the night card, the title screen, the rulebook, Hydrogen rows 2, 3, 4 and 6, and two small fixes. Calls and numbers: `docs/SHELL-DECISIONS.md`, "Polish 3". Gate green (selene and stylua clean, 205 specs, pacing sim, lints, rojo build, smoke 10 of 10). NOT yet played in Studio.
+
+Files: `src/client/fx/Finale.luau` (rebuilt), `src/client/AudioDirector.luau` (muteAmbience fade, `hush`), `src/client/ViewState.luau` (MotorChanged), `src/client/WorldFx.luau` (ambientOverride), `src/client/Drowned.luau` (bell ripple, edge marker, real beacon outline), `src/client/fx/Neighbor.luau` (false beacon not outlined), `src/client/ui/HUD.luau`, `ui/Prompt.luau`, `ui/NightCards.luau`, `ui/Title.luau`, `ui/Rulebook.luau`, `ui/Paper.luau` (book page unrotated, new tape), `ui/CatchInspect.luau` (thrash, slipped line); `src/server/NightService.luau` (`specialAboard` on the finale view), `BoatService.luau` (slide, turn damping), `DebugRun.luau` (finale `lead`), `DebugCrew.luau` (FishMutations); `src/shared/Look.luau` (Look.Dawn, Look.Finale, Mix.hushFade), `src/shared/SoundRegistry.luau` (six derived entries); `PLAYTEST_GUIDE.md`.
+
+Record again (Studio, in Play, server context):
+
+```lua
+-- The finale: start recording, then run this (the bell comes about 22 s in; the whole thing about 50 to 70 s)
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("finale", { async = true })
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("status")
+-- To open the clip closer to the bell:
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("finale", { async = true, lead = 12 })
+-- The title (then the Device Simulator at 705 by 338):
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("title")
+-- The rulebook on night 5 (the first run's amendment); other seeds give other amendments:
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("rulebook")
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("rulebook", { seed = 2 })
+```
+
+The `rulebook` result's `amendments` says which rule was amended. From the client, `require(game.Players.LocalPlayer.PlayerScripts.Client.ui.Rulebook).debugState()` gives `amended` and `additive` (1 when it is the Neighbor's "AND ROW AWAY FROM IT"), and `require(game.Players.LocalPlayer.PlayerScripts.Client.fx.Finale).debugState()` during the finale reports phase, boats, beacons, cone, shaft, wake, chase, speed, stillFor, vignette, ambienceMute, hush and dawn. (Adjust the script path if the client folder is named differently in Studio.)
+
+## Studio must check (Polish 3)
+
+1. finale, the turn: the night 5 strip is gone and the tape has ended before 4 AM. At the bell every sound stops dead (frogs, water, motor, lantern; `AudioDirector.debugState()` shows `mute` and `hush` near 0) for about 1.5 s; then three loud bell strokes with an echo tail, clearly over everything, a bell swinging on a post at the dock end, and "The bell. Go home." large in pale ink with a dark edge, readable on the dark sky, for about 4.5 s before it fades. Neon target: the_turn 6/10 or better.
+2. finale, the run: a strong warm cone of light over the bow and the water ahead; pale flecks on the water slide past quickly while the motor runs (speed reads). The real beacon is a tall steady beam with a halo, both blinking off twice every 6 s, and it clearly grows as the boat closes in. Strange boats with swaying lanterns and a slow-waving figure, and lights on poles that flicker (never the double blink), appear off to the sides close enough to make out (pulled in to about half their real gap); each comes with a deep toll; the boats creak, the lights whine. If the flecks look like litter or the shaft like a laser, say so (Look.Finale and Finale.WAKE hold the numbers).
+3. finale, the chase: under the motor a low pulsing drone and a dark slowed bed (no bright strings); the pulse quickens if the boat slows; the screen edges darken as the boat sits still toward the stop limit and clear when it moves.
+4. HUD in the finale: the oil bar is its own thick row with no text over it, pulsing red faster as it drains; "Oil: locked on" above it; "Owner's fish: aboard" under the quota; no hint line at the bottom after the bell, and none while the motor runs on any night (bail and knock hints still show).
+5. Dawn: on reaching the dock light the sky, fog and light warm into a sunrise over about 2.6 s (the dock and shore visible), the water comes back, dawn-cue then a few chirps (a stand-in), and a bold paper banner "Dawn. You made it home." near the top; the run-cleared card follows about 5 s later. Back on the title or at the next night the lighting is exactly night again (no warm cast left; the moonlight still lifts the ambient with the lantern out).
+6. Night cards on nights 1 to 4: the start strip is small at the top, 4 s, never over the middle of the screen; on a phone (705 by 338) its text fits.
+7. Title at 1280 by 720 and at 705 by 338 (Device Simulator): the name is large hand lettering over the lake, clear of Roblox's top-left buttons; the left paper is only as tall as its buttons, the right paper only as tall as its list; nothing overlaps or runs off screen, with and without the Endless button. Difficulty notes: Normal "Three retries if a night goes wrong.", Nightmare "One retry if a night goes wrong."
+8. Rulebook (`rulebook`, a few seeds): the page is straight, the list scrolls inside the paper and never runs past its bottom edge; tape is translucent strips across the top corners of each rule, slightly crooked, never showing above the list while scrolling (if a strip pokes past the edge, say so). An additive amendment (the Neighbor's "AND ROW AWAY FROM IT") leaves Rule 3 unstruck with the red line under it; a replacing one (Hum, Knocking, Watcher) strikes the printed rule.
+9. Boat: drive into the shore at a shallow angle: it slides along the edge, losing speed gradually; head on it stops. While stopped, turning on the spot is clearly slower than before.
+10. Ghost bell (2 players, one drowned, for example `hum_fail` with a second client): when the drowned rings, the living see a pale ring spread over the water from the ghost's light and a pale "bell" marker at the screen edge toward it for about 3 s. The drowned see a faint outline on the real dock beacon only; false lights (`neighbor_pass` with form FalseBeacon, or the finale) have none.
+11. Deciding timeout (`fish_once` with `decide = false`): over the last 3 s the held fish thrashes harder and harder and the timer bar turns red; then "Too slow. It slipped back." for a moment and the fish is gone.
+12. hum_fail: the "Motor: on" line and the motor loop stop at the throw (motor-stop plays), for the living crew too.
+13. Output: still only the usual `[DeadCalm]` lines; no AudioDirector warnings about effect classes or properties on the six new derived sounds.
 
 ## Scare polish 2 (11/26/2026)
 
@@ -47,7 +87,7 @@ Studio must check (Scare polish 2):
 4. hum_fail: about 1.5 s from the frogs stopping to the hum; the mid-range buzz is audible on laptop speakers; rings spread on the water and the view rattles. At the fail the boat throws hard and settles over about 1.2 s with white foam, a cold flash, fish, bucket, oar and tackle box over the side; bubbles rush up under the surface. The hint line is gone from the impact on. No frog during the black or the card.
 5. Death card: about 70 percent of the screen width, large dark text, stays 5 s or until a tap. Check on a phone in the Device Simulator that the main line fits and is not tiny.
 6. The drowned view opens on the boat still rocking for a few seconds, no "Motor: on" on the paper, and your own light is labelled "You".
-7. Finale (night 5 at the bell): every water sound still fades out and comes back on pass or fail (the AudioDirector and Finale group writes do not fight).
+7. Finale (night 5 at the bell): superseded by Polish 3 check 1 (the finale now mutes through AudioDirector).
 
 ## Chunks
 

@@ -1,6 +1,8 @@
 --!strict
 -- One small hint at the bottom of the screen: what the interact key or the cast button does
 -- right now (bank the hold at the dock, refill the lantern, cast, wait for the bite).
+-- Polish 3 (Neon's finale review): no hint at all during the finale, and no fishing hint
+-- while the motor runs (the rule verbs, bail and knock, still show then).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -79,7 +81,14 @@ function Prompt.init()
 		local view = ViewState.get()
 		local pv = ViewState.me()
 		local seated = BoatClient.mySeat() ~= nil
-		if pv == nil or not pv.alive or not seated or view.phase == "Cleared" or view.phase == "Failed" then
+		if
+			pv == nil
+			or not pv.alive
+			or not seated
+			or view.phase == "Cleared"
+			or view.phase == "Failed"
+			or view.phase == "Finale"
+		then
 			t.Text = ""
 			return
 		end
@@ -92,6 +101,10 @@ function Prompt.init()
 		end
 		if Knocking.windowOpen() then
 			t.Text = if touch then "Tap Knock  Knock on the hull" else "Q  Knock on the hull"
+			return
+		end
+		if view.motorOn then
+			t.Text = ""
 			return
 		end
 		t.Text = Prompt.textFor(

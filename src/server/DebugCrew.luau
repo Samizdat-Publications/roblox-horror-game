@@ -19,7 +19,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Core = Shared:WaitForChild("Core")
 local LakeMap = require(Core:WaitForChild("LakeMap")) :: any
-local WrongCatch = require(Core:WaitForChild("WrongCatch")) :: any
+local WrongCatch = require(Core:WaitForChild("FishMutations")) :: any
 local Rng = require(Core:WaitForChild("Rng")) :: any
 
 local server = script.Parent

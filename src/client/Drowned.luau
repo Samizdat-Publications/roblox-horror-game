@@ -17,6 +17,12 @@
 -- S4: a player who joined while a night was running watches from the same view until the
 -- next night (LobbyState.waiting), with a tag saying so and no bell (they are not crew yet).
 
+-- Polish 3 (Hydrogen review, row 2: the drowned as spotters):
+--   * a GhostBell sends a ripple ring across the water from that ghost's light, and the
+--     living get a pale marker at the edge of the screen toward it for a few seconds;
+--   * the drowned see a faint outline on the real dock beacon, and only on it (false
+--     beacons are never outlined), so they can tell the crew which light is home.
+
 local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -42,6 +48,10 @@ local LobbyClient = require(client:WaitForChild("LobbyClient"))
 
 local Drowned = {}
 
+Drowned.RIPPLE = { from = 3, to = 70, life = 3.2, segments = 36, color = Color3.fromRGB(170, 215, 235) }
+Drowned.CUE_SECONDS = 3
+Drowned.BEACON_OUTLINE = 0.5 -- outline transparency on the real beacon (faint)
+
 Drowned.WISP_COLOR = Color3.fromRGB(170, 210, 230)
 Drowned.ORBIT = { radius = 18, height = 12, minRadius = 9, maxRadius = 34, drift = 0.07 }
 Drowned.TINT = Color3.fromRGB(150, 215, 210) -- cold blue-green over the drowned view
@@ -61,6 +71,9 @@ local clock = 0
 local dragging = false
 local sightFx: { Instance } = {} -- the tint and the cold light, while spectating
 local sightLight: BasePart? = nil
+local beaconMark: Highlight? = nil
+local cueGui: ScreenGui? = nil
+local cues: { { frame: Frame, at: Vector3, t0: number } } = {}
 
 function Drowned.active(): boolean
 	return active
@@ -261,6 +274,143 @@ local function setSight(on: boolean)
 	sightLight = p
 end
 
+-- The real dock beacon, faintly outlined for the drowned only.
+local function setBeaconMark(on: boolean)
+	local hl = beaconMark
+	if not on then
+		beaconMark = nil
+		if hl then
+			hl:Destroy()
+		end
+		return
+	end
+	if hl and hl.Parent then
+		return
+	end
+	local lamp = BoatClient.find("Dock", "BeaconLamp")
+	if lamp == nil then
+		return
+	end
+	local n = Instance.new("Highlight")
+	n.Name = "DeadCalmRealBeacon"
+	n.Adornee = lamp
+	n.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	n.FillTransparency = 1
+	n.OutlineColor = Common.OUTLINE
+	n.OutlineTransparency = Drowned.BEACON_OUTLINE
+	n.Parent = Common.folder()
+	beaconMark = n
+end
+
+-- A ring of short flat segments spreading over the water from `center`, fading.
+local function ripple(center: Vector3)
+	local R = Drowned.RIPPLE
+	local c = Vector3.new(center.X, Config.Lake.waterY + 0.1, center.Z)
+	local segs: { BasePart } = {}
+	for i = 1, R.segments do
+		segs[i] = Common.part(
+			"GhostRipple",
+			Vector3.new(1, 0.08, 0.35),
+			CFrame.new(c),
+			R.color,
+			Enum.Material.Neon,
+			{ transparency = 0.3 }
+		)
+	end
+	task.spawn(function()
+		local t0 = os.clock()
+		while os.clock() - t0 < R.life and segs[1].Parent do
+			local t = (os.clock() - t0) / R.life
+			local r = R.from + (R.to - R.from) * (1 - (1 - t) * (1 - t))
+			local len = 2 * math.pi * r / R.segments * 1.05
+			for i, sg in segs do
+				local a = (i - 1) * 2 * math.pi / R.segments
+				sg.Size = Vector3.new(len, 0.08, 0.35)
+				sg.CFrame = CFrame.new(c + Vector3.new(math.cos(a) * r, 0, math.sin(a) * r))
+					* CFrame.Angles(0, -a + math.pi / 2, 0)
+				sg.Transparency = 0.3 + t * 0.7
+			end
+			task.wait()
+		end
+		for _, sg in segs do
+			sg:Destroy()
+		end
+	end)
+end
+
+-- A pale marker at the screen edge toward a ringing ghost (the living only).
+local function edgeCue(at: Vector3)
+	local g = cueGui
+	if g == nil then
+		return
+	end
+	local f = Instance.new("Frame")
+	f.Name = "BellCue"
+	f.AnchorPoint = Vector2.new(0.5, 0.5)
+	f.Size = UDim2.fromOffset(54, 54)
+	f.BackgroundColor3 = Drowned.WISP_COLOR
+	f.BackgroundTransparency = 0.55
+	f.BorderSizePixel = 0
+	f.Parent = g
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.5, 0)
+	corner.Parent = f
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Drowned.WISP_COLOR
+	stroke.Thickness = 3
+	stroke.Parent = f
+	local t = Instance.new("TextLabel")
+	t.BackgroundTransparency = 1
+	t.Size = UDim2.fromScale(1, 1)
+	t.FontFace = Paper.hand()
+	t.TextSize = 16
+	t.TextColor3 = Color3.fromRGB(20, 30, 36)
+	t.Text = "bell"
+	t.Parent = f
+	table.insert(cues, { frame = f, at = at, t0 = os.clock() })
+end
+
+local function stepCues()
+	local cam = Workspace.CurrentCamera
+	if cam == nil then
+		return
+	end
+	local vp = cam.ViewportSize
+	local margin = 44
+	local keep = {}
+	for _, c in cues do
+		local age = os.clock() - c.t0
+		if age > Drowned.CUE_SECONDS or c.frame.Parent == nil then
+			c.frame:Destroy()
+			continue
+		end
+		local p, onScreen = cam:WorldToViewportPoint(c.at)
+		local x, y = p.X, p.Y
+		if not onScreen or p.Z < 0 then
+			-- Behind or off screen: point from the middle toward it, pinned to the edge.
+			local rel = cam.CFrame:PointToObjectSpace(c.at)
+			local dx, dy = rel.X, -rel.Y
+			if math.abs(dx) < 1e-3 and math.abs(dy) < 1e-3 then
+				dy = 1
+			end
+			local sx = (vp.X / 2 - margin) / math.max(math.abs(dx), 1e-3)
+			local sy = (vp.Y / 2 - margin) / math.max(math.abs(dy), 1e-3)
+			local k = math.min(sx, sy)
+			x, y = vp.X / 2 + dx * k, vp.Y / 2 + dy * k
+		end
+		c.frame.Position = UDim2.fromOffset(math.clamp(x, margin, vp.X - margin), math.clamp(y, margin, vp.Y - margin))
+		local fade = math.clamp(age / Drowned.CUE_SECONDS, 0, 1)
+		local pulse = 0.5 + 0.5 * math.sin(age * 8)
+		c.frame.BackgroundTransparency = 0.45 + 0.4 * fade + 0.1 * pulse
+		local st = c.frame:FindFirstChildOfClass("UIStroke")
+		if st then
+			st.Transparency = fade
+		end
+		table.insert(keep, c)
+	end
+	cues = keep
+end
+
 local function setActive(on: boolean)
 	if active == on then
 		return
@@ -268,6 +418,7 @@ local function setActive(on: boolean)
 	active = on
 	Common.setDrowned(on)
 	setSight(on)
+	setBeaconMark(on)
 	local cam = Workspace.CurrentCamera
 	if on then
 		-- The fail's camera effects (thrown, under the surface) end here, and the boat is
@@ -337,6 +488,13 @@ function Drowned.init()
 	t.TextStrokeTransparency = 0.4
 	t.Visible = false
 	tag = t
+	local cg = Instance.new("ScreenGui")
+	cg.Name = "DeadCalmBellCue"
+	cg.ResetOnSpawn = false
+	cg.IgnoreGuiInset = true
+	cg.DisplayOrder = 7
+	cg.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+	cueGui = cg
 
 	DeathCard.onDone(function()
 		local pv = ViewState.me()
@@ -364,6 +522,18 @@ function Drowned.init()
 		if w then
 			w.flare = 1
 		end
+		-- Every client sees the ripple; the living also get the edge marker toward it.
+		local from = if w then w.part.Position else nil
+		local hull = BoatClient.hull()
+		if from == nil and hull then
+			from = hull.Position
+		end
+		if from then
+			ripple(from)
+			if not active then
+				edgeCue(from)
+			end
+		end
 		if id == myId() then
 			lastBell = os.clock()
 		end
@@ -390,6 +560,7 @@ function Drowned.init()
 	RunService.Heartbeat:Connect(function(dt)
 		clock += dt
 		stepWisps(dt)
+		stepCues()
 	end)
 	RunService:BindToRenderStep("DeadCalmDrowned", Enum.RenderPriority.Camera.Value + 1, stepCamera)
 	-- The Neighbor's silhouette in the boat (a server model) is outlined for the drowned.

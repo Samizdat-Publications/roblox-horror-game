@@ -1,9 +1,10 @@
 --!strict
 -- The night's cards (S4):
---   * Night start: "Night N" in the owner's hand, which try it is, the quota, the rule taped
---     in tonight, "the book changed" in his second ink when there is an amendment, and the
---     words of tonight's tape (Rulebook.TEXT, for players with the sound off). It goes after
---     a few seconds, or on a tap or click.
+--   * Night start (Polish 3, Neon: the old card covered half the screen for 13 s): a small
+--     strip at the top, "Night N" in the owner's hand and one or two short lines (which try,
+--     the quota, on the last night the owner's fish, the rule taped in tonight, "the book
+--     changed" in his second ink). Gone after START_SECONDS, on a tap or click, or at once
+--     when the finale's bell rings. The tape's words are no longer printed (the tape plays).
 --   * Night end: cleared or failed, banked, fish landed, a dry tally line per player, then
 --     what comes next from Core.Run's outcome (next night, the same night again with the
 --     tries left, or the run is over).
@@ -32,7 +33,7 @@ local NightCards = {}
 -- Seconds of the drowned view (the boat from above, the outlines) between a death card and
 -- the night's end card, when the local player is one of the drowned.
 NightCards.DROWNED_BEAT = 4
-NightCards.START_SECONDS = 9 -- the night start card (longer when it carries the tape's words)
+NightCards.START_SECONDS = 4 -- the night start strip
 
 NightCards.FAIL_TEXT = {
 	QuotaShort = "Five o'clock and the cooler is short.",
@@ -50,7 +51,6 @@ local endBody: TextLabel? = nil
 local startCard: Frame? = nil
 local startHead: TextLabel? = nil
 local startBody: TextLabel? = nil
-local startTape: TextLabel? = nil
 local runCard: Frame? = nil
 local runHead: TextLabel? = nil
 local runBody: TextLabel? = nil
@@ -266,8 +266,8 @@ function NightCards.hide()
 end
 
 local function showStart(night: number)
-	local card, head, body, tape = startCard, startHead, startBody, startTape
-	if card == nil or head == nil or body == nil or tape == nil then
+	local card, head, body = startCard, startHead, startBody
+	if card == nil or head == nil or body == nil then
 		return
 	end
 	startToken += 1
@@ -285,101 +285,110 @@ local function showStart(night: number)
 	local info = if s.night and s.night.night == night then s.night else nil
 	local endless = info ~= nil and info.mode == "Endless"
 	head.Text = string.format(if endless then "Endless night %d" else "Night %d", night)
-	local lines = {}
+	local first = {}
 	local run = s.run
 	if endless then
-		table.insert(lines, "Any rule, any night. One try.")
+		table.insert(first, "Any rule, any night. One try.")
 	elseif s.runNight and run then
 		local attempt = tonumber(run.attempt) or 1
-		local first = string.format("Night %d of %d.", night, s.nights or 5)
+		table.insert(first, string.format("Night %d of %d.", night, s.nights or 5))
 		if attempt > 1 then
-			first ..= " " .. (TRY[attempt] or "Another try.")
+			table.insert(first, TRY[attempt] or "Another try.")
 		end
-		table.insert(lines, first)
+	end
+	local finaleNight = false
+	if info then
+		for _, r in info.rules do
+			if r == "Finale" then
+				finaleNight = true
+			end
+		end
 	end
 	local quota = if info then info.quota else ViewState.get().quota
-	if quota then
-		table.insert(lines, string.format("Quota: %d.", quota))
+	if quota and finaleNight then
+		-- Night 5 needs both: the quota and the owner's one fish (Neon read them as a clash).
+		table.insert(first, string.format("Quota %d, and the owner's Steeple Cat.", quota))
+	elseif quota then
+		table.insert(first, string.format("Quota %d.", quota))
 	end
+	local second = {}
 	local amended = false
 	if info then
 		for _, r in info.newRules do
 			local n = Rulebook.NUMBERS[r]
 			if n then
-				table.insert(lines, string.format("Taped in tonight: Rule %d.", n))
+				table.insert(second, string.format("Taped in tonight: Rule %d.", n))
 			end
 		end
 		amended = next(info.amendments) ~= nil
 	end
-	local rich = {}
-	for _, l in lines do
-		table.insert(rich, l)
-	end
 	if amended then
 		table.insert(
-			rich,
-			string.format(
-				'<font color="#%s">The owner changed the book. Read it again (R).</font>',
-				Look.Palette.amendInk:ToHex()
-			)
+			second,
+			string.format('<font color="#%s">The owner changed the book (R).</font>', Look.Palette.amendInk:ToHex())
 		)
 	end
-	body.Text = table.concat(rich, "\n")
-	local tapeId = if info and info.mode == "Endless" then "Tape.Endless" else "Tape.Night" .. tostring(night)
-	local words = Rulebook.TEXT[tapeId]
-	if amended and Rulebook.TEXT["Tape.Amendment"] then
-		words = (words or "") .. " " .. Rulebook.TEXT["Tape.Amendment"]
+	local text = table.concat(first, " ")
+	if #second > 0 then
+		text ..= "\n" .. table.concat(second, " ")
 	end
-	tape.Text = if words then '"' .. words .. '"' else ""
-	tape.Visible = words ~= nil
+	body.Text = text
 	card.Visible = true
-	task.delay(NightCards.START_SECONDS + (if words then 5 else 0), function()
+	task.delay(NightCards.START_SECONDS, function()
 		if startToken == token then
 			card.Visible = false
 		end
 	end)
 end
 
+-- Puts the night start strip away now (the finale's bell).
+function NightCards.hideStart()
+	startToken += 1
+	local c = startCard
+	if c then
+		c.Visible = false
+	end
+end
+
 function NightCards.init()
 	local gui = Paper.gui("DeadCalmNightCards", 10)
 
-	-- Night start: top middle, tap to put away.
-	local st = Paper.sheet(gui, "Start", UDim2.fromScale(0.6, 0.5), UDim2.fromScale(0.5, 0.06), Vector2.new(0.5, 0), 12)
-	st.Rotation = -1.2
-	st.BackgroundTransparency = 0.05
+	-- Night start: a small strip at the top middle, tap to put away.
+	local st = Paper.sheet(gui, "Start", UDim2.fromScale(0.5, 0), UDim2.new(0.5, 0, 0, 8), Vector2.new(0.5, 0), 8)
+	st.AutomaticSize = Enum.AutomaticSize.Y
+	st.Rotation = -0.8
+	st.BackgroundTransparency = 0.08
 	st.Visible = false
 	local stLimit = Instance.new("UISizeConstraint")
-	stLimit.MaxSize = Vector2.new(560, 330)
-	stLimit.MinSize = Vector2.new(280, 0)
+	stLimit.MaxSize = Vector2.new(440, 140)
+	stLimit.MinSize = Vector2.new(260, 0)
 	stLimit.Parent = st
+	local stList = Instance.new("UIListLayout")
+	stList.SortOrder = Enum.SortOrder.LayoutOrder
+	stList.Padding = UDim.new(0, 2)
+	stList.Parent = st
 	startCard = st
-	local big = Paper.fit(34, 22, 38)
+	local big = Paper.fit(26, 18, 30)
 	local sh = Paper.text(st, "Head", "", big, Paper.hand())
-	sh.Size = UDim2.new(1, 0, 0, big + 6)
+	sh.LayoutOrder = 1
+	sh.Size = UDim2.new(1, 0, 0, big + 4)
+	sh.TextXAlignment = Enum.TextXAlignment.Center
 	startHead = sh
-	local small = Paper.fit(17, 12, 19)
+	local small = Paper.fit(15, 11, 17)
 	local sb = Paper.text(st, "Body", "", small)
+	sb.LayoutOrder = 2
 	sb.RichText = true
-	sb.Position = UDim2.fromOffset(0, big + 8)
-	sb.Size = UDim2.new(1, 0, 0, (small + 4) * 4)
+	sb.AutomaticSize = Enum.AutomaticSize.Y
+	sb.Size = UDim2.fromScale(1, 0)
+	sb.TextXAlignment = Enum.TextXAlignment.Center
 	startBody = sb
-	local stp = Paper.text(st, "Tape", "", math.max(11, small - 2))
-	stp.Position = UDim2.fromOffset(0, big + 12 + (small + 4) * 4)
-	stp.Size = UDim2.new(1, 0, 1, -(big + 12 + (small + 4) * 4))
-	stp.TextTransparency = 0.2
-	stp.TextScaled = false
-	startTape = stp
-	local tap = Instance.new("TextButton")
-	tap.Name = "Tap"
-	tap.Text = ""
-	tap.BackgroundTransparency = 1
-	tap.Size = UDim2.fromScale(1, 1)
-	tap.Selectable = false
-	tap.ZIndex = 5
-	tap.Parent = st
-	tap.Activated:Connect(function()
-		startToken += 1
-		st.Visible = false
+	st.Active = true
+	st.InputBegan:Connect(function(io: InputObject)
+		local t = io.UserInputType
+		if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
+			startToken += 1
+			st.Visible = false
+		end
 	end)
 
 	-- Night end.
@@ -423,6 +432,12 @@ function NightCards.init()
 	end)
 	runButton = btn
 
+	-- The finale's bell: nothing on screen but the bell and its line.
+	Events.on("EntityCue", function(ev)
+		if ev.entity == "Finale" then
+			NightCards.hideStart()
+		end
+	end)
 	Events.on("NightStarted", function(ev)
 		local data = ev.data or {}
 		nightNumber = tonumber(data.night) or nightNumber
@@ -457,8 +472,8 @@ function NightCards.init()
 		afterDeathCard(function()
 			local s = awaitOutcome(2)
 			if s.outcome == "RunCleared" then
-				-- The finale's dawn first (fx/Finale), then the run card.
-				task.wait(2.5)
+				-- The finale's dawn first (fx/Finale: the sunrise and its banner), then the run card.
+				task.wait(5)
 				showRun(true, LobbyClient.get())
 			else
 				showEnd(true, nil, data.result, s)

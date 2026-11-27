@@ -1013,6 +1013,114 @@ local sounds: { [string]: SoundEntry } = {
 		group = "Rule",
 		derive = { from = "fish-land-thud", speed = 1.6 },
 	},
+	-- Polish 3 (Neon's finale review, 11/26/2026): derived stand-ins for the finale and dawn.
+	-- The bell at 4 AM after 1.5 s of dead silence: loud from anywhere on the lake, echoing.
+	["finale-bell"] = {
+		id = 0,
+		volume = 1.0,
+		looped = false,
+		spatial = true,
+		minDist = 160,
+		maxDist = 1500,
+		group = "Rule",
+		duck = false,
+		derive = {
+			from = "bell-dock-solo",
+			effects = {
+				{ class = "EchoSoundEffect", props = { Delay = 0.42, Feedback = 0.4, DryLevel = 0, WetLevel = -5 } },
+				{ class = "ReverbSoundEffect", props = { DecayTime = 5, DryLevel = -2, WetLevel = -6 } },
+			},
+		},
+	},
+	-- The pursuit layer under the motor: the hum pitched down, pulsing (fx/Finale quickens the
+	-- tremolo as the boat slows), over a darker, slower finale bed.
+	["finale-chase-drone"] = {
+		id = 0,
+		volume = 0.55,
+		looped = true,
+		spatial = false,
+		group = "Music",
+		derive = {
+			from = "hum-hold-loop",
+			speed = 0.7,
+			effects = {
+				{ class = "TremoloSoundEffect", props = { Frequency = 1.6, Depth = 0.6 } },
+				{ class = "EqualizerSoundEffect", props = { LowGain = 4, MidGain = -2, HighGain = -14 } },
+			},
+		},
+	},
+	["finale-chase-under"] = {
+		id = 0,
+		volume = 0.32,
+		looped = true,
+		spatial = false,
+		group = "Music",
+		derive = {
+			from = "finale-bed",
+			speed = 0.8,
+			effects = {
+				{ class = "EqualizerSoundEffect", props = { LowGain = 2, MidGain = -3, HighGain = -12 } },
+				{ class = "ReverbSoundEffect", props = { DecayTime = 3, DryLevel = -2, WetLevel = -8 } },
+			},
+		},
+	},
+	-- Distant unnatural sounds from the finale's hazards: a whine at a false beacon, a toll
+	-- through water when one appears.
+	["finale-hazard-whine"] = {
+		id = 0,
+		volume = 0.5,
+		looped = true,
+		spatial = true,
+		minDist = 50,
+		maxDist = 500,
+		group = "Rule",
+		duck = false,
+		derive = {
+			from = "hum-hold-loop",
+			effects = {
+				{ class = "PitchShiftSoundEffect", props = { Octave = 2, Priority = 3 } },
+				{ class = "TremoloSoundEffect", props = { Frequency = 5, Depth = 0.7, Priority = 2 } },
+				{
+					class = "EqualizerSoundEffect",
+					props = { LowGain = -30, MidGain = 0, HighGain = -10, Priority = 1 },
+				},
+				{ class = "ReverbSoundEffect", props = { DecayTime = 4, DryLevel = -4, WetLevel = -2 } },
+			},
+		},
+	},
+	["finale-hazard-toll"] = {
+		id = 0,
+		volume = 0.8,
+		looped = false,
+		spatial = true,
+		minDist = 60,
+		maxDist = 600,
+		group = "Rule",
+		duck = false,
+		derive = {
+			from = "bell-underwater",
+			speed = 0.75,
+			effects = { { class = "ReverbSoundEffect", props = { DecayTime = 6, DryLevel = -3, WetLevel = -1 } } },
+		},
+	},
+	-- Dawn birds: no bird recording exists yet, so peepers sped up into chirps with a loon
+	-- far off. A stand-in to replace with a real dawn chorus upload.
+	["dawn-birds"] = {
+		id = 0,
+		volume = 0.45,
+		looped = false,
+		spatial = false,
+		group = "Music",
+		derive = {
+			from = "frog-peeper-a",
+			speed = 1.5,
+			layers = {
+				{ from = "frog-peeper-b", speed = 1.75, delay = 0.7, volume = 0.8 },
+				{ from = "loon-call", speed = 1.35, delay = 1.6, volume = 0.45 },
+			},
+		},
+		["repeat"] = { count = 3, gap = 2.4 },
+	},
 }
 
 -- audio/tapes.json (the owner's voice)

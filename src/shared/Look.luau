@@ -82,6 +82,58 @@ Look.Lighting = {
 	},
 }
 
+-- Dawn after the finale (Polish 3, Neon's fix 4): fx/Finale tweens the client's Lighting,
+-- Atmosphere and ColorCorrection from the night (Look.Lighting) to these over `seconds`, and
+-- puts them back at the next night or on the title. The fog lifts a little and turns warm.
+Look.Dawn = {
+	seconds = 2.6,
+	ClockTime = 6.3,
+	Brightness = 2.4,
+	Ambient = Color3.fromRGB(118, 98, 86),
+	OutdoorAmbient = Color3.fromRGB(176, 142, 118),
+	ExposureCompensation = 0.35,
+	atmosphere = {
+		Density = 0.36,
+		Offset = 0.2,
+		Haze = 1.4,
+		Glare = 0.4,
+		Color = Color3.fromRGB(236, 186, 146),
+		Decay = Color3.fromRGB(206, 146, 112),
+	},
+	colorCorrection = {
+		Brightness = 0.06,
+		Contrast = 0.08,
+		Saturation = 0.05,
+		TintColor = Color3.fromRGB(255, 232, 210),
+	},
+}
+
+-- The finale on screen (Polish 3, Neon's fixes 1, 2, 5). fx/Finale reads these.
+Look.Finale = {
+	silence = 1.5, -- seconds of dead silence at the bell before the first stroke
+	bellStrokes = 3,
+	bellGap = 1.7, -- seconds between strokes
+	bellVolume = 1.6, -- multiplies bell-dock-solo (it plays close and echoing)
+	captionHold = 4.5, -- "The bell. Go home." stays this long
+	-- The locked lantern's cone over the bow: a SpotLight on the lantern, aimed forward
+	-- and down so the water racing past shows the speed.
+	cone = { brightness = 7, range = 58, angle = 70, color = Color3.fromRGB(255, 176, 92) },
+	-- The real dock beacon during the finale: a tall steady shaft of light that blinks
+	-- with the beacon and a halo sized in studs (it grows as you come in).
+	beaconShaft = { height = 90, width = 2.2, transparency = 0.45 },
+	beaconHalo = { studs = 26, minPixels = 46 },
+	-- Hazards are drawn closer than Core holds them so they read through the fog: the gap
+	-- beyond the kill radius is scaled by `pull` (the kill distance itself is unchanged).
+	pull = 0.5,
+	hazardLightRange = 44,
+	hazardLightBrightness = 3.2,
+	-- The pursuit layer under the motor; its pulse quickens as the boat slows.
+	pulseCalm = 1.6, -- Hz at speed
+	pulseScared = 4.5, -- Hz when the boat is nearly stopped
+	vignetteMax = 0.85,
+	oilWarn = 0.35, -- below this the oil bar pulses red
+}
+
 -- The boat's lantern. The client flickers it between flickerLow and 1 times Brightness.
 Look.Lantern = {
 	Range = 60,
@@ -135,6 +187,7 @@ Look.Mix = {
 	duckAttack = 0.12, -- seconds to reach the duck
 	duckRelease = 1.0, -- seconds to come back
 	muteFade = 0.3, -- seconds to mute the ambience (death card)
+	hushFade = 0.12, -- seconds for AudioDirector.hush to reach silence (the finale's bell)
 	layers = {
 		hullLap = 0.7,
 		lakeAir = 0.6,
