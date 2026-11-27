@@ -132,5 +132,34 @@
                            "caption":  "The rulebook on night 5. The owner has amended Rule 3 in red ink."
                        }
                    ]
+    },
+    {
+        "id":  "m8-finale",
+        "date":  "11/27/2026",
+        "milestone":  "M8 Polish",
+        "title":  "The bell, the run home, and dawn",
+        "text":  "The finale went through six versions tonight, each one recorded in Studio and watched by Neon. The biggest fix was not in the finale at all: the first-person view did not turn with the boat, so after turning for home you stared at the side of the boat. Now the view turns with the boat, and at the first toll of the bell it swings round to face the dock. The bell rings three times after real silence, the lantern throws light ahead, strange boats and false beacons cross the way home, and reaching the dock with the owner\u0027s fish brings the dawn. Neon\u0027s finale score went from 1.5 to 3 out of 10, and the Hum\u0027s fail from 3.5 to 5; the critic is harsh and sometimes contradicts itself, so its notes are weighed, not obeyed. The phone layout was checked on the smallest phone Roblox offers and rebuilt so every button sits on the right and the steering stick stays clear.",
+        "stills":  [
+                       {
+                           "file":  "stills/19-the-bell.jpg",
+                           "caption":  "4 AM: the bell."
+                       },
+                       {
+                           "file":  "stills/17-finale-run-home.jpg",
+                           "caption":  "The run home, lit by the lantern, the dock light ahead."
+                       },
+                       {
+                           "file":  "stills/18-dawn.jpg",
+                           "caption":  "Dawn. You made it home."
+                       },
+                       {
+                           "file":  "stills/20-phone.jpg",
+                           "caption":  "The smallest phone: buttons on the right, steering stick clear."
+                       },
+                       {
+                           "file":  "stills/15-helm-lit.jpg",
+                           "caption":  "A shadow from the lantern post used to black out the middle of the boat."
+                       }
+                   ]
     }
 ]
