@@ -32,6 +32,12 @@ def rank_once(spec, shuffled):
         loop_rule = " It must loop cleanly: the end joins the start with no click, fade or recognisable repeating event." if spec.get("loop") else ""
         iso_rule = (" This must be ONE ISOLATED single animal calling: any variant with more than one animal, a chorus, crickets or other insects, or audible background hiss is a FAIL and must rank last."
                     if spec.get("batch") == "m1b" else "")
+        count_rule = ""
+        if spec["id"] in ("knock-three-soft", "knock-three-hard"):
+            count_rule = " REQUIRED: exactly three evenly spaced knocks. More or fewer than three is a FAIL and must rank last."
+        elif spec["id"] == "fake-single-knock":
+            count_rule = " REQUIRED: exactly ONE knock. Any variant with more or fewer than one knock is a FAIL and must rank last."
+        iso_rule += count_rule
         kind = "music" if spec.get("kind") == "music" else "sound effect"
         parts = [
             {"text": critic.CONTEXT},
