@@ -2,7 +2,9 @@
 -- Builds sounds from SoundRegistry, mixes the ambience layers from the NightView, plays the
 -- night's events as sound, and plays one-shots at world positions. Any registry id that is 0
 -- is skipped silently, and any id set nonzero later starts automatically: layers and
--- one-shots are looked up by name, never hard-wired to an instance.
+-- one-shots are looked up by name, never hard-wired to an instance. An id-0 entry with a
+-- `derive` table is built here from a real sound (speed, region, effects, layers, repeat
+-- timer) and plays by the same name; an entry's `repeat` plays it several times.
 --
 -- Ambience layers (registry name -> where it plays):
 --   beds:    bed-hull-lap and bed-lake-air (2D), bed-wind-trees (eight shore emitters)
@@ -85,7 +87,8 @@ type Layer = {
 	parentKey: string?, -- the anchor the sounds currently hang on
 }
 
-type PlayOpts = { speed: number?, volume: number? }
+-- repeatGap overrides the registry's `repeat` gap (the knocks follow the server's timing).
+type PlayOpts = { speed: number?, volume: number?, repeatGap: number? }
 
 local groups: { [string]: SoundGroup } = {}
 local layers: { Layer } = {}
@@ -167,13 +170,58 @@ local function emitterPart(name: string, pos: Vector3): BasePart
 	return p
 end
 
--- Make a Sound for a registry entry, or nil when its id is 0.
-local function makeSound(name: string, parent: Instance?): Sound?
-	local entry = SoundRegistry.get(name)
-	local uri = SoundRegistry.uri(name)
-	if entry == nil or uri == nil then
-		return nil
+----------------------------------------------------------------------------------------
+-- Derived sounds (SoundRegistry `derive`): a piece is one Sound made from a real id and
+-- shaped with PlaybackSpeed, a PlaybackRegion and SoundEffect children. Callers never see
+-- the difference: play() and loop() return the first piece, named after the entry.
+
+-- Effect children from a derive's `effects` list. Unknown classes or properties are skipped
+-- with a warning (SoundRegistry.EFFECT_PROPS lists what the docs confirm).
+local function addEffects(s: Sound, effects: { SoundRegistry.Effect })
+	for i, fx in effects do
+		local allowed = SoundRegistry.EFFECT_PROPS[fx.class]
+		if allowed == nil then
+			warn("AudioDirector: unknown effect class " .. tostring(fx.class) .. " on " .. s.Name)
+			continue
+		end
+		local e: any = Instance.new(fx.class :: any)
+		e.Name = "Derive" .. i
+		for prop, value in fx.props or {} do
+			if allowed[prop] then
+				e[prop] = value
+			else
+				warn("AudioDirector: " .. fx.class .. " has no property " .. prop .. " (" .. s.Name .. ")")
+			end
+		end
+		e.Parent = s
 	end
+end
+
+local function regionStart(part: SoundRegistry.Derive?): number
+	local r = part and part.region
+	if r and r[1] and r[2] and r[2] > r[1] then
+		return r[1]
+	end
+	return 0
+end
+
+local function shapePiece(s: Sound, part: SoundRegistry.Derive)
+	if part.speed then
+		s.PlaybackSpeed = part.speed
+	end
+	local r = part.region
+	if r and r[1] and r[2] and r[2] > r[1] then
+		s.PlaybackRegionsEnabled = true
+		s.PlaybackRegion = NumberRange.new(r[1], r[2])
+		s.TimePosition = r[1]
+	end
+	if part.effects then
+		addEffects(s, part.effects)
+	end
+end
+
+-- A Sound with the entry's mix settings (volume, group, rolloff) playing `uri`.
+local function buildSound(name: string, entry: SoundRegistry.SoundEntry, uri: string, parent: Instance?): Sound
 	local s = Instance.new("Sound")
 	s.Name = name
 	s.SoundId = uri
@@ -190,6 +238,182 @@ local function makeSound(name: string, parent: Instance?): Sound?
 	-- Non-spatial sounds play from SoundService; spatial ones from a part in the world.
 	s.Parent = if entry.spatial and parent then parent else SoundService
 	return s
+end
+
+-- Make a Sound for a registry entry (a derived entry is shaped from its source), or nil
+-- when there is nothing to play.
+local function makeSound(name: string, parent: Instance?): Sound?
+	local entry = SoundRegistry.get(name)
+	local uri = SoundRegistry.uri(name)
+	if entry == nil or uri == nil then
+		return nil
+	end
+	local s = buildSound(name, entry, uri, parent)
+	local d = entry.derive
+	if entry.id == 0 and d then
+		shapePiece(s, d)
+		if d.repeatEvery then
+			s.Looped = false -- the repeat timer replays it instead
+		end
+	end
+	return s
+end
+
+-- A layer of a derived entry: the entry's mix settings, the layer's source and shape.
+local function makeLayer(name: string, layer: SoundRegistry.Derive, parent: Instance?): Sound?
+	local entry = SoundRegistry.get(name)
+	local uri = SoundRegistry.uri(layer.from)
+	if entry == nil or uri == nil then
+		return nil
+	end
+	local s = buildSound(name, entry, uri, parent)
+	s.Looped = false
+	s.Volume *= layer.volume or 1
+	shapePiece(s, layer)
+	return s
+end
+
+-- Runs one piece's timing (repeat timer, duration cut, fades) and calls `done` once when the
+-- piece is over: ended, cut, or destroyed. Volume is only written when the piece fades, so
+-- callers that set Volume themselves (Watcher's tone) keep control.
+local function runPiece(s: Sound, part: SoundRegistry.Derive?, oneShot: boolean, done: () -> ())
+	local finished = false
+	local function finish()
+		if not finished then
+			finished = true
+			done()
+		end
+	end
+	s.Destroying:Once(finish)
+	local every = part and part.repeatEvery
+	local dur = part and part.duration
+	if oneShot and every and dur == nil then
+		every = nil -- a one-shot repeat needs a duration, or it would never end
+	end
+	local fadeIn = part and part.fadeIn
+	local fadeOut = part and part.fadeOut
+	if every == nil and dur == nil then
+		s.Ended:Once(finish)
+		if fadeIn == nil then
+			return
+		end
+	end
+	local start = regionStart(part)
+	task.spawn(function()
+		local base = s.Volume
+		local t0 = os.clock()
+		local nextAt = every
+		local fades = (fadeIn ~= nil and fadeIn > 0) or (dur ~= nil and fadeOut ~= nil and fadeOut > 0)
+		while s.Parent ~= nil and not finished do
+			local t = os.clock() - t0
+			if fades then
+				local k = 1
+				if fadeIn and fadeIn > 0 and t < fadeIn then
+					k = t / fadeIn
+				end
+				if dur and fadeOut and fadeOut > 0 then
+					k = math.min(k, math.clamp((dur - t) / fadeOut, 0, 1))
+				end
+				s.Volume = base * k
+			end
+			if dur and t >= dur then
+				s:Stop()
+				break
+			end
+			if nextAt and every and t >= nextAt then
+				nextAt += every
+				s.TimePosition = start
+				s:Play()
+			end
+			task.wait()
+		end
+		if dur or every then
+			finish()
+		end
+	end)
+end
+
+-- Starts a sound made by makeSound: its own timing, its layers and its `repeat` copies.
+-- One-shots are destroyed when every piece is over; destroying the returned sound early
+-- cancels pieces that have not started and stops the ones playing.
+local function startPlayback(name: string, s: Sound, oneShot: boolean, repeatGap: number?)
+	local entry = SoundRegistry.get(name)
+	if entry == nil then
+		return
+	end
+	local d = if entry.id == 0 then entry.derive else nil
+	local rep = entry["repeat"]
+	local startVol = s.Volume
+	local pending = 1
+	local dead = false
+	local copies: { Sound } = {}
+
+	local function pieceDone()
+		pending -= 1
+		if pending <= 0 and oneShot and not dead then
+			task.defer(function()
+				if s.Parent then
+					s:Destroy()
+				end
+			end)
+		end
+	end
+
+	s.Destroying:Once(function()
+		dead = true
+		for _, c in copies do
+			if c.Parent then
+				c:Destroy()
+			end
+		end
+	end)
+
+	local function schedule(delay: number, part: SoundRegistry.Derive?, build: () -> Sound?)
+		pending += 1
+		task.delay(delay, function()
+			if dead then
+				pieceDone()
+				return
+			end
+			local c = build()
+			if c == nil then
+				pieceDone()
+				return
+			end
+			c.Looped = false
+			if startVol > 0 then
+				c.Volume *= s.Volume / startVol -- follow what the caller did to the first piece
+			end
+			table.insert(copies, c)
+			runPiece(c, part, true, function()
+				task.defer(function()
+					if c.Parent then
+						c:Destroy()
+					end
+				end)
+				pieceDone()
+			end)
+			c:Play()
+		end)
+	end
+
+	runPiece(s, d, oneShot, pieceDone)
+
+	if d and d.layers then
+		for _, layer in d.layers do
+			schedule(layer.delay or 0, layer, function()
+				return makeLayer(name, layer, s.Parent)
+			end)
+		end
+	end
+	if rep and rep.count > 1 then
+		local gap = repeatGap or rep.gap
+		for i = 1, rep.count - 1 do
+			schedule(gap * i, d, function()
+				return makeSound(name, s.Parent)
+			end)
+		end
+	end
 end
 
 local function anchorFor(where: Where): (Instance?, string?)
@@ -301,15 +525,14 @@ function AudioDirector.play(name: string, at: (BasePart | Vector3)?, opts: PlayO
 	s.Looped = false
 	if opts then
 		if opts.speed then
-			s.PlaybackSpeed = opts.speed
+			s.PlaybackSpeed *= opts.speed -- on top of a derived entry's own speed
 		end
 		if opts.volume then
 			s.Volume *= opts.volume
 		end
 	end
-	s.Ended:Once(function()
-		s:Destroy()
-	end)
+	-- Destroyed when every piece is over (one piece for a plain sound: when it ends).
+	startPlayback(name, s, true, opts and opts.repeatGap)
 	-- A sound that never loads never ends; clean it up anyway.
 	task.delay(90, function()
 		if s.Parent then
@@ -320,19 +543,63 @@ function AudioDirector.play(name: string, at: (BasePart | Vector3)?, opts: PlayO
 	return s
 end
 
--- A looping sound by registry name on a part (spatial entries) or in 2D. Nil for id 0.
--- The caller stops and destroys it (fx modules do it on pass, fail and reset).
+-- A looping sound by registry name on a part (spatial entries) or in 2D. Nil when there is
+-- nothing to play. The caller stops and destroys it (fx modules do it on pass, fail and
+-- reset); destroying it also ends a derived loop's repeat timer and layers.
 function AudioDirector.loop(name: string, at: BasePart?, volume: number?): Sound?
 	local s = makeSound(name, at)
 	if s == nil then
 		return nil
 	end
-	s.Looped = true
+	local entry = SoundRegistry.get(name)
+	local d = if entry and entry.id == 0 then entry.derive else nil
+	s.Looped = not (d ~= nil and d.repeatEvery ~= nil)
 	if volume then
 		s.Volume *= volume
 	end
+	startPlayback(name, s, false)
 	s:Play()
 	return s
+end
+
+-- Studio listening test (DebugBot "play_sound"): plays any registry sound by name on this
+-- client, at the hull for spatial entries. Loops stop after `seconds` (default 8). Returns
+-- false when the name has nothing to play.
+local auditions: { Sound } = {}
+function AudioDirector.audition(name: string, seconds: number?): boolean
+	if not SoundRegistry.available(name) then
+		return false
+	end
+	local entry = SoundRegistry.get(name)
+	local hull = BoatClient.hull()
+	local s: Sound?
+	if entry and entry.looped then
+		s = AudioDirector.loop(name, hull)
+		local loopSound = s
+		if loopSound then
+			task.delay(seconds or 8, function()
+				if loopSound.Parent then
+					loopSound:Destroy()
+				end
+			end)
+		end
+	else
+		s = AudioDirector.play(name, hull)
+	end
+	if s then
+		table.insert(auditions, s)
+	end
+	return s ~= nil
+end
+
+-- Stops every sound started by audition.
+function AudioDirector.stopAuditions()
+	for _, s in auditions do
+		if s.Parent then
+			s:Destroy()
+		end
+	end
+	auditions = {}
 end
 
 -- The registry volume for a name (fx modules fade loops relative to it).

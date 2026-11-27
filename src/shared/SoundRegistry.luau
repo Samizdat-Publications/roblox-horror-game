@@ -7,8 +7,46 @@
 -- To add a sound: upload it, record it in audio/ids.json, then set `id` here. AudioDirector
 -- starts ambience layers and one-shots automatically for any id that is nonzero.
 -- minDist and maxDist are the rolloff range for spatial sounds (studs).
+--
+-- Derived sounds (11/26/2026, while the account's audio uploads are capped until about
+-- 12/26/2026): an entry with id 0 may carry a `derive` table instead. AudioDirector builds it
+-- from another entry's real id (`from`) with PlaybackSpeed, a PlaybackRegion, SoundEffect
+-- children, delayed layers and a repeat timer. Callers play it by name like any other sound.
+-- `from` (and every layer's `from`) must name an entry with a real id; the lint checks it.
+-- When the real upload lands: set the id, delete the derive table.
+--   from         source entry name (real id)
+--   speed        PlaybackSpeed (pitch and tempo together)
+--   region       { start, stop } in seconds of the source (PlaybackRegion)
+--   effects      { { class = "<SoundEffect class>", props = { Prop = n } } }, see EFFECT_PROPS
+--   volume       layers only: multiplier on the entry's volume
+--   delay        layers only: seconds after the sound starts
+--   duration     seconds the piece lasts before it is cut (one-shots and loops)
+--   fadeIn, fadeOut  seconds; fadeOut ends at `duration`
+--   repeatEvery  replay the piece every n seconds (a loop for looped entries; one-shots need
+--                a duration)
+--   layers       more pieces, each a table of the fields above
+-- `["repeat"] = { count, gap }` (any entry, real or derived) plays the whole sound `count`
+-- times, `gap` seconds apart (library knocks are single thuds).
 
 export type Group = "Ambience" | "Boat" | "Fishing" | "Rule" | "UI" | "Music" | "Voice"
+
+export type Effect = { class: string, props: { [string]: number }? }
+
+export type Derive = {
+	from: string,
+	speed: number?,
+	region: { number }?,
+	effects: { Effect }?,
+	volume: number?,
+	delay: number?,
+	duration: number?,
+	fadeIn: number?,
+	fadeOut: number?,
+	repeatEvery: number?,
+	layers: { Derive }?,
+}
+
+export type RepeatSpec = { count: number, gap: number }
 
 export type SoundEntry = {
 	id: number,
@@ -18,11 +56,37 @@ export type SoundEntry = {
 	group: Group?, -- mix group, see Look.Mix.groups
 	minDist: number?,
 	maxDist: number?,
+	derive: Derive?,
+	["repeat"]: RepeatSpec?,
 }
 
 local SoundRegistry = {}
 
 SoundRegistry.GROUPS = { "Ambience", "Boat", "Fishing", "Rule", "UI", "Music", "Voice" } :: { Group }
+
+-- The SoundEffect classes and properties a derive may set. Checked against
+-- create.roblox.com/docs on 11/26/2026: all exist, none deprecated. Ranges from the docs:
+-- gains and levels in dB -80..10; Reverb DecayTime 0.1..20; Echo Delay 0.01..5 s;
+-- Distortion Level 0..1; PitchShift Octave 0.5..2 (one octave down..up per effect, so stack
+-- effects for more); Tremolo Frequency 0.1..20, Depth and Duty 0..1. Priority orders effects
+-- (higher first, 0 is the default). There is no band-pass class: use an EqualizerSoundEffect
+-- with LowGain and HighGain cut.
+SoundRegistry.EFFECT_PROPS = {
+	EqualizerSoundEffect = { HighGain = true, MidGain = true, LowGain = true, Priority = true },
+	ReverbSoundEffect = {
+		DecayTime = true,
+		Density = true,
+		Diffusion = true,
+		DryLevel = true,
+		WetLevel = true,
+		Priority = true,
+	},
+	EchoSoundEffect = { Delay = true, DryLevel = true, Feedback = true, WetLevel = true, Priority = true },
+	DistortionSoundEffect = { Level = true, Priority = true },
+	PitchShiftSoundEffect = { Octave = true, Priority = true },
+	ChorusSoundEffect = { Depth = true, Mix = true, Rate = true, Priority = true },
+	TremoloSoundEffect = { Depth = true, Duty = true, Frequency = true, Priority = true },
+} :: { [string]: { [string]: boolean } }
 
 -- audio/sounds.json
 local sounds: { [string]: SoundEntry } = {
@@ -420,59 +484,106 @@ local sounds: { [string]: SoundEntry } = {
 	["ghost-loop"] = { id = 94730476572844, volume = 0.7, looped = true, spatial = false, group = "Rule" },
 	["wrong-blink"] = {
 		id = 0,
-		volume = 0.7,
+		volume = 0.35,
 		looped = false,
 		spatial = true,
-		group = "Rule",
 		minDist = 4,
 		maxDist = 90,
+		group = "Rule",
+		derive = { from = "lantern-squeak", region = { 0, 0.1 }, speed = 2.5 },
 	},
 	["wrong-glow-loop"] = {
 		id = 0,
-		volume = 0.7,
+		volume = 0.12,
 		looped = true,
 		spatial = true,
-		group = "Rule",
 		minDist = 4,
 		maxDist = 90,
+		group = "Rule",
+		derive = {
+			from = "hum-hold-loop",
+			effects = {
+				{ class = "PitchShiftSoundEffect", props = { Octave = 2, Priority = 4 } },
+				{ class = "PitchShiftSoundEffect", props = { Octave = 2, Priority = 3 } },
+				{ class = "PitchShiftSoundEffect", props = { Octave = 2, Priority = 2 } },
+				{ class = "TremoloSoundEffect", props = { Frequency = 3, Depth = 0.5, Priority = 1 } },
+			},
+		},
 	},
 	["cooler-knock-inside"] = {
 		id = 0,
-		volume = 0.7,
+		volume = 0.6,
 		looped = false,
 		spatial = true,
-		group = "Rule",
 		minDist = 4,
 		maxDist = 90,
+		group = "Rule",
+		derive = {
+			from = "knock-answer",
+			effects = { { class = "EqualizerSoundEffect", props = { HighGain = -35, MidGain = -12 } } },
+		},
+		["repeat"] = { count = 3, gap = 0.9 },
 	},
 	["cooler-eaten"] = {
 		id = 0,
-		volume = 0.7,
+		volume = 0.65,
 		looped = false,
 		spatial = true,
-		group = "Rule",
 		minDist = 4,
 		maxDist = 90,
+		group = "Rule",
+		derive = {
+			from = "cooler-close",
+			speed = 0.7,
+			layers = { { from = "fish-land-thud", delay = 0.2, volume = 0.9 } },
+		},
 	},
 	["neighbor-oarlock-loop"] = {
 		id = 0,
-		volume = 0.7,
+		volume = 0.55,
 		looped = true,
 		spatial = true,
-		group = "Rule",
 		minDist = 20,
 		maxDist = 400,
+		group = "Rule",
+		derive = {
+			from = "oarlock-creak",
+			speed = 0.8,
+			repeatEvery = 2,
+			effects = {
+				{ class = "EqualizerSoundEffect", props = { HighGain = -30, MidGain = -8 } },
+				{ class = "ReverbSoundEffect", props = { DecayTime = 4, DryLevel = -10, WetLevel = 0 } },
+			},
+		},
 	},
 	["neighbor-pass"] = {
 		id = 0,
-		volume = 0.7,
+		volume = 0.55,
 		looped = false,
 		spatial = true,
-		group = "Rule",
 		minDist = 20,
 		maxDist = 400,
+		group = "Rule",
+		derive = {
+			from = "oarlock-creak",
+			speed = 0.8,
+			repeatEvery = 2,
+			duration = 6,
+			fadeOut = 6,
+			effects = {
+				{ class = "EqualizerSoundEffect", props = { HighGain = -30, MidGain = -8 } },
+				{ class = "ReverbSoundEffect", props = { DecayTime = 4, DryLevel = -10, WetLevel = 0 } },
+			},
+		},
 	},
-	["neighbor-fail"] = { id = 0, volume = 0.7, looped = false, spatial = false, group = "Rule" },
+	["neighbor-fail"] = {
+		id = 0,
+		volume = 0.75,
+		looped = false,
+		spatial = false,
+		group = "Rule",
+		derive = { from = "lantern-off", layers = { { from = "hull-creak", delay = 0.8, speed = 0.7, volume = 1.2 } } },
+	},
 	["knock-three-soft"] = {
 		id = 9120885468,
 		volume = 0.7,
@@ -481,6 +592,7 @@ local sounds: { [string]: SoundEntry } = {
 		group = "Rule",
 		minDist = 4,
 		maxDist = 90,
+		["repeat"] = { count = 3, gap = 1.1 },
 	},
 	["knock-three-hard"] = {
 		id = 9126267413,
@@ -490,6 +602,7 @@ local sounds: { [string]: SoundEntry } = {
 		group = "Rule",
 		minDist = 4,
 		maxDist = 90,
+		["repeat"] = { count = 3, gap = 1.1 },
 	},
 	["knock-answer"] = {
 		id = 9126267607,
@@ -500,15 +613,36 @@ local sounds: { [string]: SoundEntry } = {
 		minDist = 4,
 		maxDist = 90,
 	},
-	["knock-pass"] = { id = 0, volume = 0.7, looped = false, spatial = true, group = "Rule", minDist = 4, maxDist = 90 },
-	["flood-in-loop"] = {
+	["knock-pass"] = {
 		id = 0,
-		volume = 0.7,
-		looped = true,
+		volume = 0.6,
+		looped = false,
 		spatial = true,
-		group = "Rule",
 		minDist = 4,
 		maxDist = 90,
+		group = "Rule",
+		derive = {
+			from = "hull-creak",
+			speed = 0.6,
+			effects = { { class = "EqualizerSoundEffect", props = { HighGain = -30, MidGain = -8 } } },
+			layers = {
+				{ from = "dock-water-loop", delay = 0.6, duration = 2, fadeIn = 0.6, fadeOut = 1.2, volume = 0.7 },
+			},
+		},
+	},
+	["flood-in-loop"] = {
+		id = 0,
+		volume = 0.8,
+		looped = true,
+		spatial = true,
+		minDist = 4,
+		maxDist = 90,
+		group = "Rule",
+		derive = {
+			from = "dock-water-loop",
+			speed = 1.3,
+			effects = { { class = "EqualizerSoundEffect", props = { HighGain = -12 } } },
+		},
 	},
 	["bail-scoop"] = {
 		id = 109267501301998,
@@ -519,45 +653,116 @@ local sounds: { [string]: SoundEntry } = {
 		minDist = 4,
 		maxDist = 90,
 	},
-	["boat-sink"] = { id = 0, volume = 0.7, looped = false, spatial = false, group = "Rule" },
-	["watcher-tone-loop"] = { id = 0, volume = 0.7, looped = true, spatial = false, group = "Rule" },
-	["watcher-step"] = {
+	["boat-sink"] = {
 		id = 0,
 		volume = 0.7,
 		looped = false,
-		spatial = true,
+		spatial = false,
 		group = "Rule",
+		derive = { from = "hold-lost-splash", layers = { { from = "death-drag", delay = 0.6 } } },
+	},
+	["watcher-tone-loop"] = {
+		id = 0,
+		volume = 0.12,
+		looped = true,
+		spatial = false,
+		group = "Rule",
+		derive = {
+			from = "hum-hold-loop",
+			effects = {
+				{ class = "PitchShiftSoundEffect", props = { Octave = 2, Priority = 4 } },
+				{ class = "PitchShiftSoundEffect", props = { Octave = 2, Priority = 3 } },
+				{ class = "EqualizerSoundEffect", props = { LowGain = -40, HighGain = -18, Priority = 2 } },
+				{ class = "TremoloSoundEffect", props = { Frequency = 0.4, Depth = 0.6, Duty = 0.5, Priority = 1 } },
+			},
+		},
+	},
+	["watcher-step"] = {
+		id = 0,
+		volume = 0.5,
+		looped = false,
+		spatial = true,
 		minDist = 40,
 		maxDist = 700,
+		group = "Rule",
+		derive = {
+			from = "dock-creak",
+			region = { 0, 0.6 },
+			speed = 0.7,
+			effects = {
+				{ class = "EqualizerSoundEffect", props = { HighGain = -30, MidGain = -8 } },
+				{ class = "ReverbSoundEffect", props = { DecayTime = 2, DryLevel = -4, WetLevel = -6 } },
+			},
+		},
 	},
 	["watcher-lunge"] = {
 		id = 0,
-		volume = 0.7,
+		volume = 0.8,
 		looped = false,
 		spatial = true,
-		group = "Rule",
 		minDist = 40,
 		maxDist = 700,
+		group = "Rule",
+		derive = {
+			from = "dock-creak",
+			region = { 0, 0.6 },
+			speed = 1.4,
+			layers = {
+				{ from = "dock-creak", region = { 0, 0.6 }, speed = 1.4, delay = 0.3 },
+				{ from = "dock-creak", region = { 0, 0.6 }, speed = 1.4, delay = 0.6 },
+			},
+		},
 	},
-	["watcher-fail"] = { id = 0, volume = 0.7, looped = false, spatial = false, group = "Rule" },
-	["watcher-pass"] = {
+	["watcher-fail"] = {
 		id = 0,
 		volume = 0.7,
 		looped = false,
-		spatial = true,
+		spatial = false,
 		group = "Rule",
+		derive = {
+			from = "hum-pass",
+			region = { 0, 1 },
+			speed = 0.6,
+			layers = { { from = "fish-release", delay = 1.8, speed = 0.6 } },
+		},
+	},
+	["watcher-pass"] = {
+		id = 0,
+		volume = 0.5,
+		looped = false,
+		spatial = true,
 		minDist = 40,
 		maxDist = 700,
+		group = "Rule",
+		derive = { from = "bed-wind-trees", duration = 4, fadeIn = 1.5, fadeOut = 2 },
 	},
-	["lanterns-die"] = { id = 0, volume = 0.7, looped = false, spatial = false, group = "Rule" },
+	["lanterns-die"] = {
+		id = 0,
+		volume = 0.6,
+		looped = false,
+		spatial = false,
+		group = "Rule",
+		derive = {
+			from = "lantern-off",
+			layers = {
+				{ from = "lantern-off", delay = 0.15, speed = 0.94 },
+				{ from = "lantern-off", delay = 0.3, speed = 1.07 },
+			},
+		},
+	},
 	["fake-loon-scream"] = {
 		id = 0,
 		volume = 0.7,
 		looped = false,
 		spatial = true,
-		group = "Rule",
 		minDist = 40,
 		maxDist = 700,
+		group = "Rule",
+		derive = {
+			from = "loon-call",
+			speed = 1.15,
+			effects = { { class = "DistortionSoundEffect", props = { Level = 0.2 } } },
+		},
 	},
 	["fake-branch-snap"] = {
 		id = 9120258724,
@@ -597,12 +802,19 @@ local sounds: { [string]: SoundEntry } = {
 	},
 	["fake-lantern-flicker"] = {
 		id = 0,
-		volume = 0.7,
+		volume = 0.5,
 		looped = false,
 		spatial = true,
-		group = "Rule",
 		minDist = 4,
 		maxDist = 90,
+		group = "Rule",
+		derive = {
+			from = "lantern-flame-loop",
+			duration = 1.2,
+			fadeIn = 0.2,
+			fadeOut = 0.4,
+			effects = { { class = "TremoloSoundEffect", props = { Frequency = 7, Depth = 0.8 } } },
+		},
 	},
 	["bell-dock-solo"] = {
 		id = 74186365454636,
@@ -622,33 +834,103 @@ local sounds: { [string]: SoundEntry } = {
 		minDist = 4,
 		maxDist = 90,
 	},
-	["lake-silence-drop"] = { id = 0, volume = 0.7, looped = false, spatial = false, group = "Rule" },
-	["lake-groan"] = { id = 0, volume = 0.7, looped = false, spatial = false, group = "Rule" },
+	["lake-silence-drop"] = {
+		id = 0,
+		volume = 0.6,
+		looped = false,
+		spatial = false,
+		group = "Rule",
+		derive = { from = "hum-pass", region = { 0, 1 }, speed = 0.6 },
+	},
+	["lake-groan"] = {
+		id = 0,
+		volume = 0.6,
+		looped = false,
+		spatial = false,
+		group = "Rule",
+		derive = {
+			from = "hum-fail",
+			speed = 0.45,
+			effects = { { class = "ReverbSoundEffect", props = { DecayTime = 8, DryLevel = -4, WetLevel = -2 } } },
+		},
+	},
 	["finale-bed"] = { id = 9043560891, volume = 0.5, looped = true, spatial = false, group = "Music" },
-	["title-theme"] = { id = 0, volume = 0.5, looped = true, spatial = false, group = "Music" },
+	["title-theme"] = {
+		id = 0,
+		volume = 0.5,
+		looped = true,
+		spatial = false,
+		group = "Music",
+		derive = { from = "radio-tune-1" },
+	},
 	["dawn-cue"] = { id = 9045880234, volume = 0.5, looped = false, spatial = false, group = "Music" },
-	["run-cleared"] = { id = 0, volume = 0.5, looped = false, spatial = false, group = "Music" },
-	["night-cleared-sting"] = { id = 0, volume = 0.5, looped = false, spatial = false, group = "Music" },
-	["night-failed-sting"] = { id = 0, volume = 0.5, looped = false, spatial = false, group = "Music" },
+	["run-cleared"] = {
+		id = 0,
+		volume = 0.5,
+		looped = false,
+		spatial = false,
+		group = "Music",
+		derive = { from = "radio-tune-2", duration = 40, fadeOut = 4 },
+	},
+	["night-cleared-sting"] = {
+		id = 0,
+		volume = 0.5,
+		looped = false,
+		spatial = false,
+		group = "Music",
+		derive = { from = "quota-met" },
+	},
+	["night-failed-sting"] = {
+		id = 0,
+		volume = 0.5,
+		looped = false,
+		spatial = false,
+		group = "Music",
+		derive = { from = "death-sting" },
+	},
 	["ui-book-open"] = { id = 9118834867, volume = 0.5, looped = false, spatial = false, group = "UI" },
 	["ui-book-close"] = { id = 0, volume = 0.5, looped = false, spatial = false, group = "UI" },
 	["ui-page-turn"] = { id = 9118836942, volume = 0.5, looped = false, spatial = false, group = "UI" },
 	["ui-tape-click"] = { id = 0, volume = 0.5, looped = false, spatial = false, group = "UI" },
 	["ui-tape-stop"] = { id = 0, volume = 0.5, looped = false, spatial = false, group = "UI" },
 	["ui-pencil-scratch"] = { id = 0, volume = 0.5, looped = false, spatial = false, group = "UI" },
-	["ui-stamp"] = { id = 0, volume = 0.5, looped = false, spatial = false, group = "UI" },
+	["ui-stamp"] = {
+		id = 0,
+		volume = 0.45,
+		looped = false,
+		spatial = false,
+		group = "UI",
+		derive = { from = "knock-answer", region = { 0, 0.18 }, speed = 1.5 },
+	},
 	["ui-envelope"] = { id = 0, volume = 0.5, looped = false, spatial = false, group = "UI" },
-	["ui-tick"] = { id = 0, volume = 0.5, looped = false, spatial = false, group = "UI" },
-	["callout-blip"] = { id = 0, volume = 0.5, looped = false, spatial = true, group = "UI", minDist = 4, maxDist = 90 },
+	["ui-tick"] = {
+		id = 0,
+		volume = 0.35,
+		looped = false,
+		spatial = false,
+		group = "UI",
+		derive = { from = "cooler-close", region = { 0, 0.06 }, speed = 2.2 },
+	},
+	["callout-blip"] = {
+		id = 0,
+		volume = 0.35,
+		looped = false,
+		spatial = true,
+		minDist = 4,
+		maxDist = 90,
+		group = "UI",
+		derive = { from = "knock-answer", region = { 0, 0.06 }, speed = 2.6 },
+	},
 	-- Added by shell S3 (not in audio/sounds.json yet): a rod dropped on the floorboards when its owner is taken.
 	["rod-clatter"] = {
 		id = 0,
 		volume = 0.6,
 		looped = false,
 		spatial = true,
-		group = "Rule",
 		minDist = 4,
 		maxDist = 90,
+		group = "Rule",
+		derive = { from = "fish-land-thud", speed = 1.6 },
 	},
 }
 
@@ -678,19 +960,44 @@ function SoundRegistry.get(name: string): SoundEntry?
 	return SoundRegistry.entries[name]
 end
 
--- True when the sound has a real id and can be played.
-function SoundRegistry.available(name: string): boolean
+-- The real id behind a name: its own id, or for a derived entry its source's id. 0 if none.
+local function realId(name: string): number
 	local e = SoundRegistry.entries[name]
-	return e ~= nil and e.id ~= 0
+	if e == nil then
+		return 0
+	end
+	if e.id ~= 0 then
+		return e.id
+	end
+	local d = e.derive
+	if d then
+		local src = SoundRegistry.entries[d.from]
+		if src and src.id ~= 0 then
+			return src.id
+		end
+	end
+	return 0
 end
 
--- The content string for a playable entry, or nil for id 0 (skip silently).
-function SoundRegistry.uri(name: string): string?
+-- True when the sound can be played: a real id, or a derive whose source has one.
+function SoundRegistry.available(name: string): boolean
+	return realId(name) ~= 0
+end
+
+-- True when the entry is built in the engine from another sound.
+function SoundRegistry.isDerived(name: string): boolean
 	local e = SoundRegistry.entries[name]
-	if e == nil or e.id == 0 then
+	return e ~= nil and e.id == 0 and e.derive ~= nil
+end
+
+-- The content string for a playable entry (a derived entry gives its source's), or nil when
+-- there is nothing to play (skip silently).
+function SoundRegistry.uri(name: string): string?
+	local id = realId(name)
+	if id == 0 then
 		return nil
 	end
-	return "rbxassetid://" .. tostring(e.id)
+	return "rbxassetid://" .. tostring(id)
 end
 
 return SoundRegistry

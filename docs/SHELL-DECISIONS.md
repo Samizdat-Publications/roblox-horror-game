@@ -86,3 +86,56 @@ One line each: date, call, why. All reversible.
 - Fix 7, tapes: any EntityCue cuts the tape (fades in 0.25 s, then ui-tape-stop), a new night cuts a leftover tape, and a Tape event is taken only within 3 s of NightStarted. Interpretation: the night-failed "Rough night" tape still plays, but only with the end card, after the death card and the drowned beat.
 - Fix 8, death cards: every line in DeathTexts now states what went wrong and the counter in the owner's dry voice; "Rule N." stays on its own line.
 - Fix 9, card jumping: cause not reproduced from code. The card is now a fixed offset size (480 by 200, narrowed only on small screens and refit on viewport change), centered at (0.5, 0.5) on a gui with IgnoreGuiInset and ScreenInsets None, text centered with a size cap, and nothing moves it while it is up.
+
+## Derived sounds 11/26/2026
+
+Audio uploads are capped until about 12/26/2026, so 28 id-0 entries now carry a `derive` table and are built in the engine from sounds we already have (docs/SOUND-DERIVED-PLAN.md). AudioDirector plays them by the same name through `play` and `loop`; callers do not change. Starting volumes are conservative and every recipe is a first guess to tune by ear and with Neon. When a real upload lands: set the id, delete the derive table.
+
+APIs used, checked against create.roblox.com/docs (and the creator-docs YAML for ranges) on 11/26/2026, none deprecated: Sound.PlaybackSpeed, TimePosition, PlaybackRegion with PlaybackRegionsEnabled (seconds of the source; LoopRegion left unset so a loop uses the PlaybackRegion), Looped, Destroying; EqualizerSoundEffect, ReverbSoundEffect, EchoSoundEffect, DistortionSoundEffect, PitchShiftSoundEffect, ChorusSoundEffect, TremoloSoundEffect and SoundEffect.Priority. Allowed classes and properties are listed in `SoundRegistry.EFFECT_PROPS`.
+
+"Low-pass" below means an EqualizerSoundEffect with HighGain -30 dB and MidGain -8 dB. "Far reverb" is a ReverbSoundEffect with DecayTime 4, DryLevel -10, WetLevel 0. "Room" is DecayTime 2, DryLevel -4, WetLevel -6.
+
+| Entry | Vol | Source | Recipe as built |
+|---|---|---|---|
+| neighbor-oarlock-loop | 0.55 | oarlock-creak | speed 0.8, replayed every 2 s while the loop lives, low-pass, far reverb |
+| neighbor-pass | 0.55 | oarlock-creak | as the loop, lasts 6 s, fades out over the whole 6 s |
+| neighbor-fail | 0.75 | lantern-off | then hull-creak at 0.8 s, speed 0.7, layer volume x1.2 (2D, close) |
+| knock-pass | 0.6 | hull-creak | speed 0.6, low-pass; dock-water-loop layer at 0.6 s for 2 s, fade in 0.6 s, out 1.2 s, x0.7 |
+| flood-in-loop | 0.8 | dock-water-loop | speed 1.3, EQ HighGain -12 dB, looped |
+| boat-sink | 0.7 | hold-lost-splash | death-drag layer at 0.6 s |
+| lake-groan | 0.6 | hum-fail | speed 0.45, reverb DecayTime 8, DryLevel -4, WetLevel -2 |
+| lake-silence-drop | 0.6 | hum-pass | region 0 to 1 s, speed 0.6 (the ambience mute is not built, see below) |
+| lanterns-die | 0.6 | lantern-off | layers of lantern-off at 0.15 s (speed 0.94) and 0.3 s (speed 1.07) |
+| watcher-tone-loop | 0.12 | hum-hold-loop | two PitchShift Octave 2 (two octaves up), EQ LowGain -40, HighGain -18 (narrow band), Tremolo 0.4 Hz depth 0.6 |
+| watcher-step | 0.5 | dock-creak | region 0 to 0.6 s, speed 0.7, low-pass, room reverb |
+| watcher-lunge | 0.8 | dock-creak | region 0 to 0.6 s at speed 1.4, three times 0.3 s apart (two layers) |
+| watcher-fail | 0.7 | hum-pass | region 0 to 1 s, speed 0.6; fish-release layer at 1.8 s, speed 0.6 |
+| watcher-pass | 0.5 | bed-wind-trees | 4 s, fade in 1.5 s, fade out 2 s |
+| wrong-blink | 0.35 | lantern-squeak | region 0 to 0.1 s, speed 2.5 |
+| wrong-glow-loop | 0.12 | hum-hold-loop | three PitchShift Octave 2 (three octaves up), Tremolo 3 Hz depth 0.5 |
+| cooler-knock-inside | 0.6 | knock-answer | EQ HighGain -35, MidGain -12 (muffled), repeat 3 times 0.9 s apart |
+| cooler-eaten | 0.65 | cooler-close | speed 0.7; fish-land-thud layer at 0.2 s, x0.9 |
+| fake-lantern-flicker | 0.5 | lantern-flame-loop | 1.2 s, fade in 0.2 s, out 0.4 s, Tremolo 7 Hz depth 0.8 (the dip and rise) |
+| fake-loon-scream | 0.7 | loon-call | speed 1.15, Distortion Level 0.2 |
+| rod-clatter | 0.6 | fish-land-thud | speed 1.6 |
+| ui-tick | 0.35 | cooler-close | region 0 to 0.06 s, speed 2.2 |
+| ui-stamp | 0.45 | knock-answer | region 0 to 0.18 s, speed 1.5 |
+| callout-blip | 0.35 | knock-answer | region 0 to 0.06 s, speed 2.6 |
+| title-theme | 0.5 | radio-tune-1 | as it is, looped |
+| run-cleared | 0.5 | radio-tune-2 | up to 40 s, fades out over the last 4 s |
+| night-cleared-sting | 0.5 | quota-met | as it is |
+| night-failed-sting | 0.5 | death-sting | as it is |
+
+Also: `knock-three-soft` and `knock-three-hard` (library single thuds) get `["repeat"] = { count = 3, gap = 1.1 }`. `repeat` works on any entry. Knocking passes the server's gap (`data.gap`, default 1.1) as `repeatGap` so the sound and the jolts stay together, and a reset or a new round cancels knocks still to come.
+
+Calls made while building:
+
+- Two or three octaves up: PitchShiftSoundEffect.Octave tops out at 2 (one octave), so the effects are stacked. PlaybackSpeed was not used for it because Watcher sets the tone's PlaybackSpeed every frame.
+- No band-pass class exists; an equalizer with low and high cuts stands in.
+- Region times are seconds of the source (PlaybackRegion is in source seconds; TimePosition advances at PlaybackSpeed per second). wrong-blink takes the first 0.1 s of the source literally, heard as 0.04 s at speed 2.5; widen the region if it is too short.
+- The dock-creak "first footstep" is assumed to be the first 0.6 s, and neighbor-fail's 0.4 s gap after lantern-off is a fixed 0.8 s delay (the lantern-off length was not measured). Both are guesses to fix by ear.
+- An entry's `volume` is the final level of the first piece (so `AudioDirector.baseVolume` and Watcher's fade stay right); a layer's `volume` multiplies it.
+- `opts.speed` on `AudioDirector.play` now multiplies PlaybackSpeed instead of setting it (same result for plain sounds, keeps a derived entry's speed).
+- Not built: lake-silence-drop's "then all ambience muted" is behavior, not a sound; nothing calls lake-silence-drop or lake-groan yet. title-theme "without the radio filter": the filter is baked into the radio tunes, so they play as they are.
+- Server sounds: `EntityPresenter.play` (server, outside this task) does not read `derive`. `SoundRegistry.uri` now resolves a derived name to its source, so the server's rod-clatter plays fish-land-thud unshaped instead of nothing. The derive shaping on the server is a follow-up for whoever owns src/server.
+- Still silent (not in the plan's table): ui-book-close, ui-envelope, ui-pencil-scratch, ui-tape-click, ui-tape-stop.

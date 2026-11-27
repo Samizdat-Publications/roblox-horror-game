@@ -32,6 +32,12 @@
 --                                        person, the bot's helm and head let go, the tape cut;
 --                                        tapes = false mutes tapes until { cmd = "tapes" }
 --   { cmd = "tapes", on }                tapes allowed again (on = true) or muted
+--   { cmd = "play_sound", name, seconds } listening test: plays any SoundRegistry name on
+--                                        this client through AudioDirector (real, library
+--                                        stand-in or derived alike), at the hull when
+--                                        spatial; loops stop after `seconds` (default 8).
+--                                        The ack carries played = true/false
+--   { cmd = "stop_sound" }               stops every play_sound sound
 -- Each command is answered with { ack = cmd, seat = <seat name or nil> }.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -219,7 +225,21 @@ function DebugBot.init()
 			if type(msg) ~= "table" or type(msg.cmd) ~= "string" then
 				return
 			end
-			if msg.cmd == "autopilot" and type(msg.x) == "number" and type(msg.z) == "number" then
+			if msg.cmd == "play_sound" and type(msg.name) == "string" then
+				local played =
+					AudioDirector.audition(msg.name, if type(msg.seconds) == "number" then msg.seconds else nil)
+				print(
+					string.format(
+						"[DebugBot] play_sound %s: %s",
+						msg.name,
+						if played then "playing" else "nothing to play"
+					)
+				)
+				remote:FireServer({ ack = msg.cmd, seat = BoatClient.mySeat(), name = msg.name, played = played })
+				return
+			elseif msg.cmd == "stop_sound" then
+				AudioDirector.stopAuditions()
+			elseif msg.cmd == "autopilot" and type(msg.x) == "number" and type(msg.z) == "number" then
 				local tx, tz = msg.x, msg.z
 				local arrive = if type(msg.arrive) == "number" then msg.arrive else 12
 				Input.setOverride(function()

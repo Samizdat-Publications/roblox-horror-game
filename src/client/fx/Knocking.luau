@@ -86,10 +86,23 @@ local function hideShape()
 	end
 end
 
+-- The library knocks are single thuds: the registry's `repeat` plays each three times, here
+-- at the server's gap so the jolts line up. Destroying the sound cancels the rest.
+local knockSound: Sound? = nil
+
+local function stopKnocks()
+	local k = knockSound
+	knockSound = nil
+	if k and k.Parent then
+		k:Destroy()
+	end
+end
+
 local function knocks(sound: string, gap: number, strength: number)
 	token += 1
 	local my = token
-	AudioDirector.play(sound, BoatClient.hull())
+	stopKnocks()
+	knockSound = AudioDirector.play(sound, BoatClient.hull(), { repeatGap = gap })
 	task.spawn(function()
 		for _ = 1, 3 do
 			if token ~= my then
@@ -132,6 +145,7 @@ end
 
 function Knocking.reset()
 	token += 1
+	stopKnocks()
 	setWindow(false)
 	hideShape()
 end
