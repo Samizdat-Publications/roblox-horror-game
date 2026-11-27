@@ -19,7 +19,19 @@
 --   { cmd = "look", x, z, offset }       turns the camera to face (x, z) plus `offset`
 --                                        radians of yaw, every frame, so the gaze the server
 --                                        gets follows; { cmd = "look" } with no x lets go
+--   { cmd = "track", entity, offset }    keeps the head on a rule's figure every frame
+--                                        (entity "Neighbor" or "Watcher", from the fx
+--                                        module's drawn position, pitch included), so the
+--                                        server's gaze follows; offset is extra yaw
+--                                        (radians) for the edge of sight. { cmd = "look" }
+--                                        with no x lets go of both
 --   { cmd = "cardhold", on }             keeps the death card up (DeathCard.hold)
+--   { cmd = "clean", tapes }             scenario reset on this client: no death card, no
+--                                        night cards, no catch card, rule leftovers and
+--                                        camera effects cleared, camera back in first
+--                                        person, the bot's helm and head let go, the tape cut;
+--                                        tapes = false mutes tapes until { cmd = "tapes" }
+--   { cmd = "tapes", on }                tapes allowed again (on = true) or muted
 -- Each command is answered with { ack = cmd, seat = <seat name or nil> }.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -36,6 +48,14 @@ local ViewState = require(script.Parent:WaitForChild("ViewState"))
 local ui = script.Parent:WaitForChild("ui")
 local Callouts = require(ui:WaitForChild("Callouts"))
 local DeathCard = require(ui:WaitForChild("DeathCard"))
+local NightCards = require(ui:WaitForChild("NightCards"))
+local AudioDirector = require(script.Parent:WaitForChild("AudioDirector"))
+local BoatFx = require(script.Parent:WaitForChild("BoatFx"))
+local Camera = require(script.Parent:WaitForChild("Camera"))
+local RulesFx = require(script.Parent:WaitForChild("RulesFx"))
+local fx = script.Parent:WaitForChild("fx")
+local NeighborFx = require(fx:WaitForChild("Neighbor"))
+local WatcherFx = require(fx:WaitForChild("Watcher"))
 
 local DebugBot = {}
 
@@ -100,16 +120,59 @@ end
 
 -- Where the bot looks (scenarios that need the gaze: the Neighbor, the Watcher).
 local lookAt: { x: number, z: number, offset: number }? = nil
+-- Or a rule's figure, followed every frame (captures: keep the threat in frame).
+local track: { entity: string, offset: number }? = nil
+
+local function trackPoint(entity: string): Vector3?
+	if entity == "Neighbor" then
+		return NeighborFx.focus()
+	elseif entity == "Watcher" then
+		return WatcherFx.focus()
+	end
+	return nil
+end
 
 local function lookStep()
-	local la = lookAt
 	local cam = Workspace.CurrentCamera
-	if la == nil or cam == nil or cam.CameraType == Enum.CameraType.Scriptable then
+	if cam == nil or cam.CameraType == Enum.CameraType.Scriptable then
 		return
 	end
 	local pos = cam.CFrame.Position
+	local tr = track
+	if tr then
+		local p = trackPoint(tr.entity)
+		if p then
+			local flat = math.sqrt((p.X - pos.X) ^ 2 + (p.Z - pos.Z) ^ 2)
+			local yaw = math.atan2(p.X - pos.X, p.Z - pos.Z) + tr.offset
+			-- Pitch toward it, kept gentle so the water line stays in the shot.
+			local pitch = math.clamp(math.atan2(p.Y - pos.Y, math.max(flat, 1)), -0.25, 0.3)
+			local dir = Vector3.new(math.sin(yaw) * math.cos(pitch), math.sin(pitch), math.cos(yaw) * math.cos(pitch))
+			cam.CFrame = CFrame.lookAt(pos, pos + dir)
+			return
+		end
+	end
+	local la = lookAt
+	if la == nil then
+		return
+	end
 	local yaw = math.atan2(la.x - pos.X, la.z - pos.Z) + la.offset
 	cam.CFrame = CFrame.lookAt(pos, pos + Vector3.new(math.sin(yaw), -0.06, math.cos(yaw)))
+end
+
+-- Scenario reset on this client (DebugRules.fullReset).
+local function clean(tapesOn: boolean)
+	AudioDirector.muteTapes(not tapesOn)
+	AudioDirector.stopTape(false)
+	DeathCard.hold = false
+	DeathCard.close()
+	NightCards.hide()
+	Callouts.setOpen(false)
+	RulesFx.resetAll()
+	BoatFx.clearCamera()
+	lookAt = nil
+	track = nil
+	Input.setOverride(nil)
+	Camera.applyShot("reset")
 end
 
 -- Throttle and steer toward (tx, tz). Same law as DebugDriver's server autopilot.
@@ -176,7 +239,19 @@ function DebugBot.init()
 				Input.bail(msg.on == true)
 			elseif msg.cmd == "callout" and type(msg.phrase) == "string" then
 				Callouts.choose(msg.phrase)
+			elseif msg.cmd == "track" and type(msg.entity) == "string" then
+				track = {
+					entity = msg.entity,
+					offset = if type(msg.offset) == "number" then msg.offset else 0,
+				}
+			elseif msg.cmd == "clean" then
+				clean(msg.tapes == true)
+			elseif msg.cmd == "tapes" then
+				AudioDirector.muteTapes(msg.on ~= true)
 			elseif msg.cmd == "look" then
+				if type(msg.x) ~= "number" then
+					track = nil
+				end
 				if type(msg.x) == "number" and type(msg.z) == "number" then
 					lookAt = {
 						x = msg.x,

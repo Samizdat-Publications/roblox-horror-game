@@ -1,6 +1,6 @@
 # Shell progress
 
-Last updated 11/26/2026 by a local builder (S3 written on the working tree of `main`, not committed; the main session commits). S1 and S2 are verified in Studio.
+Last updated 11/26/2026 by a local builder (S3 written on the working tree of `main`, then the Studio and Neon fixes; not committed, the main session commits). S1 and S2 are verified in Studio.
 
 ## Needed from Core
 
@@ -57,6 +57,35 @@ Client (`src/client`):
 
 Offline check (a scratchpad Lune sim of Core.Night with the quiet params and the same reel law, 0.1 s view lag, 5 intents a second): 20 of 20 seeds cleared night 1 (quota 7 for one player), no fish lost.
 
+## Studio and Neon fixes (11/26/2026)
+
+From the main session's Studio run of the five rules and Neon's review of the Hum fail clip (`docs/critic/11-26-2026-scare-hum-fail-neon.md`). One line each in `docs/SHELL-DECISIONS.md`. Gate green (selene, stylua, specs, sim, lints, rojo build, smoke 10 of 10). NOT yet played in Studio.
+
+Files: `src/client/ui/DeathCard.luau`, `ui/DeathTexts.luau`, `ui/NightCards.luau`, `ui/HUD.luau`, `Drowned.luau`, `BoatFx.luau`, `WorldFx.luau`, `AudioDirector.luau`, `DebugBot.luau`, `fx/Hum.luau`, `fx/Neighbor.luau`, `fx/Watcher.luau`; `src/server/DebugRules.luau`, `DebugDriver.luau`. No Core, Config, registry or remote changes.
+
+How to record a scenario without the reset on tape:
+
+```lua
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("reset", { scenario = "hum_fail" })
+-- start the recording, then:
+return game:GetService("ServerScriptService"):WaitForChild("DeadCalmDebug"):Invoke("hum_fail", { reset = false })
+```
+
+`reset` returns `{ result = "clean", helm, seat, alive, crew, lanternOn, motorOn, rules, clock }`: expect helm true, seat "HelmSeat", alive equal to crew, lanternOn true, motorOn false, rules 0. Neighbor and Watcher results carry `gaze = { samples, meanDeg, worstDeg }` (server gaze against the figure; watcher_pass against the edge offset).
+
+## Studio must check (Studio and Neon fixes)
+
+1. reset: no death card, no night card, no tape (no click, no voice), first-person helm view, lantern lit, motor off, frogs singing. Run `reset` twice in a row: same state, no errors.
+2. Every `<rule>_pass` and `<rule>_fail` begins clean (never black, never mid-tape) and still prints its expected `SCENARIO DONE` result. After any rule scenario, `night_start` plays the night tape again.
+3. hum_fail: at the fail the boat visibly rolls and heaves for about 1.2 s with the view rolling with it; fish and a bucket arc over the gunwale and splash (rings and spouts, hold-lost-splash); then the camera drops under the surface (blue-green, blurred) with death-drag, and only then the fade to black. No server boat parts flicker or stay invisible after the roll (LocalTransparencyModifier back to 0). No audible pop when the card appears.
+4. Death card: centered and still from fade to close (also in neighbor_fail); the line states the mistake and the counter, "Rule N." bottom right; it goes by itself after 4 s, or on a click or tap after 0.6 s. `DeathCard.debugState()` position stays `{0.5, 0}, {0.5, 0}`.
+5. Drowned view after the card: the black lifts into a high three-quarter view of the boat, slowly circling, tinted cold blue-green, the hull and crew clearly visible with the lantern out; the dim light near the boat; the outlined shape under the hull (hum_fail), the outlined silhouette in the helm seat (neighbor_fail), the outlined Watcher at the waterline (watcher_fail); the bell tag; a click or Space rings the bell. Solo: about 4 s of this, then the night-failed card, then "Rough night" (never over the death card).
+6. Lantern out (hum_pass after the counter, neighbor_pass): the hull, the seats and the water near the boat stay readable (cool, dim); with the lantern lit the warm lantern pool is clearly the brightest thing and the moonlight is gone. Check on a phone-sized Device Simulator view too.
+7. Motor (hum_pass sets it on, or ToggleMotor): motor-start, then motor-idle-loop heard from the outboard (louder behind you), the outboard visibly shaking, "Motor: on" on the HUD paper, the frog chorus clearly quieter; motor-stop when it goes off and the HUD line disappears. If the loop is silent, check `AudioDirector.debugState().motorIdle` (sounds 1, playing, loaded, parent "Motor") from the client.
+8. Tape and cues: start a real night (`night_start`) and force a rule while the tape talks (`force_rule` with rule "Hum"): the voice fades out within about 0.3 s, then ui-tape-stop (id 0 now, silent). No tape ever starts later in the night.
+9. neighbor_pass and neighbor_fail: the head turns to the creak at once; the boat appears about 80 studs off, close enough to read the figure and its slow wave, and stays in frame the whole time (gaze worstDeg small, under about 10); neighbor_pass still ends `pass` (it gives up and drifts off), neighbor_fail ends `fail` with the boat in frame at the moment it vanishes.
+10. watcher_pass and watcher_fail: the head tracks the figure (pitch included) from the moment it appears; in watcher_pass it sits near the edge of the frame and the scenario still ends `pass`; in watcher_fail it stays in frame through every lunge to the waterline and the fail.
+
 ## S3: what exists
 
 Server (`src/server`):
@@ -71,7 +100,7 @@ Client (`src/client`):
 - `BoatFx.luau`: floorboard buzz (five local slats over the hull floor, jittered), the lantern shiver and the fake-out flicker (WorldFx multiplies the lantern brightness by `BoatFx.lanternFactor()`), camera shake (`BindToRenderStep` at Camera + 2), water in the boat from `view.flood`, `flood-in-loop` while leaking, and a thrown scoop of water plus `bail-scoop` every 1.1 s per bailing crewmate.
 - `fx/Common.luau` (local parts, Vec2 to world, ground height by raycast against the Ground and Bank folders, silhouette figures from parts, fades, and the drowned's sight: `outline` adds a Highlight, `ghostOnly` parts are invisible to the living), `fx/Hum.luau`, `fx/WrongCatch.luau`, `fx/Neighbor.luau`, `fx/Knocking.luau`, `fx/Watcher.luau` (the figure, the stare tone and the vignette), `fx/Finale.luau` (STUB: plays `bell-dock-solo` on the cue), `fx/Fakeouts.luau` (all eight ids).
 - `Drowned.luau`: a dim light for every dead crewmate near the boat (every client, from the view). For the local drowned player, after the card: an orbit camera over the boat, `ghost-loop`, outlines on, the cast button rings `GhostBell` (client cooldown `Config.Ghost.bellCooldown`; the server checks again), a tag says when the bell is ready. A `GhostBell` event rings `ghost-bell` at that ghost's light and makes it flare.
-- `ui/DeathCard.luau` and `ui/DeathTexts.luau`: fade to black with `death-drag` (or `boat-sink` for the Knocking), then `death-sting` and a paper card with the line and "Rule N."; it goes after 7 s or on a click, tap or key; `DeathCard.hold` keeps it up. `DragWarning` plays `water-pull-warning` and a dark pulse.
+- `ui/DeathCard.luau` and `ui/DeathTexts.luau`: fade to black with `death-drag` (or `boat-sink` for the Knocking), then `death-sting` and a paper card with the line and "Rule N."; it goes after 4 s or on a click, tap or key (after 0.6 s); `DeathCard.hold` keeps it up. `DragWarning` plays `water-pull-warning` and a dark pulse.
 - `ui/Callouts.luau`: the wheel of `Config.Callouts` (C, D-pad up, the Call touch button; gamepad selection starts on the first phrase). Wave also sends the Wave intent. A speech tag over the speaker's head with `callout-blip`, and a feed line at the bottom left. Fake callouts look exactly the same. A crewmate's death adds "<name> is gone." to the feed.
 - `Input`: Q or L1 (touch Knock) knocks; C or D-pad up (touch Call) opens the wheel; hold E or A to bail while there is water in the boat; the cast button rings the bell while drowned; the drowned never send helm input.
 - `ui/Prompt`: "Hold E  Bail" while flooding, "Q  Knock on the hull" during a Knocking window (never the count).
@@ -110,16 +139,16 @@ Seats and views: every scenario stays in the first-person helm view. The bot tur
 
 1. Output on Play: still only the two `[DeadCalm] ... up` lines. No errors from EntityPresenter, RulesFx, fx/*, Drowned, DeathCard or Callouts. Every scenario prints its `SCENARIO DONE` line with the expected result.
 2. hum_pass: the chorus and fireflies stop at once; after the beat of silence `hum-rise` then `hum-hold-loop`; the lantern flame shivers fast and the floorboard slats visibly buzz; the camera trembles slightly. On the pass the hum sinks, `hum-pass`, buzz and shiver settle, `frog-first-back`. Check the five floor slats sit on the hull floor at rest (not floating, not hidden under it).
-3. hum_fail: `hum-fail`, a hard shake, then the death card "The motor was running while the frogs were quiet." with "Rule 1.", the hat floating beside the helm and sinking, the helm rod lying in the boat. After the card: orbit camera over the boat, the dim light near the boat, the outlined shape under the hull (only the drowned see it), the bell tag; Space or a click rings the bell and the light flares. The night failed card comes after the death card, not over it.
+3. hum_fail: `hum-fail`, a hard shake, then the death card "You left the motor running. When the frogs stop: motor off, lantern out, hold still." with "Rule 1." (see the fixes checks above for the capsize and plunge), the hat floating beside the helm and sinking, the helm rod lying in the boat. After the card: orbit camera over the boat, the dim light near the boat, the outlined shape under the hull (only the drowned see it), the bell tag; Space or a click rings the bell and the light flares. The night failed card comes after the death card, not over it.
 4. wrongcatch_pass and wrongcatch_fail: the wrong tell on the held fish; throwing it back gives no cooler events. Kept and banked: from the dock shot, three knocks with the cooler jumping on the dock each time, then the thump; the banked total drops by the eaten points. The jump moves the server's cooler part locally; if it looks wrong, lower the lift in `fx/WrongCatch`.
 5. neighbor_pass: the oarlock creak far off (id 0 now, silent), then a dark rowboat with its own warm lantern appears in the fog where the bot looks, a tall seated figure in it with one arm up, waving slowly (one wave per 3.6 s). It drifts smoothly (no stepping every 0.5 s) and always faces the boat. One or two fake callouts appear over the bot's head and in the feed, exactly like real ones. With the lantern out it drifts off and fades. With `form = "FalseBeacon"`: a steady light on a pole, never blinking, out after 20 s. Check the waving arm turns from the shoulder; if it swings the wrong way, flip the sign of `math.rad(150)` in `Neighbor.step`.
-6. neighbor_fail: the bot's "(waves)" tag, then `neighbor-fail`, the other boat is gone, the lantern goes out, the death card "You waved back." "Rule 3.", and a black seated silhouette in the helm seat, visible from the orbit camera for 25 s.
+6. neighbor_fail: the bot's "(waves)" tag, then `neighbor-fail`, the other boat is gone, the lantern goes out, the death card "You waved back. There are no other boats out here. Never wave back." "Rule 3.", and a black seated silhouette in the helm seat, visible from the orbit camera for 25 s.
 7. knocking_pass: three knocks shake the boat three times; the hint "Q  Knock on the hull" shows during the window; the two answers are heard on the hull (`knock-answer`, a server Sound); pass.
 8. knocking_fail: the harder second round (bigger jolts), then water appears in the boat and rises; the hint switches to "Hold E  Bail"; while the bot bails, scoops of water fly over the side and the level falls. Check the water plane stays inside the hull and reads as water at night.
 9. watcher_pass: a figure about 13 studs tall and very narrow stands in the trees on the west shore with two pale pin eyes, feet on the ground (not on a canopy, not floating). While the bot glances straight at it the screen edges darken and the tone rises (id 0 now); at the edge of sight both clear and it holds; after about 40 s it is simply gone (removed once off screen, or after 6 s).
-10. watcher_fail: staring deepens the vignette fully; it lunges two steps at a time toward the water; at the waterline the lanterns die, then the death card "You let the thing on the shore reach the water." "Rule 5.".
+10. watcher_fail: staring deepens the vignette fully; it lunges two steps at a time toward the water; at the waterline the lanterns die, then the death card "You let the thing on the shore reach the water. Keep it at the edge of your eye. Never stare." "Rule 5.".
 11. fakeouts (the bot faces the bow): loon and branch from the shore, a dark fish arcing out of the water by the gunwale with two ripples, one jolt for the single knock, the buoy clank, the lantern nearly going out for 0.6 s, a warm light low on the shore that drifts apart into fireflies after 4 s. Most fake sounds are id 0 now (silent); the visuals must still show. ChorusDip shows nothing in this scenario (Night owns that timer).
-12. death_card: the bot goes over the side; `water-pull-warning` and a dark pulse at 2 s, then the fade to black and "You got out of the boat. The water is not yours at night." "Rule 0." stays up. `night_start` clears it, shows the character again and seats the player.
+12. death_card: the bot goes over the side; `water-pull-warning` and a dark pulse at 2 s, then the fade to black and "You got out of the boat. Stay in it. The water is not yours at night." "Rule 0." stays up. `night_start` clears it, shows the character again and seats the player.
 13. Callouts by hand: C opens the wheel, a click says the phrase (your own tag is inside your head in first person; the feed shows "You: ..."), Escape or C closes it; with a gamepad, D-pad up opens it with the first phrase selected. On a phone (Device Simulator) the Knock and Call buttons appear beside Cast and Use.
 14. Two players (Studio Test, 2 clients): the speech tag shows over the other player's head; the drowned player's light is visible to the living one; both hear the knocks; both see the hat and the rod.
 15. Highlights: the outlines show through fog and water for the drowned only, and are gone at the next night.

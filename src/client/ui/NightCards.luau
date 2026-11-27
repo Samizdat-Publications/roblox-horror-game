@@ -9,8 +9,15 @@ local client = script.Parent.Parent
 local Events = require(client:WaitForChild("Events"))
 local Paper = require(script.Parent:WaitForChild("Paper"))
 local DeathCard = require(script.Parent:WaitForChild("DeathCard"))
+local AudioDirector = require(client:WaitForChild("AudioDirector"))
+local ViewState = require(client:WaitForChild("ViewState"))
 
 local NightCards = {}
+
+-- Seconds of the drowned view (the boat from above, the outlines) between a death card and
+-- the night's end card, when the local player is one of the drowned. Solo, this is the
+-- only look at the drowned view before the night restarts.
+NightCards.DROWNED_BEAT = 4
 
 NightCards.FAIL_TEXT = {
 	QuotaShort = "Five o'clock and the cooler is short.",
@@ -19,6 +26,8 @@ NightCards.FAIL_TEXT = {
 } :: { [string]: string }
 
 local endCard: Frame? = nil
+local titleCard: Frame? = nil
+local endToken = 0
 local endHead: TextLabel? = nil
 local endBody: TextLabel? = nil
 local nightNumber = 1
@@ -110,6 +119,19 @@ local function showEnd(cleared: boolean, reason: string?, result: any)
 	card.Visible = true
 end
 
+-- Hides every card and cancels a pending end card (Studio scenario reset).
+function NightCards.hide()
+	endToken += 1
+	titleToken += 1
+	local e, t = endCard, titleCard
+	if e then
+		e.Visible = false
+	end
+	if t then
+		t.Visible = false
+	end
+end
+
 function NightCards.init()
 	local gui = Paper.gui("DeadCalmNightCards", 10)
 
@@ -117,6 +139,7 @@ function NightCards.init()
 		Paper.sheet(gui, "Title", UDim2.fromOffset(300, 64), UDim2.fromScale(0.5, 0.22), Vector2.new(0.5, 0.5), 10)
 	t.Rotation = -1.5
 	t.Visible = false
+	titleCard = t
 	local tt = Paper.text(t, "Text", "", 30, Paper.hand())
 	tt.Size = UDim2.fromScale(1, 1)
 	tt.TextXAlignment = Enum.TextXAlignment.Center
@@ -139,6 +162,7 @@ function NightCards.init()
 		local data = ev.data or {}
 		nightNumber = tonumber(data.night) or nightNumber
 		e.Visible = false
+		endToken += 1
 		titleToken += 1
 		local token = titleToken
 		tt.Text = string.format("Night %d", nightNumber)
@@ -149,14 +173,25 @@ function NightCards.init()
 			end
 		end)
 	end)
-	-- The death card goes first: the end card waits for it (at most 15 s).
+	-- The death card goes first: the end card waits for it (at most 15 s), then, for a
+	-- drowned player, a few seconds of the drowned view. A new night cancels the wait.
 	local function afterDeathCard(fn: () -> ())
+		endToken += 1
+		local my = endToken
 		task.spawn(function()
 			local t0 = os.clock()
+			local hadCard = DeathCard.showing()
 			while DeathCard.showing() and os.clock() - t0 < 15 do
+				hadCard = true
 				task.wait(0.25)
 			end
-			fn()
+			local pv = ViewState.me()
+			if hadCard or (pv ~= nil and pv.alive == false) then
+				task.wait(NightCards.DROWNED_BEAT)
+			end
+			if endToken == my then
+				fn()
+			end
 		end)
 	end
 	Events.on("NightCleared", function(ev)
@@ -169,6 +204,14 @@ function NightCards.init()
 		local data = ev.data or {}
 		afterDeathCard(function()
 			showEnd(false, if type(data.reason) == "string" then data.reason else nil, data.result)
+			-- The sting and the owner's "Rough night" come with the card, never over a death.
+			AudioDirector.play("night-failed-sting")
+			local tok = endToken
+			task.delay(1.2, function()
+				if endToken == tok then
+					AudioDirector.playTape("tape-night-failed")
+				end
+			end)
 		end)
 	end)
 end

@@ -1,6 +1,7 @@
 --!strict
 -- The HUD is four small things (DESIGN.md): night, clock, quota, oil. Paper and ink, top
--- left, small. Reads the NightView from ViewState.
+-- left, small. Reads the NightView from ViewState. While the outboard runs, a fifth line
+-- says "Motor: on" (Neon could not tell the motor was running, 11/26/2026).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -39,6 +40,11 @@ end
 
 local labels: { [string]: TextLabel } = {}
 local oilFill: Frame? = nil
+local paperFrame: Frame? = nil
+
+local function rowsHeight(rows: number): number
+	return rows * (Look.UI.hudTextSize + 4) + (rows - 1) * 2 + 14
+end
 
 local function label(parent: Instance, name: string, order: number, f: Font): TextLabel
 	local t = Instance.new("TextLabel")
@@ -64,6 +70,15 @@ local function render(view: NightView)
 	if fill then
 		fill.Size = UDim2.fromScale(math.clamp(view.oil, 0, 1), 1)
 	end
+	local motor = labels.Motor
+	local on = view.motorOn == true
+	if motor and motor.Visible ~= on then
+		motor.Visible = on
+		local paper = paperFrame
+		if paper then
+			paper.Size = UDim2.fromOffset(150, rowsHeight(if on then 5 else 4))
+		end
+	end
 end
 
 function HUD.init()
@@ -76,12 +91,13 @@ function HUD.init()
 	local paper = Instance.new("Frame")
 	paper.Name = "Paper"
 	paper.Position = UDim2.fromOffset(12, 12)
-	paper.Size = UDim2.fromOffset(150, 4 * (Look.UI.hudTextSize + 4) + 16)
+	paper.Size = UDim2.fromOffset(150, rowsHeight(4))
 	paper.BackgroundColor3 = Look.UI.paper
 	paper.BackgroundTransparency = Look.UI.hudPaperTransparency
 	paper.BorderSizePixel = 0
 	paper.Rotation = -1.5
 	paper.Parent = gui
+	paperFrame = paper
 
 	local pad = Instance.new("UIPadding")
 	pad.PaddingLeft = UDim.new(0, 8)
@@ -118,6 +134,10 @@ function HUD.init()
 	fill.BorderSizePixel = 0
 	fill.Parent = bar
 	oilFill = fill
+
+	local motor = label(paper, "Motor", 5, f)
+	motor.Text = "Motor: on"
+	motor.Visible = false
 
 	render(ViewState.get())
 	ViewState.onChange(render)

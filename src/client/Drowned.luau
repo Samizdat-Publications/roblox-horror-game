@@ -2,8 +2,11 @@
 -- The drowned (DESIGN.md, Death and the drowned). Every dead crewmate floats near the boat as
 -- a dim light that everyone can see (built here, on every client, from the NightView). When
 -- the local player is one of them, after the death card:
---   * the camera floats over the boat (orbit with the mouse, the move keys, the stick or a
---     drag; zoom with W and S or the stick), a muffled ghost-loop plays
+--   * the camera floats over the boat in a high three-quarter view that slowly circles it
+--     (turn it with the mouse, the move keys, the stick or a drag; zoom with W and S or the
+--     stick), the view is tinted cold blue-green and a dim cold light hangs over the boat so
+--     the hull and the crew read even with the lantern out, a muffled ghost-loop plays
+--     (the view was pure black in the first Studio run, 11/26/2026)
 --   * they see outlines the living cannot (Common.setDrowned: the shape under the hull, the
 --     Watcher through the trees, the Neighbor's boat through the fog)
 --   * the cast button (click, Space, R2, or the touch button, retitled Bell) rings the ghost
@@ -26,6 +29,7 @@ local ViewState = require(client:WaitForChild("ViewState"))
 local Events = require(client:WaitForChild("Events"))
 local BoatClient = require(client:WaitForChild("BoatClient"))
 local AudioDirector = require(client:WaitForChild("AudioDirector"))
+local BoatFx = require(client:WaitForChild("BoatFx"))
 local Input = require(client:WaitForChild("Input"))
 local Common = require(client:WaitForChild("fx"):WaitForChild("Common"))
 local ui = client:WaitForChild("ui")
@@ -35,7 +39,9 @@ local DeathCard = require(ui:WaitForChild("DeathCard"))
 local Drowned = {}
 
 Drowned.WISP_COLOR = Color3.fromRGB(170, 210, 230)
-Drowned.ORBIT = { radius = 16, height = 9, minRadius = 8, maxRadius = 34 }
+Drowned.ORBIT = { radius = 18, height = 12, minRadius = 9, maxRadius = 34, drift = 0.07 }
+Drowned.TINT = Color3.fromRGB(150, 215, 210) -- cold blue-green over the drowned view
+Drowned.LIGHT = { color = Color3.fromRGB(150, 200, 215), range = 42, brightness = 1.1, height = 22 }
 
 type Wisp = { part: BasePart, light: PointLight, index: number, flare: number }
 
@@ -48,6 +54,8 @@ local ghostLoop: Sound? = nil
 local tag: TextLabel? = nil
 local clock = 0
 local dragging = false
+local sightFx: { Instance } = {} -- the tint and the cold light, while spectating
+local sightLight: BasePart? = nil
 
 function Drowned.active(): boolean
 	return active
@@ -159,7 +167,7 @@ local function stepCamera(dt: number)
 		cam.CameraType = Enum.CameraType.Scriptable
 	end
 	local throttle, steer = Input.readDevices()
-	yaw -= steer * dt * 1.2
+	yaw -= steer * dt * 1.2 + Drowned.ORBIT.drift * dt
 	radius = math.clamp(radius - throttle * dt * 12, Drowned.ORBIT.minRadius, Drowned.ORBIT.maxRadius)
 	if dragging then
 		-- Right mouse held: hold the cursor still and turn with its movement.
@@ -177,6 +185,51 @@ local function stepCamera(dt: number)
 			math.cos(yaw) * radius
 		)
 	cam.CFrame = CFrame.lookAt(from, center)
+	local l = sightLight
+	if l then
+		l.CFrame = CFrame.new(hull.Position + Vector3.new(0, Drowned.LIGHT.height, 0))
+	end
+end
+
+-- The drowned's own look: a cold tint on this camera and a dim light over the boat.
+local function setSight(on: boolean)
+	for _, inst in sightFx do
+		inst:Destroy()
+	end
+	sightFx = {}
+	sightLight = nil
+	if not on then
+		return
+	end
+	local cam = Workspace.CurrentCamera
+	if cam then
+		local cc = Instance.new("ColorCorrectionEffect")
+		cc.Name = "DeadCalmDrownedTint"
+		cc.TintColor = Drowned.TINT
+		cc.Brightness = 0.06
+		cc.Contrast = 0.12
+		cc.Saturation = -0.35
+		cc.Parent = cam
+		table.insert(sightFx, cc)
+	end
+	local hull = BoatClient.hull()
+	local at = if hull then hull.Position else Vector3.zero
+	local p = Common.part(
+		"DrownedLight",
+		Vector3.new(0.2, 0.2, 0.2),
+		CFrame.new(at + Vector3.new(0, Drowned.LIGHT.height, 0)),
+		Color3.new(),
+		nil,
+		{ transparency = 1 }
+	)
+	local light = Instance.new("PointLight")
+	light.Color = Drowned.LIGHT.color
+	light.Range = Drowned.LIGHT.range
+	light.Brightness = Drowned.LIGHT.brightness
+	light.Shadows = false
+	light.Parent = p
+	table.insert(sightFx, p)
+	sightLight = p
 end
 
 local function setActive(on: boolean)
@@ -185,12 +238,16 @@ local function setActive(on: boolean)
 	end
 	active = on
 	Common.setDrowned(on)
+	setSight(on)
 	local cam = Workspace.CurrentCamera
 	if on then
+		-- The fail's camera effects (thrown, under the surface) end here.
+		BoatFx.clearCamera()
 		local hull = BoatClient.hull()
-		if hull and cam then
-			local back = cam.CFrame.Position - hull.Position
-			yaw = math.atan2(back.X, back.Z)
+		if hull then
+			-- Behind the boat and to one side: a three-quarter view of the hull and the crew.
+			local hl = hull.CFrame.LookVector
+			yaw = math.atan2(-hl.X, -hl.Z) + 0.7
 		end
 		radius = Drowned.ORBIT.radius
 		ghostLoop = AudioDirector.loop("ghost-loop", nil)
@@ -284,10 +341,21 @@ function Drowned.init()
 		stepWisps(dt)
 	end)
 	RunService:BindToRenderStep("DeadCalmDrowned", Enum.RenderPriority.Camera.Value + 1, stepCamera)
+	-- The Neighbor's silhouette in the boat (a server model) is outlined for the drowned.
+	local outlinedSilhouettes: { [Instance]: boolean } = {}
 	task.spawn(function()
 		while true do
 			task.wait(0.5)
 			updateTag()
+			local m = BoatClient.model()
+			local sil = m and m:FindFirstChild("NeighborInTheBoat")
+			if sil and not outlinedSilhouettes[sil] then
+				outlinedSilhouettes[sil] = true
+				Common.outline(sil)
+				sil.Destroying:Once(function()
+					outlinedSilhouettes[sil] = nil
+				end)
+			end
 		end
 	end)
 end

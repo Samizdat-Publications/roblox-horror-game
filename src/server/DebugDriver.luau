@@ -42,7 +42,9 @@ Scenarios (name, opts):
     "status"          The last async run (quiet_night) with its progress or result.
 
 S3 scenarios (the rules on screen) are in DebugRules.luau: <rule>_pass and <rule>_fail for
-Hum, WrongCatch, Neighbor, Knocking and Watcher, "fakeouts" and "death_card".
+Hum, WrongCatch, Neighbor, Knocking and Watcher, "fakeouts", "death_card" and "reset" (the
+clean start every rule scenario begins with). Rule scenarios mute the owner's tapes;
+"night_start" and "quiet_night" turn them back on.
 ]]
 
 local Players = game:GetService("Players")
@@ -548,7 +550,19 @@ local function goHome(bot: Bot): boolean
 	return driveTo(bot, tx, tz, 6, 90)
 end
 
+-- Rule scenarios mute the owner's tapes on every client (DebugRules reset); a real night
+-- started from here plays them again.
+local function tapesOn()
+	local remote = botRemote()
+	if remote then
+		for _, p in Players:GetPlayers() do
+			remote:FireClient(p, { cmd = "tapes", on = true })
+		end
+	end
+end
+
 scenarios.night_start = function(opts: Opts)
+	tapesOn()
 	if opts.autoAdvance ~= nil then
 		NightService.autoAdvance = opts.autoAdvance == true
 	end
@@ -579,6 +593,7 @@ local function quietNight(opts: Opts, progress: { [string]: any }): { [string]: 
 	if opts.hold ~= false then
 		NightService.autoAdvance = false
 	end
+	tapesOn()
 	local p = NightService.start({
 		night = 1,
 		seed = tonumber(opts.seed) or 1,

@@ -97,6 +97,10 @@ local frogPool: { BasePart } = {}
 local frogNext = 1
 local rnd = Random.new()
 local tapePlaying = false
+local tapeRunning = false -- a runTapes loop is working through the queue
+local tapeGen = 0 -- bumped by stopTape; a loop from an older generation quits
+local currentTape: Sound? = nil
+local tapeOpenUntil = -math.huge -- Tape events are taken until this time (night start)
 local tapeQueue: { string } = {}
 local reeling = false
 
@@ -467,36 +471,92 @@ end
 ----------------------------------------------------------------------------------------
 -- The owner's tapes
 
-local function runTapes()
-	while #tapeQueue > 0 do
+-- Tapes play only at night start (Studio and Neon fixes, 11/26/2026): a Tape event is
+-- taken only within TAPE_WINDOW seconds of NightStarted. Any rule cue cuts the tape.
+AudioDirector.TAPE_WINDOW = 3
+AudioDirector.TAPE_CUT = 0.25 -- seconds to fade a cut tape (inside the 0.3 s the cue needs)
+AudioDirector.tapesMuted = false -- Studio scenarios: no tapes at all
+
+local function runTapes(gen: number)
+	while #tapeQueue > 0 and gen == tapeGen do
 		local name = table.remove(tapeQueue, 1) :: string
 		tapePlaying = true
 		AudioDirector.play("ui-tape-click")
 		task.wait(Look.Mix.tape.clickGap)
+		if gen ~= tapeGen then
+			break
+		end
 		local s = AudioDirector.play(name)
+		currentTape = s
 		if s then
 			local done = false
 			s.Ended:Once(function()
 				done = true
 			end)
 			local t0 = os.clock()
-			while not done and s.Parent ~= nil and os.clock() - t0 < 90 do
+			while not done and s.Parent ~= nil and gen == tapeGen and os.clock() - t0 < 90 do
 				if os.clock() - t0 > 4 and s.IsLoaded and not s.IsPlaying then
 					break
 				end
-				task.wait(0.1)
+				task.wait(0.05)
 			end
 		end
+		if gen ~= tapeGen then
+			break
+		end
+		currentTape = nil
 		AudioDirector.play("ui-tape-stop")
 		task.wait(0.4)
 		tapePlaying = false
 	end
+	if gen == tapeGen then
+		tapePlaying = false
+		tapeRunning = false
+	end
 end
 
 function AudioDirector.playTape(name: string)
+	if AudioDirector.tapesMuted then
+		return
+	end
 	table.insert(tapeQueue, name)
-	if #tapeQueue == 1 and not tapePlaying then
-		task.spawn(runTapes)
+	if not tapeRunning then
+		tapeRunning = true
+		task.spawn(runTapes, tapeGen)
+	end
+end
+
+-- Cuts the tape now: the voice fades out in TAPE_CUT seconds and the queue is dropped.
+-- `click` plays ui-tape-stop when a tape was actually cut.
+function AudioDirector.stopTape(click: boolean)
+	local wasPlaying = tapePlaying
+	tapeGen += 1
+	tapeQueue = {}
+	tapeRunning = false
+	tapePlaying = false
+	local s = currentTape
+	currentTape = nil
+	if s and s.Parent then
+		local v0 = s.Volume
+		task.spawn(function()
+			local t0 = os.clock()
+			while s.Parent and os.clock() - t0 < AudioDirector.TAPE_CUT do
+				s.Volume = v0 * (1 - (os.clock() - t0) / AudioDirector.TAPE_CUT)
+				task.wait()
+			end
+			s:Destroy()
+		end)
+	end
+	if click and wasPlaying then
+		AudioDirector.play("ui-tape-stop")
+	end
+end
+
+-- Studio scenarios: no tapes while muted (and cut the one playing).
+function AudioDirector.muteTapes(on: boolean)
+	AudioDirector.tapesMuted = on
+	if on then
+		AudioDirector.stopTape(false)
 	end
 end
 
@@ -522,7 +582,7 @@ local function onEvent(e: Events.Event)
 	local kind = e.kind
 	if kind == "Tape" then
 		local name = TAPES[tostring(data.id)]
-		if name then
+		if name and os.clock() <= tapeOpenUntil then
 			AudioDirector.playTape(name)
 		end
 	elseif kind == "CastOut" then
@@ -562,12 +622,15 @@ local function onEvent(e: Events.Event)
 		AudioDirector.play("quota-met")
 	elseif kind == "NightCleared" then
 		AudioDirector.play("night-cleared-sting")
-	elseif kind == "NightFailed" then
-		AudioDirector.play("night-failed-sting")
-		task.delay(2.5, function()
-			AudioDirector.playTape("tape-night-failed")
-		end)
+	elseif kind == "NightStarted" then
+		-- A new night cancels whatever tape was left over; its own tape follows.
+		AudioDirector.stopTape(false)
+		tapeOpenUntil = os.clock() + AudioDirector.TAPE_WINDOW
+	elseif kind == "EntityCue" then
+		-- Rule cues duck everything else: the tape is cut so it never talks over a cue.
+		AudioDirector.stopTape(true)
 	end
+	-- NightFailed: the sting and the "Rough night" tape come with the end card (NightCards).
 end
 
 -- Reel clicks while any line is being reeled in (tension rising means the reel is held).
@@ -694,7 +757,14 @@ end
 function AudioDirector.debugState(): { [string]: any }
 	local out = {}
 	for _, layer in layers do
-		out[layer.def.key] = { sounds = #layer.sounds, volume = layer.volume }
+		local s = layer.sounds[1]
+		out[layer.def.key] = {
+			sounds = #layer.sounds,
+			volume = layer.volume,
+			playing = s ~= nil and s.IsPlaying,
+			loaded = s ~= nil and s.IsLoaded,
+			parent = if s and s.Parent then s.Parent.Name else nil,
+		}
 	end
 	out.chorusLevel = Chorus.level()
 	out.tapePlaying = tapePlaying

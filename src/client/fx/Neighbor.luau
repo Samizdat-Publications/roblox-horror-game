@@ -242,6 +242,16 @@ function Neighbor.handle(e: any)
 	end
 end
 
+-- Where to look: the drawn boat's figure, else the creak or the light, or nil
+-- (DebugBot frames it for captures).
+function Neighbor.focus(): Vector3?
+	local d = drawn or target
+	if d == nil then
+		return nil
+	end
+	return d + Vector3.new(0, if form == "Boat" then 3 else 12, 0)
+end
+
 function Neighbor.reset()
 	stopCreak()
 	clear(0)

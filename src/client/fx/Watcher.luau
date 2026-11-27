@@ -33,6 +33,7 @@ Watcher.WIDTH = 1.25 -- and too narrow
 Watcher.STEP_SECONDS = 0.8
 Watcher.LUNGE_SECONDS = 0.3
 Watcher.GONE_AFTER = 6
+Watcher.STAYS_AFTER_FAIL = 12
 
 local figure: Common.Figure? = nil
 local from: CFrame? = nil
@@ -47,6 +48,7 @@ local tone: Sound? = nil
 local vignette: { Frame } = {}
 local vignetteRoot: Frame? = nil
 local clock = 0
+local failedAt = -math.huge
 
 local function rootAt(pos: Vector3): CFrame
 	local y = Common.groundY(pos.X, pos.Z)
@@ -226,15 +228,23 @@ function Watcher.handle(e: any)
 	elseif e.kind == "EntityFail" then
 		AudioDirector.play("lanterns-die")
 		AudioDirector.play("watcher-fail")
-		task.delay(1.5, remove)
+		failedAt = os.clock()
+		-- It stands at the waterline a while: the drowned see it there, outlined.
+		local f = figure
+		task.delay(Watcher.STAYS_AFTER_FAIL, function()
+			if figure == f then
+				remove()
+			end
+		end)
 	elseif e.kind == "EntityStage" and data.stage == "Cooldown" then
-		if not leaving then
+		if not leaving and os.clock() - failedAt > Watcher.STAYS_AFTER_FAIL then
 			remove()
 		end
 	end
 end
 
 function Watcher.reset()
+	failedAt = -math.huge
 	remove()
 	stare = 0
 end
@@ -242,6 +252,15 @@ end
 function Watcher.init()
 	buildVignette()
 	RunService.RenderStepped:Connect(step)
+end
+
+-- Where the figure's eyes are, or nil (DebugBot frames it for captures).
+function Watcher.focus(): Vector3?
+	local f = figure
+	if f == nil then
+		return nil
+	end
+	return f.root.Position + Vector3.new(0, Watcher.HEIGHT * 0.85, 0)
 end
 
 -- For checks: how deep the stare is (0..1).
