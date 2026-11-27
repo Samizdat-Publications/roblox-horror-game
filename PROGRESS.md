@@ -1,62 +1,53 @@
 # Progress
 
-Last updated 11/26/2026 by the local session (Fable 5.2).
+Last updated 11/26/2026, late night, by the local session (Opus 5.5, orchestrating; Fable 5.2 designed it).
+
+## Morning summary for Stewart
+
+(Filled in at the end of the overnight run.)
 
 ## How to resume
 
 1. Read `CLAUDE.md`, then this file, then `docs/PLAN.md`.
 2. Run the gate. If it fails, fix that first.
-3. Check for cloud helper work: `gh pr list --repo Samizdat-Publications/roblox-horror-game` and `docs/CLOUD-PROGRESS.md` on any `claude/core-*` branch. Review, run the gate on the branch, merge what passes.
-4. Take the first unchecked item under "Next" below.
+3. `git status`: uncommitted files belong to a builder that was cut off. Read "In progress" below for whose they are, and finish them rather than start over.
+4. Take the first unchecked item under "Next".
 
 ## Done
 
-- Plan approved by Stewart on 11/26/2026 (`docs/PLAN.md`).
-- Folder and repo created. The fishing repo ignores this folder through its local `.git/info/exclude`.
-- Toolchain installed with Rokit 1.2.0: Rojo 7.7.1, Selene 0.32.0, StyLua 2.6.0, Lune 0.11.1, luau-lsp 1.70.1.
-- Pipelines copied from the fishing repo (critic, ElevenLabs, capture, Blender scripts, test runner). Keys copied into the ignored `.env`.
-- Design, architecture, cloud brief and the contracts (`Types.luau`, `Config.luau`) written.
-
-- M0 skeleton, gate (11 steps) and CI built, committed and pushed to `Samizdat-Publications/roblox-horror-game`.
-- Spike 1 (Studio loop) PASSED once on 11/26/2026: `tools\studio\launch.ps1` opened a copy of the place (pid in `artifacts\studio.pid`), the Studio MCP attached, Play, `DeadCalmDebug:Invoke("hello")` returned, console clean, screenshot taken, Stop. Studio opens a copy under `artifacts\studio\` so rebuilds never hit its file lock.
-- Style board for Liam published: https://claude.ai/artifact/5jPTuiWZoUpbFAozsNgzQN (source `art\style-board\`, images from `gemini-nano-banana-2.1`). Build stays on Lantern Noir until he picks.
-- Sound batch m1: 86 variants generated, winners ranked into `audio\final\`.
-- The session was switched to Opus 5.5 high on 11/26/2026; [fable] items go to the `fable-advisor` agent.
-
-- Core M1 and M2 committed (94 specs, pacing on target). Shell S1 committed and verified in Studio on 11/26/2026: player auto-seats in the helm facing the lake, `row_to_steeple` arrives in 23.5 s with the motor via the client path, `tour` has zero drift, console clean, 1,618 world parts.
-- Look passes 1 to 3 (lighting, water, lantern, beacon, trees, steeple, dock props) with stills in `docs\checkpoints\stills\`. Neon look review: `docs\critic\11-26-2026-look-s1-neon.md` (2.5/10 before the passes).
-- Neon design consult evaluated; taken and rejected ideas in DECISIONS.md and the shell brief.
-- 53 sounds uploaded through the Fishing Game window's Open Cloud permission (Stewart approved), ids in `audio\ids.json` and `SoundRegistry.luau`. Owner's voice "Tull (Dont Wave Back)" made in ElevenLabs; 10 tapes generated.
-
-## Paused 11/26/2026 evening (laptop asleep while Stewart drives home)
-
-Two local builders were mid-work when the laptop slept. Their files are on disk, UNCOMMITTED; nothing half-done was pushed. To resume:
-1. Check `git status`. The uncommitted files belong to:
-   - Core M5 and M7 builder: `src/shared/Core/**` (Run, Rulebook, entities/Finale, Profile, Leaderboard, SaveLogic), `tests/**`, `tools/sim/**`, `src/shared/Config.luau`, `docs/CLOUD-*.md`. It was also told: nights must start with the lantern lit.
-   - Shell S3 builder: `src/server/**`, `src/client/**` (EntityPresenter, fx modules, DeathCard, drowned, callouts, tally card), `PLAYTEST_GUIDE.md`, `docs/SHELL-*.md`.
-2. If this session still exists, resume each builder with SendMessage (they keep their context). If not, start a fresh builder per chunk with its brief (`docs/CLOUD-BRIEF.md` chunks M5 and M7, `docs/CLOUD-SHELL-BRIEF.md` chunk S3) and tell it to review and finish the files already on disk rather than start over.
-3. Then: gate, Studio check of each rule's pass and fail scenario, screen-record each scare for a Neon video review, update the making-of.
+- **M0 setup.** Repo (public since 11/26/2026), Rokit toolchain, the 11-step gate, CI, the Studio launch and close scripts. Studio loop proven.
+- **Design and docs.** DESIGN, ARCHITECTURE, DECISIONS, HUMAN_TODO, MATURITY_NOTES, the cloud briefs, Neon's design consult (taken and rejected ideas in DECISIONS).
+- **Liam's style board:** https://claude.ai/artifact/5jPTuiWZoUpbFAozsNgzQN (build stays on Lantern Noir until he picks).
+- **Making-of build log:** https://claude.ai/artifact/GQrZM4KSA6mkBg4XUWYN7T (update after every milestone; steps in CLAUDE.md).
+- **Rules engine complete (Core M1 to M5, M7).** 198 specs. Director property tests: 2,500 nights, 0 violations. Rule-following bot clears a Normal run in 100 percent of 300 seeds at every crew size, Nightmare 98 to 100 percent; rule-blind bot dead by night 2 in 100 percent. Pacing: all 20 night and crew cells on target. Details in `docs/CLOUD-PROGRESS.md`.
+- **Shell S1 to S3.** The lake, boat, lighting, fishing, the night service, HUD, all five Lake Rules on screen, fake-outs, death cards that teach the counter, the drowned spectate view, callouts, the tally card. Studio-verified: a full quiet night clears; every `<rule>_pass` and `<rule>_fail` scenario reports correctly.
+- **Look:** three lighting passes, a moonlight rim so the boat reads with the lantern out.
+- **Sound:** 71 sounds and tapes uploaded and wired; 11 Roblox library stand-ins; 28 derived sounds built in-engine from uploaded ones. Uploads are capped until about 12/26/2026 or until Stewart ID-verifies (HUMAN_TODO 6a); priority list in `audio/UPLOAD-PRIORITY.md`.
+- **Neon video reviews:** Hum fail 3.5 then 4.5 out of 10; derived-sound listening test found the mix buries the cues.
 
 ## In progress
 
-- Local builder: Core chunks M3 and M4 plus the Neon design changes (Neighbor rework, 6-minute nights, visible wrong-fish tells, no supplies, night tallies). It was cut off once by a network drop and resumed.
-- Local grunt: regenerate 4 rejected sounds (frog-bull-b, owl-hoot, line-creak, ghost-bell), upload them plus ghost-loop and the 10 tapes, add the single frog calls to SoundRegistry.
+- Builder: Shell S4 (title, lobby, rulebook, Field Guide page, five-night flow via Core.Run, finale presentation in `fx/Finale.luau`, phone buttons). Owns LobbyService, NightService, ui Title/Rulebook/FieldGuide/MobileButtons/NightCards, Input, Main.client.
+- Builder: Scare polish 2 (`docs/SCARE-POLISH-2.md`): the mix first, then a longer visible capsize, motor audible, a mid-range hum layer, a tighter silence-to-hum gap, a phone-sized death card, clean state after death. Owns AudioDirector, fx (not Finale), BoatFx, WorldFx, Drowned, DeathCard, DeathTexts, HUD, Prompt, DebugBot, Look, SoundRegistry volumes.
 
 ## Next
 
-- [ ] Review, gate, commit and push the M3 and M4 work.
-- [x] Spike 2 PASSED 11/26/2026: uploaded sounds load in the unpublished local place while still in moderation review (bed-hull-lap 30.0 s, chorus-frogs-full 30.0 s, hum-rise 15.0 s, tape-night-1 13.6 s; console clean). 68 sounds and tapes are uploaded in total.
-- [ ] Shell S2 (fishing and the night on screen) once Core M3 lands, if the cloud shell session has not done it.
-- [ ] Core M3 to M5 and M7, Shell S2 to S6 (cloud sessions if Stewart started them, else local builders, one chunk at a time).
-- [ ] M8 polish and docs, final self-review, per `docs/PLAN.md`.
+- [ ] Commit S4 and polish 2 when they land; Studio check (`full_run`, `finale`, `title`, `rulebook`); re-record the listening test and the Hum fail for Neon (target 6/10 or better).
+- [ ] Re-record every rule's pass and fail for a Neon pass; fix what it finds.
+- [ ] Shell S5 (saves through Core.Profile with a store adapter, cosmetics, Endless, the leaderboard stub, Game Pass stubs) and S6 (PLAYTEST_GUIDE, SOUNDS_NEEDED, README).
+- [ ] Phone check in the Device Simulator at 705 by 338.
+- [ ] M8 polish; update MATURITY_NOTES; the final self-review against the original brief (every requirement Done, Partial or Not done).
+- [ ] When Stewart says "verified" or "credits are topped up": upload per `audio/UPLOAD-PRIORITY.md`; generate the 18 sounds still missing.
 
 ## Known issues
 
-- **Cloud sessions could not be started by the local session** (the app refuses while Stewart is on Remote Control). He has the two prompts in HUMAN_TODO.md item 3. Check `gh pr list` and for `claude/*` branches before assigning a chunk to a local builder.
-- Uploads use the Fishing Game Studio window (Stewart approved 11/26/2026). If that window is closed, uploads wait; never run Luau or play in it.
-- `tools\critic\critic.py consult` returns an empty answer with its JSON schema on Gemini 4 Neon; calling the model directly in plain text works. `review` and `rank` modes are unverified here.
+- The cloud sessions were never started (the app refused while Stewart was on Remote Control); everything is built locally.
+- `tools/critic/critic.py consult` returns empty answers on Neon; use `tools/critic/ask.py` (streaming) instead. Studio video capture stops at 30 s per recording.
+- Screenshots of end cards show the Roblox account name: never commit those (the repo is public).
+- ElevenLabs credits are out (18 sounds left to generate).
 
 ## Notes for the next session
 
-- This PC is on a phone hotspot. Network steps can fail for no other reason: wait and retry.
-- A repeating wake-up runs in the original session at 17 and 47 past each hour. It only exists while that session lives.
+- The PC is on a hotspot at times. Network steps can fail: wait and retry. Builders cut off by a drop can be resumed with SendMessage.
+- Uploads (when open) go through the Fishing Game Studio window's Open Cloud permission, `open_cloud_invoke` only. Coordinate with the "Roblox fishing game roadmap" session, which works in that place.
+- A repeating wake-up runs at 17 and 47 past each hour while this session lives.
