@@ -1,6 +1,6 @@
 # Progress
 
-Last updated 11/27/2026, early morning, by the local session (Opus 5.5, orchestrating; Fable 5.2 designed it).
+Last updated 11/27/2026, late morning, by the local session (Opus 5.5, orchestrating; Fable 5.2 designed it).
 
 ## Morning summary for Stewart
 
@@ -14,7 +14,6 @@ The overnight run is finished: M0 to M8 are built, and the final self-review and
 
 **What is stubbed or rough**
 - About 30 of our own sounds wait on disk because the Roblox upload cap is used up; free Roblox library sounds stand in. 18 more sounds need ElevenLabs credits.
-- The strange boats on the run home still read as small lights more than boats.
 - Real DataStores and a two-player test need the game published privately (HUMAN_TODO).
 - The critic (Gemini Neon) scores the two big moments 5 out of 10. It started at 1.5 and 3.5. It is harsh, and it judges a test bot that drives straight.
 
@@ -25,8 +24,10 @@ The overnight run is finished: M0 to M8 are built, and the final self-review and
 
 To play: double-click `C:\Users\stewa\Documents\Claude\Roblox\dead-calm\DeadCalm.rbxl`, then press Play in Studio.
 
+**Done 11/27/2026, morning:** the strange boats on the run home now read as boats (a man in a long coat and hat standing in a side-on rowboat, his lantern on a hook in a small amber glow), and boats ahead come in farther down the way home so they stay in view for a few seconds. Neon on fixed stills: "is it a boat" 2 to 7, "tell it from a false beacon" 2 to 8. Studio check: DebugRun `boat_pose` (fixed distances) and the `finale` run. Hero models (M9) are being built in a side session on branch `m9-hero-models`.
+
 **Top five next builds**
-1. Make the strange boats on the run home read as boats: a silhouette you can see, closer passes that stay fair.
+1. (Done 11/27/2026.) Readable strange boats.
 2. Upload our own sounds when the cap allows (ID verification or after 12/26/2026) and generate the 18 missing ones.
 3. Publish privately and run a two-device test with Liam: real saves, two players in one boat, cues that go to one player only.
 4. Liam's style pick from the style board (https://claude.ai/artifact/5jPTuiWZoUpbFAozsNgzQN), then a look pass in that style.
@@ -55,7 +56,7 @@ To play: double-click `C:\Users\stewa\Documents\Claude\Roblox\dead-calm\DeadCalm
 
 ## Known issues
 
-- The strange boats on the run home are hard to see (next build 1).
+- Up close the strange boat's figure is still blocky (Neon "creepy" 5 of 10); the M9 hero models are the fix.
 - `tools/critic/critic.py consult` returns empty answers on Neon; use `tools/critic/ask.py` (streaming). Studio video capture stops at 30 s per recording; start recordings after a scenario's reset.
 - Screenshots of some end cards show the Roblox account name: never commit those (the repo is public).
 - luau-lsp type analysis is not run (no Roblox definitions file); selene and the specs cover the rest.

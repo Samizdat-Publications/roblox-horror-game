@@ -181,6 +181,24 @@ Look.Finale = {
 	hazardLightRange = 20,
 	hazardLightBrightness = 5,
 	hazardHullTone = 0.6,
+	-- Readable strange boats (11/27/2026, four rounds against Neon's reviews in docs/critic/
+	-- 11-27-2026-strange-boats*-neon.md; it kept reading them as "tiny yellow specks"). A
+	-- strange boat now reads by its shape: the hull lies turned `hazardYaw` off facing you, with
+	-- raised bow and stern tips and shipped oars; a too-tall dark figure in a long flared coat
+	-- and a wide brimmed hat stands in it, facing you, head tilted; its lantern hangs from a
+	-- hooked pole by his shoulder inside a small amber glow drawn over the fog (hazardGlow). No
+	-- drawn eyes (a blank shadow under the hat), no streak on the water (both tried, dropped).
+	-- All presentation: where Core holds the boat, and the kill distance, are unchanged.
+	hazardYaw = math.rad(58),
+	hazardFigure = { height = 6.6, width = 1.45 },
+	hazardGlow = {
+		studs = 6, -- the glow's diameter in studs (round 4: halved, Neon "a pasted sticker")
+		minPixels = 14, -- never smaller than this on screen
+		maxDistance = 420,
+		rings = 16, -- stacked discs, outer to inner
+		ringTransparency = 0.962, -- each disc's own transparency
+		color = Color3.fromRGB(255, 180, 90), -- the lantern amber (round 4: was a pale cream)
+	},
 	-- The pursuit layer under the motor; its pulse quickens as the boat slows.
 	pulseCalm = 1.6, -- Hz at speed
 	pulseScared = 4.5, -- Hz when the boat is nearly stopped

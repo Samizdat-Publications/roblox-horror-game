@@ -42,6 +42,11 @@
 --   over 3 s in stages (horizon, then fog, then the banner); the Steeple Cat lies on the floor
 --   boards clear of the rods and stays in the boat through the dawn; the HUD hides under the
 --   banner.
+-- Readable strange boats (11/27/2026, Look.Finale.hazardGlow): the lantern hangs at the stern
+--   behind the standing figure inside a soft glow, so the figure is a black cut-out against
+--   it at any range. Rounds 2 to 4 (Neon on the stills): the hull lies turned so it reads as
+--   a boat, the figure wears a long coat and a brimmed hat, the lantern hangs by his shoulder
+--   in a small amber glow, no drawn eyes. See Look.Finale.hazardGlow.
 -- This module never writes a SoundGroup: sound goes through AudioDirector only.
 
 local Lighting = game:GetService("Lighting")
@@ -70,7 +75,8 @@ local Finale = {}
 Finale.WAVE_PERIOD = 3.6 -- the Neighbor's wave: a little too slow
 -- Polish round 2: a strange boat's figure stands on its floor boards 2.2 studs behind the bow
 -- post (the lantern hangs ahead of it at 4 studs up), and the lantern sways slowly.
-Finale.HAZARD_FIGURE = CFrame.new(0, 0.35, -3.6)
+-- 11/27/2026 (readable boats, round 2): mid-boat, just in front of its lantern pole.
+Finale.HAZARD_FIGURE = CFrame.new(0, 0.15, -0.4)
 Finale.HAZARD_SWAY = { speed = 0.9, angle = 0.22 }
 Finale.FOLLOW = 4 -- how quickly a drawn hazard closes on where it should be drawn
 Finale.KEY = "Finale" -- AudioDirector mute and hush key
@@ -784,11 +790,43 @@ local function buildBoat(pos: Vector3): Hazard
 		table.insert(parts, { part = p, offset = offset })
 		return p
 	end
-	local hullPart = piece("Hull", Vector3.new(4.2, 0.5, 11), CFrame.new(0, 0.1, 0), dark, Enum.Material.WoodPlanks)
-	piece("SideL", Vector3.new(0.35, 1.4, 11), CFrame.new(-2.2, 0.75, 0), dark, Enum.Material.WoodPlanks)
-	piece("SideR", Vector3.new(0.35, 1.4, 11), CFrame.new(2.2, 0.75, 0), dark, Enum.Material.WoodPlanks)
-	piece("Stern", Vector3.new(4.6, 1.4, 0.35), CFrame.new(0, 0.75, 5.5), dark, Enum.Material.WoodPlanks)
-	piece("Post", Vector3.new(0.25, 4.6, 0.25), CFrame.new(0, 2.6, -5.6), dark)
+	-- 11/27/2026 (readable boats, round 2): the hull lies turned Look.Finale.hazardYaw off facing
+	-- you, so its length, its bow and its shipped oars read; the root still faces you.
+	local turn = CFrame.Angles(0, Look.Finale.hazardYaw, 0)
+	local hullPart =
+		piece("Hull", Vector3.new(4.2, 0.5, 11), turn * CFrame.new(0, 0.1, 0), dark, Enum.Material.WoodPlanks)
+	-- Round 3: taller sides (the figure stands inside, not on top) and a pointed bow.
+	piece("SideL", Vector3.new(0.35, 1.8, 11), turn * CFrame.new(-2.2, 0.95, 0), dark, Enum.Material.WoodPlanks)
+	piece("SideR", Vector3.new(0.35, 1.8, 11), turn * CFrame.new(2.2, 0.95, 0), dark, Enum.Material.WoodPlanks)
+	piece("Stern", Vector3.new(4.6, 1.8, 0.35), turn * CFrame.new(0, 0.95, 5.5), dark, Enum.Material.WoodPlanks)
+	for _, sx in { -1, 1 } do
+		piece(
+			if sx < 0 then "BowL" else "BowR",
+			Vector3.new(0.35, 1.8, 3.2),
+			turn * CFrame.new(sx * 1.1, 0.95, -6.6) * CFrame.Angles(0, sx * math.rad(45), 0),
+			dark,
+			Enum.Material.WoodPlanks
+		)
+	end
+	-- Round 4: the bow and stern tips rise above the sides, so the sheer reads side-on.
+	piece("BowTip", Vector3.new(0.4, 2.8, 0.4), turn * CFrame.new(0, 1.4, -7.6), dark, Enum.Material.Wood)
+	piece("SternTip", Vector3.new(4.6, 0.5, 0.5), turn * CFrame.new(0, 2.05, 5.5), dark, Enum.Material.Wood)
+	-- Shipped oars, angled out and down over each side.
+	for _, sx in { -1, 1 } do
+		piece(
+			if sx < 0 then "OarL" else "OarR",
+			Vector3.new(0.22, 0.22, 7.2),
+			turn * CFrame.new(sx * 3.1, 1.2, 0.6) * CFrame.Angles(math.rad(6), sx * math.rad(58), 0),
+			dark,
+			Enum.Material.Wood
+		)
+	end
+	-- The lantern pole stands just behind the figure (in the root frame: away from you), so its
+	-- lantern hangs behind the figure's head and shoulders, inside its glow.
+	-- Round 3 (Neon: "a saint's halo" with no source): the pole stands off his right shoulder,
+	-- so the lantern itself shows beside his head while its glow still backs his silhouette.
+	piece("Post", Vector3.new(0.22, 6.2, 0.22), CFrame.new(1.5, 3.1, 1.3), dark)
+	piece("Arm", Vector3.new(0.7, 0.16, 0.16), CFrame.new(1.2, 6.1, 1.3), dark)
 	-- The lantern hangs from the post's arm and sways (not in `parts`: stepped on its own).
 	local glow = Common.part(
 		"Lantern",
@@ -804,10 +842,72 @@ local function buildBoat(pos: Vector3): Hazard
 	light.Brightness = Look.Finale.hazardLightBrightness
 	light.Shadows = false
 	light.Parent = glow
-	-- A still standing figure at the bow, under its lantern, facing you: a silhouette with pin
-	-- eyes (DESIGN.md palette), nothing more.
-	local fig = Common.figure("Stander", { height = 5.6, width = 1.6, eyes = true })
+	-- The glow around the lantern, drawn over the fog but depth tested (AlwaysOnTop off), so the
+	-- figure in front of it cuts a black shape out of it at any range.
+	local HG = Look.Finale.hazardGlow
+	local bb = Instance.new("BillboardGui")
+	bb.Name = "Glow"
+	bb.Adornee = glow
+	bb.AlwaysOnTop = false
+	bb.LightInfluence = 0
+	bb.MaxDistance = HG.maxDistance
+	bb.Size = UDim2.new(HG.studs, HG.minPixels, HG.studs, HG.minPixels)
+	-- Many faint stacked discs, each a little smaller: the overlaps build a smooth falloff toward
+	-- the middle with no visible bands, and no image asset.
+	local n = HG.rings
+	for i = 1, n do
+		local k = 1 - ((i - 1) / (n - 1)) ^ 0.8 * 0.85
+		local f = Instance.new("Frame")
+		f.Name = "Ring" .. i
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.Position = UDim2.fromScale(0.5, 0.5)
+		f.Size = UDim2.fromScale(k, k)
+		f.BackgroundColor3 = HG.color
+		f.BackgroundTransparency = HG.ringTransparency
+		f.BorderSizePixel = 0
+		f.Parent = bb
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0.5, 0)
+		corner.Parent = f
+	end
+	bb.Parent = glow
+	-- A still standing figure at the bow, facing you, between you and its lantern: a little too
+	-- tall, a silhouette with pin eyes (DESIGN.md palette), nothing more.
+	local HF = Look.Finale.hazardFigure
+	local fig = Common.figure("Stander", { height = HF.height, width = HF.width, eyes = true })
 	fig.model.Parent = m
+	-- Round 2: a long coat and a wide brimmed hat, so it reads as a person out on the water
+	-- (a dark fisherman), not a stick figure. Heights follow Common.figure's proportions.
+	do
+		local h, w = HF.height, HF.width
+		local legH, torsoH, headH = h * 0.46, h * 0.36, h * 0.12
+		local headTop = legH + torsoH + headH + h * 0.01
+		local black = Look.Palette.silhouette
+		local function wear(name: string, size: Vector3, at: CFrame)
+			local p = Common.part(name, size, CFrame.new(), black, Enum.Material.SmoothPlastic, { parent = fig.model })
+			fig.locals[p] = at
+		end
+		local coatBottom = h * 0.17
+		local coatH = legH + torsoH - coatBottom
+		wear("Coat", Vector3.new(w * 1.12, coatH, w * 0.62), CFrame.new(0, coatBottom + coatH / 2, 0))
+		-- Round 4: the coat's hem flares, and the head and hat lean a few degrees (it watches).
+		wear("Hem", Vector3.new(w * 1.4, h * 0.12, w * 0.8), CFrame.new(0, coatBottom + h * 0.06, 0))
+		local neck = CFrame.new(0, legH + torsoH, 0) * CFrame.Angles(0, 0, math.rad(-9))
+		for p, at in fig.locals do
+			if p.Name == "Head" or string.sub(p.Name, 1, 3) == "Eye" then
+				fig.locals[p] = neck * CFrame.new(0, -(legH + torsoH), 0) * at
+			end
+		end
+		wear("Brim", Vector3.new(w * 1.3, 0.08, w * 1.3), neck * CFrame.new(0, headTop - legH - torsoH + 0.03, 0))
+		local crownH = h * 0.07
+		wear(
+			"Crown",
+			Vector3.new(w * 0.56, crownH, w * 0.56),
+			neck * CFrame.new(0, headTop - legH - torsoH + 0.06 + crownH / 2, 0)
+		)
+	end
+	-- Round 4 (Neon: big drawn eyes looked "cartoonish"; a blank shadow under a hat is scarier):
+	-- no drawn eyes. Only Common.figure's own tiny pin eyes remain, seen when it is close.
 	Common.outline(m)
 	local snd = AudioDirector.loop("finale-hazard-creak", hullPart)
 	return {
@@ -817,7 +917,7 @@ local function buildBoat(pos: Vector3): Hazard
 		figure = fig,
 		lamp = glow,
 		light = light,
-		lanternPost = CFrame.new(0, 4.9, -6.2),
+		lanternPost = CFrame.new(0.95, 6.05, 1.3),
 		sound = snd,
 		target = pos,
 		drawn = pos,
@@ -933,7 +1033,7 @@ local function stepHazards(dt: number)
 		end
 		local fig = h.figure
 		if fig then
-			-- Standing still at the bow, just behind the lantern post, facing the player's boat
+			-- Standing still mid-boat, just in front of its lantern pole, facing the player's boat
 			-- (the root faces it; a figure faces its root's -Z). No wave: it only watches.
 			Common.placeFigure(fig, root * Finale.HAZARD_FIGURE)
 		end

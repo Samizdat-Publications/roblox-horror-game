@@ -72,6 +72,7 @@ local RulesFx = require(script.Parent:WaitForChild("RulesFx"))
 local fx = script.Parent:WaitForChild("fx")
 local NeighborFx = require(fx:WaitForChild("Neighbor"))
 local WatcherFx = require(fx:WaitForChild("Watcher"))
+local FinaleFx = require(fx:WaitForChild("Finale"))
 
 local DebugBot = {}
 
@@ -311,6 +312,22 @@ function DebugBot.init()
 					local t0 = os.clock()
 					while not BookState.open(msg.page) and os.clock() - t0 < 2 do
 						task.wait(0.1)
+					end
+				end
+			elseif msg.cmd == "finale_pose" then
+				-- Lookdev only (DebugRun "boat_pose"): draws finale hazards where Core would hold
+				-- them, through the real fx/Finale path, with no Core finale running.
+				if msg.clear == true then
+					FinaleFx.reset()
+				end
+				if type(msg.hazards) == "table" then
+					for _, h in msg.hazards do
+						if type(h) == "table" and type(h.x) == "number" and type(h.z) == "number" then
+							FinaleFx.handle({
+								kind = "EntityMoved",
+								data = { hazard = h.id, form = h.form, pos = { x = h.x, z = h.z } },
+							})
+						end
 					end
 				end
 			elseif msg.cmd == "cardhold" then

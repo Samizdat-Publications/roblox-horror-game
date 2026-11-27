@@ -307,7 +307,67 @@ local function finale(opts: Opts, progress: { [string]: any }): { [string]: any 
 	}
 end
 
+-- Lookdev for the strange boats on the run home: a quiet night 5 with the boat parked at the
+-- steeple's near edge, bow toward home, and finale hazards drawn (client side, through the real
+-- fx/Finale path) at fixed Core distances and angles off the bearing home. Nothing moves, so
+-- before and after stills compare like for like. opts.hazards: a list of { form, dist, deg }
+-- (deg off the bearing home, + to starboard); opts.look: the index of the one to face.
+local function boatPose(opts: Opts, _progress: { [string]: any }): { [string]: any }
+	DebugCrew.stop()
+	cleanClients(false)
+	NightService.autoAdvance = false
+	local p = NightService.start({ night = 5, seed = tonumber(opts.seed) or 905, quiet = true })
+	if p == nil then
+		return { result = "error:no players" }
+	end
+	task.wait(1)
+	local L = Config.Lake
+	local st, dk = L.steeple, L.dockEnd
+	local dx, dz = dk.x - st.x, dk.z - st.z
+	local d = math.sqrt(dx * dx + dz * dz)
+	local r = L.steepleRadius - 15
+	local x, z = st.x + dx / d * r, st.z + dz / d * r
+	local home = math.atan2(dk.x - x, dk.z - z)
+	BoatService.teleport(x, z, home)
+	task.wait(1)
+	local list = if type(opts.hazards) == "table"
+		then opts.hazards
+		else {
+			{ form = "Boat", dist = 60, deg = 28 },
+			{ form = "FalseBeacon", dist = 120, deg = -50 },
+			{ form = "Boat", dist = 130, deg = -38 },
+		}
+	local hazards = {}
+	for i, h in list do
+		local a = home + math.rad(tonumber(h.deg) or 0)
+		local hd = tonumber(h.dist) or 80
+		table.insert(hazards, {
+			id = 900 + i,
+			form = if h.form == "FalseBeacon" then "FalseBeacon" else "Boat",
+			x = x + math.sin(a) * hd,
+			z = z + math.cos(a) * hd,
+		})
+	end
+	local remote = H.botRemote()
+	if remote then
+		for _, pl in Players:GetPlayers() do
+			remote:FireClient(pl, { cmd = "finale_pose", clear = true, hazards = hazards })
+		end
+		local li = tonumber(opts.look)
+		local target = if li then hazards[li] else nil
+		for _, pl in Players:GetPlayers() do
+			if target then
+				remote:FireClient(pl, { cmd = "look", x = target.x, z = target.z })
+			else
+				remote:FireClient(pl, { cmd = "look" })
+			end
+		end
+	end
+	return { result = "posed", boat = { x = round(x), z = round(z) }, hazards = hazards }
+end
+
 function DebugRun.register(driver: any)
+	driver.register("boat_pose", runner("boat_pose", boatPose))
 	H = driver.helpers
 	driver.register("title", runner("title", title))
 	driver.register("rulebook", runner("rulebook", rulebook))

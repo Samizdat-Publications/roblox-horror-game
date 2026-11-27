@@ -487,18 +487,22 @@ Config.Rules = {
 		-- Finale v6: the first aheadCount Neighbor boats show up AHEAD of the boat, this far off
 		-- the bearing home (25 to 45 degrees) and this close (60 to 120 studs), still keeping
 		-- hazardClear off the straight way home. The helm has to steer around them a little.
+		-- 11/27/2026 (readable boats): farther down the way home and nearer the bow line, so a
+		-- boat ahead stays in front of the helm for several seconds instead of sliding out of
+		-- view at once (it was placed at 25 to 45 degrees, 60 to 120 studs, and was off screen
+		-- within about 2 s at full speed). The clearance off the way home is unchanged.
 		aheadCount = 3,
 		aheadMin = 60,
-		aheadMax = 120,
-		aheadAngleMin = math.rad(25),
-		aheadAngleMax = math.rad(45),
+		aheadMax = 170,
+		aheadAngleMin = math.rad(22),
+		aheadAngleMax = math.rad(38),
 		-- M8 polish (Neon finale-v6: the hazards were "tiny faint pixels"): the first crossCount
 		-- of those ahead boats come in across the bow instead, crossAlong studs down the way
 		-- home and only crossExtra studs beyond the clearance (kill distance plus hazardClear)
 		-- off the line: the nearest any hazard is placed, still never on the way home and never
 		-- within kill distance plus hazardClear of it. fx/Finale draws it nearer still (pull).
-		crossCount = 1,
-		crossAlong = { 50, 80 },
+		crossCount = 2, -- 11/27/2026: two of the boats ahead come across the bow (was 1)
+		crossAlong = { 95, 135 }, -- 11/27/2026: was 50 to 80 (off screen within about 2 s)
 		crossExtra = 10,
 		hazardRetry = 1, -- seconds to the next try when no fair spot was found
 		boatDrift = 3, -- a Neighbor boat drifts toward the locked lantern this fast
