@@ -330,7 +330,7 @@ function Input.castButton(down: boolean)
 	end
 end
 
--- Interact: keep the fish, else bank at the dock, else refill at the dock.
+-- Interact: keep the fish, else cut the waiting line, else bank or refill at the dock.
 function Input.interact()
 	if Input.blocked() then
 		return
@@ -339,6 +339,8 @@ function Input.interact()
 	local view = ViewState.get()
 	if phase == "Deciding" then
 		Input.sendIntent("CatchDecision", nil, true)
+	elseif phase == "Waiting" then
+		Input.sendIntent("CutLine")
 	elseif ViewState.atDock() and view.hold > 0 then
 		Input.sendIntent("Bank")
 	elseif ViewState.atDock() and view.refills > 0 and view.oil < 0.9 then

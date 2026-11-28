@@ -13,11 +13,13 @@ local Look = require(Shared:WaitForChild("Look"))
 local Remotes = require(Shared:WaitForChild("Remotes"))
 
 local BoatClient = require(script.Parent:WaitForChild("BoatClient"))
+local Events = require(script.Parent:WaitForChild("Events"))
 
 local Camera = {}
 
 local gazeRemote: RemoteEvent? = nil
 local shotActive = false
+local snapToSeat = false
 
 local function camera(): Camera
 	local cam = Workspace.CurrentCamera
@@ -113,6 +115,10 @@ function Camera.init()
 		task.spawn(onCharacter, player.Character)
 	end
 
+	Events.on("NightStarted", function()
+		snapToSeat = true
+	end)
+
 	-- The view turns with the boat. Without this, a seated first-person camera keeps its world
 	-- direction when the boat turns, so after turning for home the player stares at the side of
 	-- the boat (found in Studio and by Neon on the finale, 11/26/2026). Each frame, after the
@@ -133,9 +139,25 @@ function Camera.init()
 			return
 		end
 		local yaw = seatYaw(seat)
-		if lastSeat ~= seat then
+		local cam = camera()
+		local cf = cam.CFrame
+		if lastSeat ~= seat or snapToSeat then
 			lastSeat = seat
 			lastYaw = yaw
+			snapToSeat = false
+			local clv = cf.LookVector
+			if math.abs(clv.X) + math.abs(clv.Z) > 1e-4 then
+				local camYaw = math.atan2(-clv.X, -clv.Z)
+				local turn = yaw - camYaw
+				if turn > math.pi then
+					turn -= 2 * math.pi
+				elseif turn < -math.pi then
+					turn += 2 * math.pi
+				end
+				if math.abs(turn) > 1e-4 then
+					cam.CFrame = CFrame.new(cf.Position) * CFrame.Angles(0, turn, 0) * cf.Rotation
+				end
+			end
 			return
 		end
 		local delta = yaw - lastYaw
@@ -148,8 +170,6 @@ function Camera.init()
 		if math.abs(delta) < 1e-5 or math.abs(delta) > 1 then
 			return -- no turn, or a teleport: leave the view alone
 		end
-		local cam = camera()
-		local cf = cam.CFrame
 		cam.CFrame = CFrame.new(cf.Position) * CFrame.Angles(0, delta, 0) * cf.Rotation
 	end)
 

@@ -45,8 +45,7 @@ function Prompt.textFor(
 		return if touch then "Tap Use to refill the lantern" else "E  Refill the lantern"
 	end
 	if phase == "Waiting" then
-		-- Touch has no reel-in (X) button: just wait.
-		return if touch then "Wait for the bite." else "Wait for the bite.  X  Reel in"
+		return if touch then "Wait for the bite, or tap Line in." else "Wait for the bite.  X  Reel in"
 	end
 	if phase == "Idle" and not safe then
 		return if touch then "Hold Cast, let go to throw" else "Click or Space  Hold to cast, let go to throw"

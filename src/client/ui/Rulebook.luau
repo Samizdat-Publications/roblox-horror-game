@@ -26,6 +26,7 @@ local client = script.Parent.Parent
 local ViewState = require(client:WaitForChild("ViewState"))
 local LobbyClient = require(client:WaitForChild("LobbyClient"))
 local BoatClient = require(client:WaitForChild("BoatClient"))
+local BoatFx = require(client:WaitForChild("BoatFx"))
 local Paper = require(script.Parent:WaitForChild("Paper"))
 local BookState = require(script.Parent:WaitForChild("BookState"))
 
@@ -199,7 +200,19 @@ end
 local function bookInTheBoat()
 	local part: BasePart? = nil
 	local last = 0
+	local function syncVisibility(pp: BasePart)
+		local hidden = LobbyClient.get().phase == "Title" or BoatFx.capsizing()
+		pp.Transparency = if hidden then 1 else 0
+		local cd = pp:FindFirstChildOfClass("ClickDetector")
+		if cd then
+			cd.MaxActivationDistance = if hidden then 0 else 14
+		end
+	end
 	RunService.Heartbeat:Connect(function()
+		local p = part
+		if p and p.Parent then
+			syncVisibility(p :: BasePart)
+		end
 		local now = os.clock()
 		if now - last < 0.1 then
 			return
@@ -209,7 +222,6 @@ local function bookInTheBoat()
 		if hull == nil then
 			return
 		end
-		local p = part
 		if p == nil or p.Parent == nil then
 			local np = Instance.new("Part")
 			np.Name = "DeadCalmRulebookInBoat"
@@ -224,7 +236,7 @@ local function bookInTheBoat()
 			cd.MaxActivationDistance = 14
 			cd.Parent = np
 			cd.MouseClick:Connect(function()
-				if LobbyClient.get().phase ~= "Title" then
+				if LobbyClient.get().phase ~= "Title" and not BoatFx.capsizing() then
 					BookState.open("rules")
 				end
 			end)
@@ -233,6 +245,7 @@ local function bookInTheBoat()
 			p = np
 		end
 		local pp = p :: BasePart
+		syncVisibility(pp)
 		-- On the stern thwart, beside the helm seat, a little crooked.
 		pp.CFrame = hull.CFrame * CFrame.new(1.6, 1.25, 4.2) * CFrame.Angles(0, 0.35, 0)
 	end)
