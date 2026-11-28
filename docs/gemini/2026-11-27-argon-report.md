@@ -2,7 +2,7 @@
 
 Date: 11/27/2026  
 Baseline commit: `8b5586a` ("Baseline from Claude")  
-Plan: [docs/GEMINI-PLAN.md](docs/GEMINI-PLAN.md)
+Plan: [the plan](2026-11-27-argon-plan.md)
 
 ---
 
@@ -44,9 +44,9 @@ Plan: [docs/GEMINI-PLAN.md](docs/GEMINI-PLAN.md)
 
 Full milestone plan, value-for-effort table, sound pass targets, style pass steps, replay roadmap, mobile optimization notes, and design risk register live in:
 
--> [docs/GEMINI-PLAN.md](docs/GEMINI-PLAN.md)
+-> [the plan](2026-11-27-argon-plan.md)
 
-Summary of milestones in [docs/GEMINI-PLAN.md](docs/GEMINI-PLAN.md):
+Summary of milestones in [the plan](2026-11-27-argon-plan.md):
 - **G1 (`[gemini]` - Done & verified via gate):** Bug 1 (`BoatFx` oar animation), Bug 2 (`Look.Gear.seats` / `FishingService` casts, `RodTip.Axis`, line visibility, drifting tether), touch `Line in`, seat camera snap, `CatchInspect` responsive layout, `Rulebook` Title/capsize hide, sim column clarity.
 - **O1 (`[owner]` - Blocker for playtest):** Private publish, API Services toggle, maturity form, second-account Play invite, 2-device Story Night 1 to 5 playtest (`PLAYTEST_GUIDE.md`).
 - **C1 (`[claude]` - High value):** Visual verify G1 in Studio, execute by-ear sound pass across headphones and 50% phone speaker, add 0.45 s cross-player toggle guard / knock count cue if needed after O1.
@@ -74,7 +74,7 @@ Summary of milestones in [docs/GEMINI-PLAN.md](docs/GEMINI-PLAN.md):
 | Commit | File | Change |
 |---|---|---|
 | `8b5586a` | Repository baseline | Initial commit of unmodified Claude handoff (478 files). |
-| `348be7a` | [docs/GEMINI-PLAN.md](docs/GEMINI-PLAN.md) | Proposed ranked roadmap across G1, O1, C1, O2+C2, and G2/C3 milestones. |
+| `348be7a` | [the plan](2026-11-27-argon-plan.md) | Proposed ranked roadmap across G1, O1, C1, O2+C2, and G2/C3 milestones. |
 | `4d3344a` | [src/client/BoatFx.luau](src/client/BoatFx.luau) | Added `BoatFx.OAR`, shared `createOarAssembly` helper (reused by `thrownOar` and local `oarCopies`), `resetOars()` in `BoatFx.reset()`, and `stepOars(dt, hull)` hiding `OarPort`/`OarStarboard` (`LocalTransparencyModifier = 1`), stowing along gunwales when idle or `motorOn == true`, and sweeping/feathering in the oarlocks synced to `Look.Mix.oarStrokeSeconds` on forward/reverse motion or turning (with teleport spike protection and capsize hiding). |
 | `5563681` | [src/shared/Look.luau](src/shared/Look.luau) | Updated `Look.Gear` (`lineWidth = 0.065`, `lineLightInfluence = 0.35`, `lineLightEmission = 0.15`, `bobberSize = 0.55`, `bobberCapSize = 0.3`), added `Look.Gear.seats` (`HelmSeat` forward-starboard `(0.42, 0, -0.907).Unit`, `BowSeat` forward-port `(-0.32, 0, -0.947).Unit`), and added shared `Look.rodLocal(seat)`. |
 | `5563681` | [src/server/FishingService.luau](src/server/FishingService.luau) | Switched to `Look.Gear.seats` and `Look.rodLocal`, set `RodTip.Axis = Vector3.new(0, -1, 0)` with `curve = 1.4`, applied `Look.Gear` lighting/sizes, and tethered `Waiting`/`Bite` `castAt` within `26` studs horizontally of `rodTipWorld`. |
@@ -112,7 +112,7 @@ Every commit passed all 11 steps of `tools/check.ps1`:
 - **Studio Play verification (`[claude]`, C1):** Deferred to avoid interfering with open Studio windows and because MCP Studio tooling was kept untouched per workspace isolation rules.
 - **By-ear Studio audio mixing (`[claude]`, C1):** Requires live headphones + phone speaker auditioning against `DebugBot` and Night 1 to 5 ambience.
 - **Style look pass & Strange boat hero mesh (`[owner]` + `[claude]`, O2/C2):** Waiting on the owner's son to pick a visual preset from `art/style-board/index.html` and on Blender upload access.
-- **Cross-player toggle guard (`[claude]`, C1) & Supply Pick / Endless Replay / Phone Ring Pooling (`[gemini]` / `[claude]`, G2):** Kept as proposals in [docs/GEMINI-PLAN.md](docs/GEMINI-PLAN.md) rather than touching `src/shared/Core` or adding unrequested gameplay mechanics before the first two-player test.
+- **Cross-player toggle guard (`[claude]`, C1) & Supply Pick / Endless Replay / Phone Ring Pooling (`[gemini]` / `[claude]`, G2):** Kept as proposals in [the plan](2026-11-27-argon-plan.md) rather than touching `src/shared/Core` or adding unrequested gameplay mechanics before the first two-player test.
 
 ---
 
@@ -123,7 +123,7 @@ Every commit passed all 11 steps of `tools/check.ps1`:
    - Verify `HelmSeat` rowing shows both local oars deploying out of the gunwale rests into `HeroBoatInterior` oarlocks and cycling at ~`1.7 s` (`Look.Mix.oarStrokeSeconds`), then stowing smoothly when stopping or toggling the motor (`M`).
    - Cast from both `HelmSeat` and `BowSeat` at night: confirm `HelmSeat` casts forward-starboard into beam light, `BowSeat` clears `LanternPost`/`LanternGlow` to port, and `Beam.CurveSize0 = 1.4` along `RodTip.Axis = (0, -1, 0)` arches downward cleanly.
    - Check Roblox Device Simulator (`705x338` phone) with touch input: test casting -> `"Wait"` / `"Line\nin"` (`CutLine`) -> `CatchInspect` button width against `FieldGuide`.
-3. Audition `SoundRegistry` items listed in Section 2 of [docs/GEMINI-PLAN.md](docs/GEMINI-PLAN.md) (`night-failed-sting`, `knock-pass`, `watcher-lunge`, `hum-mid-voice`, `neighbor-fail`, `lanterns-die`).
+3. Audition `SoundRegistry` items listed in Section 2 of [the plan](2026-11-27-argon-plan.md) (`night-failed-sting`, `knock-pass`, `watcher-lunge`, `hum-mid-voice`, `neighbor-fail`, `lanterns-die`).
 4. If the two-player test (`O1`) shows accidental double-toggles or double-knocks, implement the `0.45 s` cross-player cooldown on `ToggleLantern` / `ToggleMotor` cleanly in `Night.luau`.
 
 ---

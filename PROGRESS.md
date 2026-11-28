@@ -6,7 +6,7 @@ Last updated 11/27/2026, late morning, by the local session (Opus 5.5, orchestra
 
 Stewart paused this game until the fishing game is done. When it resumes: fix the two bugs at the top of "Known issues", then the private publish (HUMAN_TODO item 4, after-the-run section).
 
-**Gemini pass (11/27/2026, evening):** Gemini in Antigravity reviewed the game, wrote `docs/GEMINI-PLAN.md` and `GEMINI-REPORT.md`, and fixed both playtest bugs plus some phone controls. Its five commits are on branch `gemini/argon-pass` (pushed), not on main. Gate green, code skimmed by Claude, but nothing seen in Studio yet. When work resumes: check the oars and the cast line in Studio on that branch, then merge. Its root cause for the missing line: the helm seat cast backward, behind the player's view.
+**Gemini pass (11/27/2026, evening):** Gemini in Antigravity reviewed the game, wrote `docs/GEMINI-PLAN.md` and `GEMINI-REPORT.md`, and fixed both playtest bugs plus some phone controls. Stewart had it merged into main the same evening (branch `gemini/argon-pass`). Gate green, code skimmed by Claude, but nothing seen in Studio yet. When work resumes: check the oars and the cast line in Studio first. Its root cause for the missing line: the helm seat cast backward, behind the player's view. Its report and plan are in `docs/gemini/`. Stewart plans a second pass with Gemini Neon (brief: `docs/prompts/antigravity-brief.md`).
 
 ## Morning summary for Stewart
 
@@ -62,7 +62,7 @@ To play: double-click `C:\Users\stewa\Documents\Claude\Roblox\dead-calm\DeadCalm
 
 ## Known issues
 
-- **Found by Stewart's first hands-on play (11/27/2026), fix first when work resumes:** (1) the oars stay still while the boat rows forward; (2) pressing Space to cast shows no line or bobber, yet the game treats the line as in the water (the "press X to reel" prompt appears). Both read as missing client visuals, not broken rules: check the oar animation and the cast/line/bobber presentation in the client fx against the hero-model boat (M9 swapped the boat mesh, which may have orphaned the oar and rod attachments).
+- **Found by Stewart's first hands-on play (11/27/2026). Fixed in code by the Gemini pass (merged 11/27/2026); confirm in Studio first when work resumes:** (1) the oars stay still while the boat rows forward; (2) pressing Space to cast shows no line or bobber, yet the game treats the line as in the water (the "press X to reel" prompt appears). Both read as missing client visuals, not broken rules: check the oar animation and the cast/line/bobber presentation in the client fx against the hero-model boat (M9 swapped the boat mesh, which may have orphaned the oar and rod attachments).
 
 - Up close the strange boat's figure is still blocky (Neon "creepy" 5 of 10); a Blender figure like the M9 Watcher would fix it.
 - `tools/critic/critic.py consult` returns empty answers on Neon; use `tools/critic/ask.py` (streaming). Studio video capture stops at 30 s per recording; start recordings after a scenario's reset.

@@ -19,10 +19,14 @@ Read in this order: `README.md`, `PROGRESS.md`, `docs/DESIGN.md`, `docs/ARCHITEC
 - Content: scary, not disturbing. No blood, gore, injury or bodies. Deaths are a fade to black and a sound.
 - The repo is public: never write a child's age, a Roblox account name or an email anywhere.
 
+## An earlier pass
+
+A first Gemini pass (Argon, 11/27/2026) is already merged. Its report and plan are in `docs/gemini/`. It changed the oar animation, the cast direction and line look, and some phone controls, none of it seen in Studio. Treat its work like anyone else's: check it, keep what is right, fix what is not, and say which in your report. Do not overwrite its files; write yours as new files.
+
 ## The work, in priority order
 
 1. **Feedback.** Read the design and the code as a senior Roblox developer and a horror designer. What is strong, what is weak, what would you cut, what is risky for players on phones, what is missing before a first two-player test. Be specific: file and line where it helps.
-2. **Fix the two bugs from Stewart's first hands-on play (11/27/2026).**
+2. **Check the fixes for the two bugs from Stewart's first hands-on play (11/27/2026).** The earlier pass fixed them in code; confirm the fix is right, ideally in Studio, and repair it if not.
    - The oars stay still while the boat rows forward.
    - Pressing Space to cast shows no line or bobber, yet the game treats the line as in the water (the "press X to reel" prompt appears).
    Both look like missing client visuals, not broken rules. A likely cause: milestone M9 laid Blender hero meshes over the part-built boat (`src/server/HeroModels.luau`, `src/shared/HeroLook.luau`), which may have hidden or orphaned the parts the oar animation and the fishing line attach to. Start with `src/client/BoatFx.luau`, `src/server/world/BoatHull.luau`, `src/server/FishingService.luau` and `src/server/HeroModels.luau`. Find the real cause before changing anything, and explain it in your report.
@@ -42,5 +46,5 @@ cd "<this folder>"; powershell -ExecutionPolicy Bypass -File ".\tools\check.ps1"
 
 1. Before you change anything, make a baseline commit so your work can be diffed: `git init`, `git add -A`, `git commit -m "Baseline from Claude"`. (`BASE_COMMIT.txt` names the matching commit in Claude's repo.)
 2. Commit your work in small commits with clear messages.
-3. Write `GEMINI-REPORT.md` in the folder root with these sections: Feedback; Changes made (file by file, and why); How each change was verified (gate output, Studio checks); Not done, and why; Suggestions for Claude.
+3. Write `GEMINI-REPORT.md` in the folder root (and any plan as `docs/GEMINI-PLAN.md`) with these sections: Feedback; Changes made (file by file, and why); How each change was verified (gate output, Studio checks); Not done, and why; Suggestions for Claude.
 4. Zip the whole folder, including the `.git` folder, as `dont-wave-back-from-gemini.zip` and tell Stewart where it is.
