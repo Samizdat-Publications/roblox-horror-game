@@ -6,6 +6,8 @@ Last updated 11/27/2026, late morning, by the local session (Opus 5.5, orchestra
 
 Stewart paused this game until the fishing game is done. When it resumes: fix the two bugs at the top of "Known issues", then the private publish (HUMAN_TODO item 4, after-the-run section).
 
+**Gemini pass (11/27/2026, evening):** Gemini in Antigravity reviewed the game, wrote `docs/GEMINI-PLAN.md` and `GEMINI-REPORT.md`, and fixed both playtest bugs plus some phone controls. Its five commits are on branch `gemini/argon-pass` (pushed), not on main. Gate green, code skimmed by Claude, but nothing seen in Studio yet. When work resumes: check the oars and the cast line in Studio on that branch, then merge. Its root cause for the missing line: the helm seat cast backward, behind the player's view.
+
 ## Morning summary for Stewart
 
 The overnight run is finished: M0 to M8 are built, and the final self-review and its audit are done (`docs/SELF-REVIEW.md`, `docs/AUDIT-11-27-2026.md`). Everything is committed and pushed. The build log has the pictures: https://claude.ai/artifact/GQrZM4KSA6mkBg4XUWYN7T
