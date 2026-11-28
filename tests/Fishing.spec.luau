@@ -3,6 +3,7 @@ return function(t, Shared)
 	local Fishing = require(Shared.Core.Fishing)
 	local Rng = require(Shared.Core.Rng)
 	local Config = require(Shared.Config)
+	local Look = require(Shared.Look)
 	local F = Config.Fishing
 
 	local function opts(over)
@@ -195,5 +196,25 @@ return function(t, Shared)
 		end
 		local full, quarter = meanWait(1), meanWait(0.25)
 		t.ok(quarter > full * 2.5, string.format("wait %.1f s at 0.25 vs %.1f s at 1", quarter, full))
+	end)
+
+	t.test("seat cast angles aim forward in view and clear of hull and lantern", function()
+		local helm = Look.Gear.seats.HelmSeat
+		local bow = Look.Gear.seats.BowSeat
+		t.ok(helm ~= nil and bow ~= nil, "HelmSeat and BowSeat exist")
+		-- Bow is -Z in BoatHull coordinates: both seats cast forward into the player's view.
+		t.ok(helm.dir.Z < -0.8, string.format("HelmSeat casts forward (z=%.2f)", helm.dir.Z))
+		t.ok(bow.dir.Z < -0.8, string.format("BowSeat casts forward (z=%.2f)", bow.dir.Z))
+		-- Divergent lateral angles keep Player 1 and Player 2 lines separated.
+		t.ok(helm.dir.X > 0.3, "HelmSeat casts starboard-forward")
+		t.ok(bow.dir.X < -0.2, "BowSeat casts port-forward")
+
+		local _, helmTip = Look.rodLocal("HelmSeat")
+		t.ok(helmTip.X > 2.8, string.format("Helm rod tip clears starboard gunwale (x=%.2f)", helmTip.X))
+
+		local bowBase, bowTip = Look.rodLocal("BowSeat")
+		t.ok(bowTip.X < -1.0 and bowTip.Z < -8.0, "Bow rod tip clears port bow")
+		-- Bow lantern post is along x=0 at z=-7.4..-8.55; keep BowSeat rod wholly to port.
+		t.ok(bowBase.X < -0.5 and bowTip.X < -1.0, "Bow rod stays port of bow lantern post")
 	end)
 end
