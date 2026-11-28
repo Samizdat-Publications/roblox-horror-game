@@ -248,7 +248,7 @@ local lines = {
 	"",
 	"## Rule-following bot (book as printed)",
 	"",
-	"| Night | Crew | Quota | Survival | Quota rate | Time to quota (median) | Real scares min/med/max | Fake-outs min/med/max | Shortest real gap (s) | Banked (median) |",
+	"| Night | Crew | Quota | Survival | Quota rate | Time to quota (median) | Real scares min/med/max | Fake-outs min/med/max | Shortest start-to-start gap (s) | Banked (median) |",
 	"|---|---|---|---|---|---|---|---|---|---|",
 }
 for _, c in cells do

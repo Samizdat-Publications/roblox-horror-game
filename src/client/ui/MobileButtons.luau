@@ -187,13 +187,15 @@ local function phaseLabel(): (string, string)
 	local pv = ViewState.me()
 	local view = ViewState.get()
 	local phase = if pv then pv.fishing else "None"
-	local cast = if phase == "Bite" or phase == "Reeling" or phase == "Waiting" then "Reel" else "Cast"
+	local cast = if phase == "Bite" or phase == "Reeling" then "Reel" elseif phase == "Waiting" then "Wait" else "Cast"
 	local use = "Use"
 	local flood = tonumber(view.flood) or 0
 	if phase == "Deciding" then
 		use = "Keep"
 	elseif flood > 0.005 then
 		use = "Bail"
+	elseif phase == "Waiting" then
+		use = "Line\nin"
 	elseif ViewState.atDock() and view.hold > 0 then
 		use = "Bank"
 	elseif ViewState.atDock() and view.refills > 0 and view.oil < 0.9 then

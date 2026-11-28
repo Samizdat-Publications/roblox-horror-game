@@ -31,15 +31,6 @@ FishingService.FOLDER = "DeadCalmFishing"
 FishingService.GUIDE_FOLDER = "DeadCalmFieldGuide"
 FishingService.GROUP = "Boat"
 
--- Seat positions in the hull's local frame (BoatHull: forward is -Z, port is -X) and the
--- direction each seat casts.
-local SEATS: { [string]: { pos: Vector3, dir: Vector3 } } = {
-	BowSeat = { pos = Vector3.new(0, 0.95, -5.2), dir = Vector3.new(0, 0, -1) },
-	PortSeat = { pos = Vector3.new(-1.15, 0.95, -1.4), dir = Vector3.new(-1, 0, 0) },
-	StarboardSeat = { pos = Vector3.new(1.15, 0.95, -1.4), dir = Vector3.new(1, 0, 0) },
-	HelmSeat = { pos = Vector3.new(0, 0.95, 4.4), dir = Vector3.new(0.7, 0, 0.7).Unit },
-}
-
 type Line = {
 	userId: number,
 	seat: string,
@@ -63,13 +54,6 @@ local serialCounter = 0
 local clock = 0
 local ctx = { parts = Parts, look = Look }
 
-local function rodLocal(seat: string): (Vector3, Vector3)
-	local s = SEATS[seat] or SEATS.HelmSeat
-	local base = s.pos + Vector3.new(0, 0.6, 0) + s.dir * 0.6
-	local tip = base + s.dir * 3.2 + Vector3.new(0, 2.6, 0)
-	return base, tip
-end
-
 local function weldToHull(part: BasePart, hull: BasePart)
 	part.Massless = true
 	local w = Instance.new("WeldConstraint")
@@ -78,11 +62,11 @@ local function weldToHull(part: BasePart, hull: BasePart)
 	w.Parent = part
 end
 
--- One rod per seat, leaning out over the side the seat faces.
+-- One rod per seat, leaning out over the side the seat casts toward.
 local function buildRods()
 	local b = BoatService.get()
-	for name in SEATS do
-		local base, tip = rodLocal(name)
+	for name in Look.Gear.seats do
+		local base, tip = Look.rodLocal(name)
 		local mid = (base + tip) / 2
 		local len = (tip - base).Magnitude
 		local cf = b.hull.CFrame * CFrame.lookAt(mid, tip)
@@ -98,6 +82,8 @@ local function buildRods()
 		local att = Instance.new("Attachment")
 		att.Name = "RodTip"
 		att.Position = Vector3.new(0, 0, -len / 2)
+		-- Curve downward toward the water rather than sideways along the default +X attachment axis.
+		att.Axis = Vector3.new(0, -1, 0)
 		att.Parent = rod
 		rods[name] = { part = rod, tip = att }
 	end
@@ -135,7 +121,7 @@ end
 local function seatName(userId: number): string
 	local p = Players:GetPlayerByUserId(userId)
 	local seat = p and BoatService.seatOf(p)
-	if seat and SEATS[seat.Name] then
+	if seat and Look.Gear.seats[seat.Name] then
 		return seat.Name
 	end
 	return "HelmSeat"
@@ -198,7 +184,8 @@ local function makeBeam(parent: Instance, a0: Attachment, a1: Attachment, curve:
 	beam.Segments = 12
 	beam.CurveSize0 = curve
 	beam.CurveSize1 = 0
-	beam.LightInfluence = 1
+	beam.LightInfluence = Look.Gear.lineLightInfluence
+	beam.LightEmission = Look.Gear.lineLightEmission
 	beam.Parent = parent
 	return beam
 end
@@ -219,15 +206,18 @@ local function onCast(l: Line, power: number)
 		return
 	end
 	local hull = BoatService.get().hull
-	local s = SEATS[l.seat] or SEATS.HelmSeat
-	local _, tipLocal = rodLocal(l.seat)
+	local s = Look.Gear.seats[l.seat] or Look.Gear.seats.HelmSeat
+	local _, tipLocal = Look.rodLocal(l.seat)
 	local reach = 6 + math.clamp(power, 0, 1) * 8
 	local p = hull.CFrame:PointToWorldSpace(tipLocal + s.dir * reach)
 	local at = Vector3.new(p.X, Config.Lake.waterY + 0.1, p.Z)
+	local bs = Look.Gear.bobberSize
+	local cs = Look.Gear.bobberCapSize
+	local capOffset = bs * 0.52
 	local bobber = Parts.block(
 		f,
 		"Bobber_" .. l.userId,
-		Vector3.new(0.45, 0.45, 0.45),
+		Vector3.new(bs, bs, bs),
 		CFrame.new(at),
 		Look.Gear.bobber,
 		Enum.Material.SmoothPlastic,
@@ -243,8 +233,8 @@ local function onCast(l: Line, power: number)
 	local cap = Parts.block(
 		bobber,
 		"Cap",
-		Vector3.new(0.2, 0.2, 0.2),
-		CFrame.new(at + Vector3.new(0, 0.25, 0)),
+		Vector3.new(cs, cs, cs),
+		CFrame.new(at + Vector3.new(0, capOffset, 0)),
 		Look.Gear.bobberCap,
 		Enum.Material.SmoothPlastic,
 		{
@@ -256,11 +246,11 @@ local function onCast(l: Line, power: number)
 			shape = "Ball",
 		}
 	)
-	cap:SetAttribute("Offset", 0.25)
+	cap:SetAttribute("Offset", capOffset)
 	local att = Instance.new("Attachment")
 	att.Name = "LineEnd"
 	att.Parent = bobber
-	l.beam = makeBeam(bobber, r.tip, att, -1.5)
+	l.beam = makeBeam(bobber, r.tip, att, 1.4)
 	l.bobber, l.bobberAtt, l.castAt = bobber, att, at
 	l.phase = "Waiting"
 	l.t = 0
@@ -417,6 +407,19 @@ function FishingService.step(dt: number, view: NightView?)
 		local pv = byId[id]
 		if l.bobber and l.castAt then
 			local at = l.castAt :: Vector3
+			if l.phase == "Waiting" or l.phase == "Bite" then
+				-- Keep the floating bobber tethered within reach if the boat drifts or rows slowly.
+				local tip = rodTipWorld(l.seat)
+				if tip then
+					local flat = Vector3.new(at.X - tip.X, 0, at.Z - tip.Z)
+					local maxReach = 26
+					if flat.Magnitude > maxReach then
+						local clamped = tip + flat.Unit * maxReach
+						at = Vector3.new(clamped.X, wy + 0.1, clamped.Z)
+						l.castAt = at
+					end
+				end
+			end
 			if l.phase == "Waiting" then
 				placeBobber(l, at + Vector3.new(0, 0.05 * math.sin(l.t * 2.2), 0))
 			elseif l.phase == "Bite" then

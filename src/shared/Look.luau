@@ -418,14 +418,34 @@ Look.Fish = {
 }
 
 -- Fishing gear (server FishingService).
+export type SeatGear = { pos: Vector3, dir: Vector3 }
+
 Look.Gear = {
 	rod = Color3.fromRGB(60, 45, 30),
 	line = Color3.fromRGB(205, 205, 190),
-	lineWidth = 0.04,
+	lineWidth = 0.065,
+	lineLightInfluence = 0.35,
+	lineLightEmission = 0.15,
 	bobber = Color3.fromRGB(190, 45, 32),
 	bobberCap = Color3.fromRGB(230, 225, 210),
+	bobberSize = 0.55,
+	bobberCapSize = 0.3,
 	token = Color3.fromRGB(150, 150, 140), -- the fish shapes on the hold lid
+	seats = {
+		BowSeat = { pos = Vector3.new(-0.55, 0.95, -5.2), dir = Vector3.new(-0.32, 0, -0.947).Unit },
+		PortSeat = { pos = Vector3.new(-1.15, 0.95, -1.4), dir = Vector3.new(-1, 0, 0) },
+		StarboardSeat = { pos = Vector3.new(1.15, 0.95, -1.4), dir = Vector3.new(1, 0, 0) },
+		HelmSeat = { pos = Vector3.new(1.25, 0.95, 2.8), dir = Vector3.new(0.42, 0, -0.907).Unit },
+	} :: { [string]: SeatGear },
 }
+
+-- Local base and tip of the rod mounted at `seat` in Hull coordinates (forward is -Z, port -X).
+function Look.rodLocal(seat: string): (Vector3, Vector3)
+	local s = Look.Gear.seats[seat] or Look.Gear.seats.HelmSeat
+	local base = s.pos + Vector3.new(0, 0.6, 0) + s.dir * 0.6
+	local tip = base + s.dir * 3.2 + Vector3.new(0, 2.6, 0)
+	return base, tip
+end
 
 -- UI: paper and ink.
 Look.UI = {

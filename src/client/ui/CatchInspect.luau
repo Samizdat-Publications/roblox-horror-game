@@ -39,6 +39,8 @@ local TAIL_TEXT = { Forked = "forked", Round = "round", Square = "square", Uneve
 
 local card: Frame? = nil
 local buttons: Frame? = nil
+local keepBtn: TextButton? = nil
+local backBtn: TextButton? = nil
 local timerFill: Frame? = nil
 local viewport: ViewportFrame? = nil
 local labels: { [string]: TextLabel } = {}
@@ -283,11 +285,35 @@ local function frameHeld(h: Model)
 	heldRel = frame:ToObjectSpace(h:GetPivot())
 end
 
+local function fitButtons()
+	local b, k, back = buttons, keepBtn, backBtn
+	if b == nil or k == nil or back == nil then
+		return
+	end
+	local touch = Input.touch()
+	k.Text = if touch then "Keep" else "Keep  (E)"
+	back.Text = if touch then "Throw back" else "Throw back  (X)"
+	local cam = Workspace.CurrentCamera
+	local vw = if cam then cam.ViewportSize.X else 1024
+	local cardLeft = math.max(vw - 20 - math.min(470, vw * 0.42), 0)
+	local totalW = math.min(380, math.max(220, math.floor(cardLeft - 28)))
+	local gap = if totalW < 340 then 12 else 20
+	local btnW = math.floor((totalW - gap) / 2)
+	local centerX = math.floor(math.min(vw * 0.29, cardLeft - 14 - totalW / 2))
+	b.Size = UDim2.fromOffset(totalW, 76)
+	b.Position = UDim2.new(0, centerX, 1, -40)
+	k.Size = UDim2.fromOffset(btnW, 56)
+	k.Position = UDim2.fromOffset(0, 0)
+	back.Size = UDim2.fromOffset(btnW, 56)
+	back.Position = UDim2.fromOffset(btnW + gap, 0)
+end
+
 local function open(species: string, serial: number?)
 	close()
 	active = true
 	openAt = clock
 	fillGuide(species)
+	fitButtons()
 	local c, b = card, buttons
 	if c then
 		c.Visible = true
@@ -390,13 +416,14 @@ local function build()
 	b.Visible = false
 	b.Parent = g
 	buttons = b
-	-- No key hints on a phone (found in the Device Simulator, 11/26/2026).
-	local touch = Input.touch()
-	local keep = Paper.button(b, "Keep", if touch then "Keep" else "Keep  (E)", UDim2.fromOffset(180, 56))
+	-- No key hints on a phone (found in the Device Simulator, 11/26/2026); fitButtons updates labels and width.
+	local keep = Paper.button(b, "Keep", "Keep", UDim2.fromOffset(180, 56))
 	keep.Position = UDim2.fromOffset(0, 0)
-	local back =
-		Paper.button(b, "ThrowBack", if touch then "Throw back" else "Throw back  (X)", UDim2.fromOffset(180, 56))
+	keepBtn = keep
+	local back = Paper.button(b, "ThrowBack", "Throw back", UDim2.fromOffset(180, 56))
 	back.Position = UDim2.fromOffset(200, 0)
+	backBtn = back
+	fitButtons()
 	keep.Activated:Connect(function()
 		decide(true)
 	end)
@@ -438,6 +465,10 @@ end
 
 function CatchInspect.init()
 	build()
+	local viewportCam = Workspace.CurrentCamera
+	if viewportCam then
+		viewportCam:GetPropertyChangedSignal("ViewportSize"):Connect(fitButtons)
+	end
 	local folder = Instance.new("Folder")
 	folder.Name = "DeadCalmInspect"
 	folder.Parent = Workspace

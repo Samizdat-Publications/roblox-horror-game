@@ -108,6 +108,23 @@ BoatFx.MOTOR_EXHAUST = {
 	rise = 1.6, -- upward acceleration, studs per second squared
 	aft = 0.8, -- drift toward the stern, studs per second squared
 }
+-- Local animated oars replacing the static hull oars during normal frames.
+BoatFx.OAR = {
+	parts = {
+		{ name = "OarPort", side = -1 },
+		{ name = "OarStarboard", side = 1 },
+	},
+	pivotAlong = -1.95, -- z in oar geometry aligned with the gunwale oarlock
+	rowlock = Vector3.new(2.72, 2.05, -1.2), -- gunwale oarlock position (X multiplied by side)
+	stowed = Vector3.new(1.9, 1.15, 2.15), -- stowed pivot so resting oars align with BoatHull
+	sweepRad = 0.42,
+	pitchMean = 0.27, -- ~15.5 deg downward tilt so blades dip cleanly into y=0 and clear gunwales
+	pitchAmp = 0.18,
+	yawTurnGain = 0.85,
+	turnThreshold = 0.12, -- rad/s yaw rate to animate oars when pivoting from rest
+	deployRate = 5,
+	stowRate = 2.5,
+}
 -- Polish round 2 (orchestrator frames: a huge pail and a white disc filled the lower left at
 -- the capsize). Debris starts at the gunwale away from the camera and is thrown outward; no
 -- item's center comes closer than `minCamDist` plus its own radius. The splashes and the foam
@@ -147,6 +164,21 @@ local scoopT: { [number]: number } = {}
 
 -- The motor's local stand-in.
 local motorCopies: { { part: BasePart, real: BasePart } } = {}
+-- The oars' local animated stand-ins (port = -1, starboard = +1).
+type OarPiece = { part: BasePart, offset: CFrame }
+type OarCopy = {
+	realName: string,
+	side: number,
+	real: BasePart?,
+	pieces: { OarPiece },
+	phase: number,
+	blend: number,
+}
+local oarCopies: { OarCopy } = {}
+local oarHullPos: Vector3? = nil
+local oarHullLook: Vector3? = nil
+local oarFwdSmooth = 0
+local oarTurnSmooth = 0
 -- The capsize: a local copy of the boat that rolls, and the camera rolls with it.
 local capsizeCopy: Model? = nil
 local capsizeHidden: { BasePart } = {}
@@ -347,6 +379,22 @@ local function spray(cf: CFrame, count: number, speedMul: number?)
 	end)
 end
 
+local function resetOars()
+	for _, entry in oarCopies do
+		for _, piece in entry.pieces do
+			piece.part:Destroy()
+		end
+		if entry.real and entry.real.Parent then
+			entry.real.LocalTransparencyModifier = 0
+		end
+	end
+	oarCopies = {}
+	oarHullPos = nil
+	oarHullLook = nil
+	oarFwdSmooth = 0
+	oarTurnSmooth = 0
+end
+
 function BoatFx.reset()
 	buzzTarget, buzzLevel = 0, 0
 	shiverTarget, shiverLevel = 0, 0
@@ -359,6 +407,7 @@ function BoatFx.reset()
 		l:Destroy()
 		floodLoop = nil
 	end
+	resetOars()
 	BoatFx.clearCamera()
 end
 
@@ -468,6 +517,167 @@ local function stepMotor()
 			-- Up and aft in the world as the boat turns (Acceleration is in world space).
 			exhaust.Acceleration = c.real.CFrame.LookVector * -BoatFx.MOTOR_EXHAUST.aft
 				+ Vector3.new(0, BoatFx.MOTOR_EXHAUST.rise, 0)
+		end
+	end
+end
+
+----------------------------------------------------------------------------------------
+-- The oars sweep through the oarlocks while rowing and stow when idle or motoring
+
+local function createOarAssembly(
+	prefix: string,
+	at: CFrame,
+	pivotAlong: number,
+	parent: Instance?
+): ({ OarPiece }, BasePart)
+	local wood = Look.Palette.boatWood:Lerp(Color3.new(1, 1, 1), 0.35)
+	local along = CFrame.Angles(0, math.rad(90), 0) -- the Cylinder's X axis along the oar (Z)
+	local shift = -pivotAlong
+	local specs = {
+		{
+			name = "Shaft",
+			size = Vector3.new(5.2, 0.24, 0.24),
+			off = CFrame.new(0, 0, shift) * along,
+			color = wood,
+			cyl = true,
+		},
+		{
+			name = "Grip",
+			size = Vector3.new(0.7, 0.3, 0.3),
+			off = CFrame.new(0, 0, -2.75 + shift) * along,
+			color = wood:Lerp(Color3.new(0, 0, 0), 0.3),
+			cyl = true,
+		},
+		{
+			name = "Blade",
+			size = Vector3.new(0.7, 0.1, 1.6),
+			off = CFrame.new(0, 0, 3.3 + shift),
+			color = wood,
+			cyl = false,
+		},
+	}
+	local pieces: { OarPiece } = {}
+	for _, spec in specs do
+		local opts: Common.PartOpts = {
+			parent = parent,
+			shape = if spec.cyl then Enum.PartType.Cylinder else nil,
+		}
+		local part = Common.part(prefix .. spec.name, spec.size, at * spec.off, spec.color, Enum.Material.Wood, opts)
+		table.insert(pieces, { part = part, offset = spec.off })
+	end
+	return pieces, pieces[1].part
+end
+
+local function oarPose(side: number, blend: number, phase: number): CFrame
+	local O = BoatFx.OAR
+	local stowedPos = Vector3.new(side * O.stowed.X, O.stowed.Y, O.stowed.Z)
+	local lockPos = Vector3.new(side * O.rowlock.X, O.rowlock.Y, O.rowlock.Z)
+	local pos = stowedPos:Lerp(lockPos, blend)
+	local dip = math.sin(phase)
+	local sweep = math.cos(phase) * O.sweepRad
+	local yaw = side * (math.pi - blend * (math.pi / 2 - sweep))
+	local pitch = blend * (O.pitchMean + O.pitchAmp * dip)
+	local feather = blend * (math.pi / 2) * math.clamp(0.5 + 0.65 * dip, 0, 1)
+	return CFrame.new(pos) * CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0) * CFrame.Angles(0, 0, feather)
+end
+
+local function ensureOarCopies(hull: BasePart)
+	local count = #BoatFx.OAR.parts
+	local ok = #oarCopies == count
+	if ok then
+		for _, entry in oarCopies do
+			local real = entry.real
+			if real == nil or real.Parent == nil or real ~= BoatClient.part(entry.realName) then
+				ok = false
+				break
+			end
+		end
+	end
+	if ok then
+		return
+	end
+	resetOars()
+	for _, spec in BoatFx.OAR.parts do
+		local real = BoatClient.part(spec.name)
+		if real == nil then
+			resetOars()
+			return
+		end
+		local pieces = createOarAssembly("Local" .. spec.name, hull.CFrame, BoatFx.OAR.pivotAlong, nil)
+		table.insert(oarCopies, {
+			realName = spec.name,
+			side = spec.side,
+			real = real,
+			pieces = pieces,
+			phase = 0,
+			blend = 0,
+		})
+	end
+end
+
+local function stepOars(dt: number, hull: BasePart)
+	ensureOarCopies(hull)
+	if #oarCopies == 0 then
+		return
+	end
+	local O = BoatFx.OAR
+	local pos = hull.Position
+	local lookVec = hull.CFrame.LookVector
+	local flatLook = Vector3.new(lookVec.X, 0, lookVec.Z)
+	local flatLen = flatLook.Magnitude
+	local dir = if flatLen > 1e-4 then flatLook / flatLen else Vector3.new(0, 0, -1)
+
+	local fwdRaw, turnRaw = 0, 0
+	if oarHullPos ~= nil and oarHullLook ~= nil and dt > 0 then
+		local dp = pos - (oarHullPos :: Vector3)
+		if dp.Magnitude <= math.max(10, Config.Boat.motorSpeed * dt * 2.5) then
+			fwdRaw = (dp.X * dir.X + dp.Z * dir.Z) / dt
+			local prev = oarHullLook :: Vector3
+			local crossY = prev.Z * dir.X - prev.X * dir.Z
+			turnRaw = math.clamp(-crossY / dt, -2, 2)
+		else
+			oarFwdSmooth = 0
+			oarTurnSmooth = 0
+		end
+	end
+	oarHullPos = pos
+	oarHullLook = dir
+
+	local alpha = math.min(1, dt * 8)
+	oarFwdSmooth += (fwdRaw - oarFwdSmooth) * alpha
+	oarTurnSmooth += (turnRaw - oarTurnSmooth) * alpha
+
+	local motorOn = ViewState.get().motorOn == true
+	local active = not motorOn
+		and (math.abs(oarFwdSmooth) > Config.Boat.stillSpeed or math.abs(oarTurnSmooth) > O.turnThreshold)
+	local fwdNorm = if math.abs(oarFwdSmooth) > Config.Boat.stillSpeed
+		then math.clamp(oarFwdSmooth / Config.Boat.rowSpeed, -1.25, 1.25)
+		else 0
+	if fwdNorm ~= 0 and math.abs(fwdNorm) < 0.6 then
+		fwdNorm = if fwdNorm > 0 then 0.6 else -0.6
+	end
+	local turnNorm = if math.abs(oarTurnSmooth) > O.turnThreshold then math.clamp(oarTurnSmooth, -1, 1) else 0
+	local hidden = capsizeCopy ~= nil
+	local cycleRate = (2 * math.pi) / Look.Mix.oarStrokeSeconds
+
+	for _, entry in oarCopies do
+		local real = entry.real
+		if real == nil or real.Parent == nil then
+			continue
+		end
+		real.LocalTransparencyModifier = 1
+		if active then
+			entry.blend = math.min(1, entry.blend + dt * O.deployRate)
+			local sideDrive = math.clamp(fwdNorm - entry.side * turnNorm * O.yawTurnGain, -1.35, 1.35)
+			entry.phase = (entry.phase + cycleRate * sideDrive * dt) % (2 * math.pi)
+		else
+			entry.blend = math.max(0, entry.blend - dt * O.stowRate)
+		end
+		local oarCF = hull.CFrame * capsizeRoll * oarPose(entry.side, entry.blend, entry.phase)
+		local tr = if hidden then 1 else real.Transparency
+		for _, piece in entry.pieces do
+			piece.part.CFrame = oarCF * piece.offset
+			piece.part.Transparency = tr
 		end
 	end
 end
@@ -656,32 +866,7 @@ end
 local function thrownOar(at: CFrame): Model
 	local m = Instance.new("Model")
 	m.Name = "ThrownOar"
-	local wood = Look.Palette.boatWood:Lerp(Color3.new(1, 1, 1), 0.35)
-	local along = CFrame.Angles(0, math.rad(90), 0) -- the Cylinder's X axis along the oar (Z)
-	local shaft = Common.part(
-		"Shaft",
-		Vector3.new(5.2, 0.24, 0.24),
-		at * along,
-		wood,
-		Enum.Material.Wood,
-		{ shape = Enum.PartType.Cylinder, parent = m }
-	)
-	Common.part(
-		"Grip",
-		Vector3.new(0.7, 0.3, 0.3),
-		at * CFrame.new(0, 0, -2.75) * along,
-		wood:Lerp(Color3.new(0, 0, 0), 0.3),
-		Enum.Material.Wood,
-		{ shape = Enum.PartType.Cylinder, parent = m }
-	)
-	Common.part(
-		"Blade",
-		Vector3.new(0.7, 0.1, 1.6),
-		at * CFrame.new(0, 0, 3.3),
-		wood,
-		Enum.Material.Wood,
-		{ parent = m }
-	)
+	local _, shaft = createOarAssembly("", at, 0, m)
 	m.PrimaryPart = shaft
 	return m
 end
@@ -1156,6 +1341,7 @@ function BoatFx.init()
 		end
 		stepFlood(dt, hull)
 		stepMotor()
+		stepOars(dt, hull)
 		stepCapsize()
 		if rings then
 			ringT -= dt
